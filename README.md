@@ -1,89 +1,107 @@
-# 🎨 ArtWallpaper Manager
+# 🎨 ArtWallpaper Manager v2.0.0
 
-> Because staring at the same wallpaper for months should be considered a crime against creativity.
+> Because staring at the same wallpaper for months is like eating the same breakfast for a year - technically possible, but why would you do that to yourself?
 
-I built this because I got tired of looking at the same mountain landscape every day (you know the one). Now my desktop changes automatically with beautiful artwork from Unsplash, and my productivity has increased by at least 3% (results may vary).
+Turn your desktop into a daily art gallery! I built this because I got tired of looking at the same mountain landscape every day (sorry mountain, it's not you, it's me). Now my desktop transforms itself with beautiful curated artwork, and my productivity has skyrocketed by at least 3%* 
 
-## ✨ Features That Spark Joy
+*Results may vary. Side effects may include frequent distractions due to stunning artwork.
 
-- 🎨 Automatic wallpaper rotation (because decision fatigue is real)
-- 🕒 24-hour refresh cycle (customization coming soon!)
-- 💾 Smart caching (works offline, because internet isn't forever)
-- 🔄 Previous/Next navigation (for when the algorithm picks something your cat doesn't like)
-- 🖼️ High-quality processing (no more pixelated monstrosities)
-- 🎯 Clean UI (because life is complicated enough)
+## 🌟 What's New in 2.0?
 
-## 🚀 Getting Started
+- ⏰ **Time Lord Mode**: Choose exactly when your wallpaper changes! (7 AM with coffee? Done!)
+- 🎨 **No More Repeats**: Smart history tracking ensures fresh art every time
+- 🚀 **Auto-Start**: Launches automatically with Windows (because who has time for manual launches?)
+- ⚡ **Improved Performance**: Faster image loading and better error handling
+- 🛠️ **Working Settings**: All settings now persist between launches (we fixed it!)
+- 🎯 **Better Curation**: Enhanced artwork selection from Unsplash
 
-### Requirements
-- Java 17+ (Java 17-23 supported)
-- Windows OS (Mac users, we still love you, but from a distance for now)
-- Internet connection (for fresh artwork)
-- A desire for change in your life
+## ✨ Features That Make You Go "Ooooh"
 
-### Quick Start
-1. Head to [Releases](https://github.com/Princeyyyy/art-wallpaper/releases/tag/untagged-1f6b94a3a1925a249caa) and grab the latest `.msi` installer
-   (it's the one that says `ArtWallpaper-1.0.0.msi` - fancy, right?)
-2. Double-click that bad boy and follow the installer
-   (Yes, it's that simple. No, there's no catch)
-3. Launch ArtWallpaper from your Start Menu
-   (Auto-start is coming soon™, for now you'll have to exercise those clicking muscles)
+- 🎨 Daily Art Delivery: Fresh artwork served daily, like a fancy art subscription but free!
+- 🕒 Time Lord Mode: Pick exactly when your wallpaper changes! Want new art with your morning coffee at 9:00? Done. Midnight art swap? You got it!
+- 💾 Offline Mode: Because sometimes the internet needs a vacation (works offline like a champ)
+- 🔄 Previous/Next Navigation: Don't like what you see? Swipe left! (well, click left, but you get the idea)
+- 🖼️ High-Quality Only: No pixelated nonsense here - we're not living in 1995
+- 🎯 Clean UI: Because life is complicated enough without a confusing interface
+- 🎬 No Repeats: Like your favorite DJ, we don't play the same track twice
+- 📅 Smart Scheduling: Set it and forget it - until you're blown away by tomorrow's masterpiece
+- 🗂️ History Tracking: We remember every artwork, so you don't have to
 
-## 🎮 Usage
+## 🚀 Getting Started (It's Easy, Promise!)
 
-Lives quietly in your system tray (right-click for all the goodies):
-- "New Wallpaper" (for the impatient)
-- "Settings" (coming soon™)
-- "Exit" (but why would you?)
+### What You'll Need
+- Windows 10/11 (Mac users, we're working on it! Hang in there!)
+- Internet connection (for the fresh stuff)
+- 100MB free space (for caching)
+- A desire to spice up your digital life
 
-## 🐛 Known Issues & Limitations
+### Quick Start (3 Steps to Happiness)
+1. Grab our latest `.msi` installer from [Releases](https://github.com/Princeyyyy/art-wallpaper/releases)
+2. Double-click and let the magic happen
+3. That's it! We're already running in your system tray, ready to beautify your desktop
 
-- ⚠️ Settings panel is currently taking a vacation (fix coming soon!)
-- 🚫 Windows auto-start isn't working yet (we're teaching it to be more of a morning person)
-- 🍎 Mac support is still dreaming (Windows-only for now, sorry Apple fans!)
-- Default settings are locked at:
-  - 24-hour rotation cycle
-  - Notifications enabled
-  - Full-screen wallpaper mode
-- Settings changes won't stick around (they're commitment-phobic for now)
+## 🎮 Daily Driver Tips
 
-## 🛠️ Building from Source
+Find us chilling in your system tray (right-click for the good stuff):
+- "New Wallpaper" - For when you just can't wait for tomorrow
+- "Settings" - Where the magic happens:
+  - Set your daily art delivery time (7 AM with coffee? 11 PM before bed?)
+  - Customize your experience
+  - Take control of your desktop's destiny!
+- "Exit" - But like, why would you?
 
-```bash
-./gradlew build
-```
-(It's not rocket science, but it's honest work)
+## 🎨 The Art of Timing
 
-## 📁 Where's My Stuff?
+Want your wallpaper to change at specific times? We've got you covered:
+1. Right-click the tray icon
+2. Hit "Settings"
+3. Pick your perfect time
+4. Watch as your desktop transforms itself daily, like clockwork!
 
-Everything lives in `%USERPROFILE%/.artwallpaper/`:
-- `artworks/` - The good stuff
-- `cache/` - Temporary stuff (gets deleted so relax your storage won't get cooked)
-- `metadata/` - Stuff about stuff (you know, real nerd stuff)
+Perfect for:
+- Morning people (Fresh art with your coffee ☕)
+- Night owls (Midnight art appreciation 🦉)
+- Lunch break refreshes (New art with your sandwich 🥪)
+- Any time that suits your fancy!
 
-## 🙏 Credits & Thanks
+## 📁 Behind the Scenes
 
-- [Unsplash](https://unsplash.com) (for the endless supply of eye candy)
-- [Kotlin](https://kotlinlang.org) (for making coding fun again)
-- [Compose for Desktop](https://www.jetbrains.com/lp/compose-desktop/) (for the pretty UI bits)
-- Caffeine (for obvious reasons)
+Your art collection lives in `%USERPROFILE%/.artwallpaper/`:
+- `artworks/` - Where the magic is stored
+- `cache/` - The temporary art gallery
+- `metadata/` - The nerdy details
+- `history.json` - Your personal art timeline
 
-## 📜 License
+## 🙏 Standing on the Shoulders of Giants
 
-This project is licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License](http://creativecommons.org/licenses/by-nc/4.0/).
+- [Unsplash](https://unsplash.com) (Our endless art supply)
+- [Kotlin](https://kotlinlang.org) (The wizard behind the curtain)
+- [Compose for Desktop](https://www.jetbrains.com/lp/compose-desktop/) (Making everything pretty)
+- Caffeine (The real MVP)
 
-- ✅ Use it
-- ✅ Modify it
-- ✅ Share it
-- ✅ Credit the original (that's me!)
-- ❌ Sell it (let's keep this fun and free)
+## 🐛 Known Issues
 
-See the [LICENSE](LICENSE) file for the legal stuff.
+- 🍎 Mac support still in development
+- 🌐 Might take longer to download very large images
+
+## 📜 The Fine Print (License)
+
+Licensed under [Creative Commons Attribution-NonCommercial 4.0](http://creativecommons.org/licenses/by-nc/4.0/):
+
+- ✅ Use it like there's no tomorrow
+- ✅ Modify it to your heart's content
+- ✅ Share the love
+- ✅ Credit us (we're not proud... okay, maybe a little)
+- ❌ Sell it (keep the good vibes free)
 
 ## 🐛 Found a Bug?
 
-Open an issue! I promise to read it while my wallpaper changes in the background.
+Open an issue! We'll fix it faster than you can say "abstract expressionism"!
 
 ---
 
-Made with ❤️ and a desperate need for visual variety.
+Made with ❤️, caffeine, and a firm belief that your desktop deserves better than that photo you took in 2015.
+
+*No mountains were harmed in the making of this application.
+
+[Latest Release](https://github.com/Princeyyyy/art-wallpaper/releases/tag/2.0.0)
