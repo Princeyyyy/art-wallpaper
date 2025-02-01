@@ -20,6 +20,7 @@ class ServiceController(
     private var isRestarting = false
     private var restartJob: Job? = null
     private val restartScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var restartDebounceJob: Job? = null
 
     fun startService() {
         if (!_isServiceRunning.value) {
@@ -43,8 +44,9 @@ class ServiceController(
     fun restartService() {
         if (isRestarting) return
         
-        restartJob?.cancel()
-        restartJob = restartScope.launch {
+        restartDebounceJob?.cancel()
+        restartDebounceJob = restartScope.launch {
+            delay(500) // Debounce multiple calls
             isRestarting = true
             try {
                 if (_isServiceRunning.value) {

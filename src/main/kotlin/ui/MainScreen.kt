@@ -19,6 +19,7 @@ import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.TimeoutException
 import org.slf4j.LoggerFactory
+import kotlinx.coroutines.delay
 
 @Composable
 fun MainScreen(
@@ -285,7 +286,9 @@ fun MainScreen(
                 onSettingsChange = { newSettings -> 
                     newSettings.save()
                     onSettingsChange(newSettings)
+                    // Debounce restart
                     scope.launch {
+                        delay(1000) // Wait for rapid changes to settle
                         serviceController.restartService()
                     }
                 },

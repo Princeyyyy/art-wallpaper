@@ -84,6 +84,8 @@ fun SettingsDialog(
                 TimePickerRow(
                     hour = if (settings.hasSetUpdateTime) settings.updateTimeHour else 7,
                     minute = if (settings.hasSetUpdateTime) settings.updateTimeMinute else 0,
+                    settings = settings,
+                    onSettingsChange = onSettingsChange,
                     onTimeChange = { hour, minute ->
                         logger.info("Update time changed to $hour:$minute")
                         val newSettings = settings.copy(
@@ -110,12 +112,15 @@ fun SettingsDialog(
 fun TimePickerRow(
     hour: Int,
     minute: Int,
+    settings: Settings,
+    onSettingsChange: (Settings) -> Unit,
     onTimeChange: (Int, Int) -> Unit
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val timeString = remember(hour, minute) {
         String.format("%02d:%02d", hour, minute)
     }
+    val logger = LoggerFactory.getLogger("SettingsDialog")
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -139,7 +144,7 @@ fun TimePickerRow(
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 elevation = 8.dp,
-                modifier = Modifier.width(280.dp)
+                modifier = Modifier.width(320.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -161,6 +166,7 @@ fun TimePickerRow(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { 
                                     selectedHour = (selectedHour - 1).coerceIn(0, 23)
+                                    onTimeChange(selectedHour, selectedMinute)
                                 }) {
                                     Text("-")
                                 }
@@ -171,6 +177,7 @@ fun TimePickerRow(
                                 )
                                 IconButton(onClick = { 
                                     selectedHour = (selectedHour + 1).coerceIn(0, 23)
+                                    onTimeChange(selectedHour, selectedMinute)
                                 }) {
                                     Text("+")
                                 }
@@ -185,6 +192,7 @@ fun TimePickerRow(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = { 
                                     selectedMinute = (selectedMinute - 5).coerceIn(0, 55)
+                                    onTimeChange(selectedHour, selectedMinute)
                                 }) {
                                     Text("-")
                                 }
@@ -195,6 +203,7 @@ fun TimePickerRow(
                                 )
                                 IconButton(onClick = { 
                                     selectedMinute = (selectedMinute + 5).coerceIn(0, 55)
+                                    onTimeChange(selectedHour, selectedMinute)
                                 }) {
                                     Text("+")
                                 }
