@@ -1,6 +1,9 @@
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.time.Duration
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class ServiceController(
     private val wallpaperManager: WallpaperManager,
@@ -10,30 +13,39 @@ class ServiceController(
     private val artworkProvider: ArtworkProvider
 ) {
     private val logger = LoggerFactory.getLogger(ServiceController::class.java)
-    var isServiceRunning = false
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val _isServiceRunning = MutableStateFlow(false)
+    val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
+    private var scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var cleanupJob: Job? = null
 
     fun startService() {
-        if (!isServiceRunning) {
+        if (!_isServiceRunning.value) {
             wallpaperManager.start()
             startCleanupJob()
-            isServiceRunning = true
+            _isServiceRunning.value = true
+            logger.info("Service started")
         }
     }
 
     fun stopService() {
-        if (isServiceRunning) {
-            scope.cancel()
+        if (_isServiceRunning.value) {
             wallpaperManager.stop()
             cleanupJob?.cancel()
-            isServiceRunning = false
+            scope.cancel()
+            _isServiceRunning.value = false
+            logger.info("Service stopped")
         }
     }
 
     fun restartService() {
-        stopService()
-        startService()
+        scope.launch {
+            if (_isServiceRunning.value) {
+                stopService()
+                delay(500)
+                scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+                startService()
+            }
+        }
     }
 
     suspend fun previousWallpaper() {
@@ -88,17 +100,24 @@ class ServiceController(
     private fun startCleanupJob() {
         cleanupJob?.cancel()
         cleanupJob = scope.launch {
-            while (isActive) {
-                try {
-                    // Run cleanup every 24 hours
+            try {
+                while (isActive) {
                     delay(Duration.ofHours(24).toMillis())
                     logger.info("Starting scheduled cleanup")
-                    artworkStorage.cleanupStorage()
-                    historyManager.cleanupHistory(50) // Keep last 50 entries
-                } catch (e: Exception) {
-                    logger.error("Failed to run cleanup", e)
-                    delay(Duration.ofMinutes(30).toMillis())
+                    try {
+                        artworkStorage.cleanupStorage()
+                        historyManager.cleanupHistory(50)
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        logger.error("Failed to run cleanup", e)
+                        delay(Duration.ofMinutes(30).toMillis())
+                    }
                 }
+            } catch (e: CancellationException) {
+                logger.info("Cleanup job cancelled")
+                throw e
+            } catch (e: Exception) {
+                logger.error("Cleanup job failed", e)
             }
         }
     }

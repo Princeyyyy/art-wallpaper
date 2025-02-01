@@ -16,6 +16,9 @@ import kotlinx.coroutines.launch
 import org.jetbrains.skia.Image as SkiaImage
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.withTimeout
+import java.util.concurrent.TimeoutException
+import org.slf4j.LoggerFactory
 
 @Composable
 fun MainScreen(
@@ -23,6 +26,7 @@ fun MainScreen(
     serviceController: ServiceController,
     settings: Settings
 ) {
+    val logger = LoggerFactory.getLogger("MainScreen")
     var isFirstRun by remember { mutableStateOf(settings.isFirstRun) }
     var isLoading by remember { mutableStateOf(false) }
     var isInitializing by remember { mutableStateOf(false) }
@@ -220,9 +224,15 @@ fun MainScreen(
                             isLoading = true
                             errorMessage = null
                             try {
-                                serviceController.nextWallpaper()
+                                withTimeout(30000) { // Add timeout
+                                    serviceController.nextWallpaper()
+                                }
                             } catch (e: Exception) {
-                                errorMessage = "Failed to update: ${e.message}"
+                                logger.error("Failed to update wallpaper", e)
+                                errorMessage = when (e) {
+                                    is TimeoutException -> "Operation timed out"
+                                    else -> "Failed to update: ${e.message}"
+                                }
                             } finally {
                                 isLoading = false
                             }
@@ -259,33 +269,13 @@ fun MainScreen(
 
         // Settings dialog
         if (showSettings) {
-            Dialog(onDismissRequest = { showSettings = false }) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    elevation = 8.dp
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        // Dialog title
-                        Text(
-                            "Settings",
-                            style = MaterialTheme.typography.h6,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
-
-                        // Settings content
-                        SettingsPanel(
-                            settings = settings,
-                            onSettingsChange = { newSettings ->
-                                newSettings.save()
-                                // Restart service to apply new settings
-                                serviceController.restartService()
-                            },
-                            serviceController = serviceController
-                        )
-                    }
-                }
-            }
+            SettingsDialog(
+                settings = settings,
+                onSettingsChange = { newSettings -> 
+                    newSettings.save()
+                },
+                onDismiss = { showSettings = false }
+            )
         }
     }
 }

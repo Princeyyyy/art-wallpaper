@@ -37,10 +37,7 @@ class WallpaperManager(
     )
 
     init {
-        // Load the last saved state
-        scope.launch {
-            loadSavedState()
-        }
+        // Remove the init block loading since we handle it in start()
     }
 
     private fun loadSavedState() {
@@ -79,30 +76,35 @@ class WallpaperManager(
 
     fun start() {
         logger.info("Starting wallpaper manager")
-        job?.cancel()
+        stop()
         
         job = scope.launch {
-            // First try to load stored artwork
-            val storedArtworks = artworkStorage.getStoredArtworks()
-            if (storedArtworks.isNotEmpty()) {
-                val lastArtwork = storedArtworks.last()
-                setCurrentArtwork(lastArtwork.first, lastArtwork.second)
-                logger.info("Loaded last saved artwork: ${lastArtwork.second.title}")
-            } else {
-                // If no stored artwork, fetch new one
-                logger.info("No stored artwork found, fetching new artwork...")
-                updateWallpaper()
-            }
-            
-            // Start the periodic update cycle
-            while (isActive) {
-                try {
-                    delay(changeInterval.toMillis())
-                    updateWallpaper()
-                } catch (e: Exception) {
-                    logger.error("Failed to update wallpaper", e)
-                    delay(Duration.ofMinutes(5).toMillis())
+            try {
+                loadSavedState() // Load state first
+                
+                // Only fetch stored artwork if we don't have current artwork
+                if (_currentArtwork.value == null) {
+                    val storedArtworks = artworkStorage.getStoredArtworks()
+                    if (storedArtworks.isNotEmpty()) {
+                        val lastArtwork = storedArtworks.last()
+                        setCurrentArtwork(lastArtwork.first, lastArtwork.second)
+                        logger.info("Loaded last saved artwork: ${lastArtwork.second.title}")
+                    }
                 }
+                
+                while (isActive) {
+                    delay(changeInterval.toMillis())
+                    try {
+                        updateWallpaper()
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        logger.error("Failed to update wallpaper", e)
+                        delay(Duration.ofMinutes(5).toMillis())
+                    }
+                }
+            } catch (e: CancellationException) {
+                logger.info("Wallpaper manager job cancelled")
+                throw e
             }
         }
     }
@@ -114,50 +116,35 @@ class WallpaperManager(
     }
 
     private suspend fun updateWallpaper() {
-        // Check connectivity first
         if (!connectivityChecker.isNetworkAvailable()) {
             logger.info("No internet connection available, skipping update")
-            if (lastSuccessfulArtwork != null) {
-                logger.info("Using last successful artwork")
-                _currentArtwork.value = lastSuccessfulArtwork
-            }
             return
         }
 
-        // Check if enough time has passed since last update
         val timeSinceLastUpdate = System.currentTimeMillis() - lastUpdateTime
         if (timeSinceLastUpdate < changeInterval.toMillis()) {
             logger.info("Skipping update - last update was ${Duration.ofMillis(timeSinceLastUpdate).toHours()} hours ago")
             return
         }
 
-        var attempts = 0
-        val maxAttempts = 3
-        val backoffDelay = 5000L
-        
-        while (attempts < maxAttempts) {
-            try {
-                artworkProvider.fetchArtwork()
-                    .onSuccess { (path, metadata) ->
-                        val storedPath = artworkStorage.saveArtwork(path, metadata)
-                        wallpaperService.setWallpaper(storedPath)
+        try {
+            artworkProvider.fetchArtwork()
+                .onSuccess { (path, metadata) ->
+                    val storedPath = artworkStorage.saveArtwork(path, metadata)
+                    wallpaperService.setWallpaper(storedPath).onSuccess {
                         _currentArtwork.value = storedPath to metadata
                         lastSuccessfulArtwork = storedPath to metadata
                         lastUpdateTime = System.currentTimeMillis()
                         historyManager.addToHistory(metadata)
                         saveState(metadata)
-                        // Clean up cache files after successful save
                         artworkProvider.cleanupCacheFiles(metadata.id)
-                        logger.info("Successfully updated wallpaper: ${metadata.title} by ${metadata.artist}")
-                        return
+                        logger.info("Successfully updated wallpaper: ${metadata.title}")
                     }
-                attempts++
-            } catch (e: Exception) {
-                logger.error("Attempt $attempts failed", e)
-                delay(backoffDelay * attempts)
-            }
+                }
+        } catch (e: Exception) {
+            logger.error("Failed to update wallpaper", e)
+            throw e
         }
-        throw IllegalStateException("Failed to update wallpaper after $maxAttempts attempts")
     }
 
     suspend fun setWallpaper(path: Path, metadata: ArtworkMetadata) {

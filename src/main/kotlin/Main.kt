@@ -98,6 +98,15 @@ fun main(args: Array<String>) {
         WindowsAutoStart.enable()
         settings.copy(hasEnabledAutoStart = true).save()
     }
+
+    val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        runBlocking {
+            serviceController.stopService()
+            scope.cancel()
+        }
+    })
 }
 
 @Composable
