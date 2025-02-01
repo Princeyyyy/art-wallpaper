@@ -48,10 +48,6 @@ class ArtworkStorageManager(
         }
     }
 
-    fun reloadData() {
-        cachedArtworks = null // Force reload on next access
-    }
-
     fun getArtworkPath(id: String): Path? {
         val artworkPath = artworksDir.resolve("$id.jpg")
         return if (artworkPath.exists()) artworkPath else null

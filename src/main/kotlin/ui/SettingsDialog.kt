@@ -81,20 +81,9 @@ fun SettingsDialog(
                     )
                 }
                 
-                TimePickerRow(
-                    hour = if (settings.hasSetUpdateTime) settings.updateTimeHour else 7,
-                    minute = if (settings.hasSetUpdateTime) settings.updateTimeMinute else 0,
+                TimePickerSection(
                     settings = settings,
-                    onSettingsChange = onSettingsChange,
-                    onTimeChange = { hour, minute ->
-                        logger.info("Update time changed to $hour:$minute")
-                        val newSettings = settings.copy(
-                            updateTimeHour = hour,
-                            updateTimeMinute = minute,
-                            hasSetUpdateTime = true
-                        )
-                        onSettingsChange(newSettings)
-                    }
+                    onSettingsChange = onSettingsChange
                 )
                 
                 Button(
@@ -109,18 +98,15 @@ fun SettingsDialog(
 }
 
 @Composable
-fun TimePickerRow(
-    hour: Int,
-    minute: Int,
+fun TimePickerSection(
     settings: Settings,
     onSettingsChange: (Settings) -> Unit,
-    onTimeChange: (Int, Int) -> Unit
 ) {
+    val currentSettings by Settings.currentSettings.collectAsState()
     var showPicker by remember { mutableStateOf(false) }
-    val timeString = remember(hour, minute) {
-        String.format("%02d:%02d", hour, minute)
+    val timeString = remember(currentSettings.updateTimeHour, currentSettings.updateTimeMinute) {
+        String.format("%02d:%02d", currentSettings.updateTimeHour, currentSettings.updateTimeMinute)
     }
-    val logger = LoggerFactory.getLogger("SettingsDialog")
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -140,94 +126,118 @@ fun TimePickerRow(
     }
 
     if (showPicker) {
-        Dialog(onDismissRequest = { showPicker = false }) {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                elevation = 8.dp,
-                modifier = Modifier.width(320.dp)
+        TimePickerDialog(
+            initialHour = currentSettings.updateTimeHour,
+            initialMinute = currentSettings.updateTimeMinute,
+            onTimeSelected = { hour, minute ->
+                onSettingsChange(settings.copy(
+                    updateTimeHour = hour,
+                    updateTimeMinute = minute,
+                    hasSetUpdateTime = true
+                ))
+                showPicker = false
+            },
+            onDismiss = { showPicker = false }
+        )
+    }
+}
+
+@Composable
+fun TimePickerDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onTimeSelected: (Int, Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            elevation = 8.dp,
+            modifier = Modifier.width(320.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                Text("Select Update Time", style = MaterialTheme.typography.h6)
+                
+                var selectedHour by remember { mutableStateOf(initialHour) }
+                var selectedMinute by remember { mutableStateOf(initialMinute) }
+
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Select Update Time", style = MaterialTheme.typography.h6)
-                    
-                    var selectedHour by remember { mutableStateOf(hour) }
-                    var selectedMinute by remember { mutableStateOf(minute) }
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Hour picker
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Hour")
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { 
-                                    selectedHour = (selectedHour - 1).coerceIn(0, 23)
-                                    onTimeChange(selectedHour, selectedMinute)
-                                }) {
-                                    Text("-")
-                                }
-                                Text(
-                                    String.format("%02d", selectedHour),
-                                    modifier = Modifier.width(40.dp),
-                                    textAlign = TextAlign.Center
-                                )
-                                IconButton(onClick = { 
-                                    selectedHour = (selectedHour + 1).coerceIn(0, 23)
-                                    onTimeChange(selectedHour, selectedMinute)
-                                }) {
-                                    Text("+")
-                                }
+                    // Hour picker
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Hour")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { 
+                                selectedHour = (selectedHour - 1).coerceIn(0, 23)
+                            }) {
+                                Text("-")
                             }
-                        }
-
-                        Text(":")
-
-                        // Minute picker
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Minute")
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { 
-                                    selectedMinute = (selectedMinute - 5).coerceIn(0, 55)
-                                    onTimeChange(selectedHour, selectedMinute)
-                                }) {
-                                    Text("-")
-                                }
-                                Text(
-                                    String.format("%02d", selectedMinute),
-                                    modifier = Modifier.width(40.dp),
-                                    textAlign = TextAlign.Center
-                                )
-                                IconButton(onClick = { 
-                                    selectedMinute = (selectedMinute + 5).coerceIn(0, 55)
-                                    onTimeChange(selectedHour, selectedMinute)
-                                }) {
-                                    Text("+")
-                                }
+                            Text(
+                                String.format("%02d", selectedHour),
+                                modifier = Modifier.width(40.dp),
+                                textAlign = TextAlign.Center
+                            )
+                            IconButton(onClick = { 
+                                selectedHour = (selectedHour + 1).coerceIn(0, 23)
+                            }) {
+                                Text("+")
                             }
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
+                    // Separator with adjusted padding
+                    Column(
+                        modifier = Modifier.padding(top = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        TextButton(onClick = { showPicker = false }) {
-                            Text("Cancel")
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                onTimeChange(selectedHour, selectedMinute)
-                                showPicker = false
+                        Text(":")
+                    }
+
+                    // Minute picker
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Minute")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { 
+                                selectedMinute = (selectedMinute - 5).coerceIn(0, 55)
+                            }) {
+                                Text("-")
                             }
-                        ) {
-                            Text("Set")
+                            Text(
+                                String.format("%02d", selectedMinute),
+                                modifier = Modifier.width(40.dp),
+                                textAlign = TextAlign.Center
+                            )
+                            IconButton(onClick = { 
+                                selectedMinute = (selectedMinute + 5).coerceIn(0, 55)
+                            }) {
+                                Text("+")
+                            }
                         }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            onTimeSelected(selectedHour, selectedMinute)
+                            onDismiss()
+                        }
+                    ) {
+                        Text("Set")
                     }
                 }
             }

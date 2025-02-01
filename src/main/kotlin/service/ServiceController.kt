@@ -1,9 +1,11 @@
+package service
+
+import ArtworkProvider
+import ArtworkStorageManager
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 class ServiceController(
     private val wallpaperManager: WallpaperManager,
@@ -14,11 +16,9 @@ class ServiceController(
 ) {
     private val logger = LoggerFactory.getLogger(ServiceController::class.java)
     private val _isServiceRunning = MutableStateFlow(false)
-    val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
     private var scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var cleanupJob: Job? = null
     private var isRestarting = false
-    private var restartJob: Job? = null
     private val restartScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var restartDebounceJob: Job? = null
 
@@ -62,19 +62,6 @@ class ServiceController(
             } finally {
                 isRestarting = false
             }
-        }
-    }
-
-    suspend fun previousWallpaper() {
-        // Get the last wallpaper from history
-        val history = historyManager.getHistory()
-        if (history.size > 1) {
-            val previousArtwork = history[1] // Get second item (previous wallpaper)
-            artworkStorage.getStoredArtworks()
-                .find { it.second.id == previousArtwork.id }
-                ?.let { (path, metadata) ->
-                    wallpaperManager.setWallpaper(path, metadata)
-                }
         }
     }
 

@@ -3,16 +3,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
+import service.HistoryManager
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
-import kotlin.io.path.deleteIfExists
 
 class UnsplashSource(
     private val client: HttpClient,
-    private val cacheDir: Path
+    private val cacheDir: Path,
+    private val historyManager: HistoryManager
 ) : ArtworkSource {
     private val logger = LoggerFactory.getLogger(UnsplashSource::class.java)
     private val apiKey = "9s14SuAa58HNb3SIChKeEZe8YL1wlYguwlfmWZ4XCMA" // Need to register at https://unsplash.com/developers
@@ -23,8 +24,18 @@ class UnsplashSource(
         withContext(Dispatchers.IO) {
             logger.info("Fetching random artwork from Unsplash")
             
+            // Get list of recently used IDs from history
+            val recentIds = historyManager.getHistory()
+                .take(50).joinToString(",") { it.id }
+
             val request = HttpRequest.newBuilder()
-                .uri(URI.create("$baseUrl/photos/random?query=art&orientation=landscape"))
+                .uri(URI.create("$baseUrl/photos/random?" + 
+                    "query=art,artwork,painting" +
+                    "&orientation=landscape" +
+                    "&content_filter=high" +
+                    "&featured=true" + // Get curated photos
+                    (if (recentIds.isNotEmpty()) "&exclude=$recentIds" else "") // Exclude recent photos
+                ))
                 .header("Authorization", "Client-ID $apiKey")
                 .header("Accept-Version", "v1")
                 .GET()
@@ -94,18 +105,4 @@ class UnsplashSource(
     
     override fun getArtworkUrl(artworkId: String): String =
         "https://unsplash.com/photos/$artworkId"
-
-    fun cleanupCacheFiles(artworkId: String) {
-        try {
-            val originalPath = cacheDir.resolve("unsplash_${artworkId}.jpg")
-            val processedPath = cacheDir.resolve("processed_unsplash_${artworkId}.jpg")
-            
-            originalPath.deleteIfExists()
-            processedPath.deleteIfExists()
-            
-            logger.debug("Cleaned up cache files for artwork $artworkId")
-        } catch (e: Exception) {
-            logger.error("Failed to clean up cache files for artwork $artworkId", e)
-        }
-    }
-} 
+}

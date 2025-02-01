@@ -8,10 +8,11 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.*
-import java.awt.*
-import javax.swing.SwingUtilities
-import kotlin.system.exitProcess
 import androidx.compose.ui.res.painterResource
+import service.ConnectivityChecker
+import service.HistoryManager
+import service.ServiceController
+import service.WallpaperManager
 
 fun main(args: Array<String>) {
     val settings = Settings.load()
@@ -19,9 +20,12 @@ fun main(args: Array<String>) {
     
     // Initialize components
     val wallpaperService = WindowsWallpaperService()
-    val artworkProvider = ArtworkProvider()
-    val artworkStorage = ArtworkStorageManager()
     val historyManager = HistoryManager()
+    val artworkProvider = ArtworkProvider(
+        historyManager = historyManager,
+        connectivityChecker = ConnectivityChecker()
+    )
+    val artworkStorage = ArtworkStorageManager()
     
     val wallpaperManager = WallpaperManager(
         wallpaperService = wallpaperService,
@@ -123,7 +127,7 @@ fun App(
     onSettingsChange: (Settings) -> Unit
 ) {
     ArtWallpaperTheme {
-        val scope = rememberCoroutineScope()
+        rememberCoroutineScope()
         val currentArtwork by wallpaperManager.currentArtwork.collectAsState()
         
         Surface(
@@ -139,36 +143,3 @@ fun App(
         }
     }
 }
-
-private fun setupSystemTray(wallpaperManager: WallpaperManager) {
-    if (!SystemTray.isSupported()) return
-
-    val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-
-    SwingUtilities.invokeLater {
-        val tray = SystemTray.getSystemTray()
-        val image = Toolkit.getDefaultToolkit().createImage(
-            {}::class.java.getResource("/tray_icon.png")
-        )
-
-        val popup = PopupMenu().apply {
-            add(MenuItem("Exit").apply {
-                addActionListener {
-                    scope.cancel()
-                    wallpaperManager.stop()
-                    exitProcess(0)
-                }
-            })
-        }
-
-        val trayIcon = TrayIcon(image, "Art Wallpaper", popup).apply {
-            isImageAutoSize = true
-        }
-
-        try {
-            tray.add(trayIcon)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-} 

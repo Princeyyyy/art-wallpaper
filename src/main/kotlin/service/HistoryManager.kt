@@ -1,3 +1,6 @@
+package service
+
+import ArtworkMetadata
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

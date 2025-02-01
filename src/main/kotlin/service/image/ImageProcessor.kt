@@ -51,13 +51,11 @@ class ImageProcessor {
         val aspectRatio = originalWidth.toDouble() / originalHeight
         
         return if (originalWidth > originalHeight) {
-            val width = targetWidth
-            val height = (width / aspectRatio).toInt()
-            width to height
+            val height = (targetWidth / aspectRatio).toInt()
+            targetWidth to height
         } else {
-            val height = targetHeight
-            val width = (height * aspectRatio).toInt()
-            width to height
+            val width = (targetHeight * aspectRatio).toInt()
+            width to targetHeight
         }
     }
 

@@ -6,6 +6,9 @@ import kotlinx.serialization.json.Json
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
 import org.slf4j.LoggerFactory
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 @Serializable
 data class Settings(
@@ -36,6 +39,8 @@ data class Settings(
 
     companion object {
         private val settingsPath = Path(System.getProperty("user.home"), ".artwallpaper", "settings.json")
+        private val _currentSettings = MutableStateFlow<Settings>(Settings())
+        val currentSettings: StateFlow<Settings> = _currentSettings.asStateFlow()
         
         @kotlinx.serialization.Transient
         private val logger = LoggerFactory.getLogger(Settings::class.java)
@@ -45,15 +50,17 @@ data class Settings(
                 if (settingsPath.exists()) {
                     Json.decodeFromString<Settings>(settingsPath.readText()).also {
                         logger.info("Settings loaded: notificationsEnabled=${it.notificationsEnabled}")
+                        _currentSettings.value = it
                     }
                 } else {
                     Settings().also {
                         logger.info("Using default settings: notificationsEnabled=${it.notificationsEnabled}")
+                        _currentSettings.value = it
                     }
                 }
             } catch (e: Exception) {
                 logger.error("Failed to load settings, using defaults", e)
-                Settings()
+                Settings().also { _currentSettings.value = it }
             }
         }
     }
@@ -66,6 +73,7 @@ data class Settings(
                 encodeDefaults = true
             }
             settingsPath.writeText(json.encodeToString(serializer(), this))
+            _currentSettings.value = this
             logger.info("Settings saved: updateTimeHour=$updateTimeHour, updateTimeMinute=$updateTimeMinute, hasSetUpdateTime=$hasSetUpdateTime")
         } catch (e: Exception) {
             logger.error("Failed to save settings", e)

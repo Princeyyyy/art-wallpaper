@@ -1,3 +1,10 @@
+package service
+
+import ArtworkMetadata
+import ArtworkProvider
+import ArtworkStorageManager
+import Settings
+import WindowsWallpaperService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,10 +45,6 @@ class WallpaperManager(
         val metadata: ArtworkMetadata,
         val lastUpdateTime: Long
     )
-
-    init {
-        // Remove the init block loading since we handle it in start()
-    }
 
     private fun loadSavedState() {
         try {
@@ -137,7 +140,7 @@ class WallpaperManager(
         }
     }
 
-    suspend fun setWallpaper(path: Path, metadata: ArtworkMetadata) {
+    fun setWallpaper(path: Path, metadata: ArtworkMetadata) {
         wallpaperService.setWallpaper(path)
         lastSuccessfulArtwork = path to metadata
         lastUpdateTime = System.currentTimeMillis()

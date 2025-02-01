@@ -16,7 +16,6 @@ class WindowsWallpaperService {
     
     companion object {
         const val SPI_SETDESKWALLPAPER = 0x0014
-        const val SPI_GETDESKWALLPAPER = 0x0073
         const val SPIF_UPDATEINIFILE = 0x01
         const val SPIF_SENDCHANGE = 0x02
     }

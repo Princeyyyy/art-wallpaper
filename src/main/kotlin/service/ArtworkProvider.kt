@@ -3,19 +3,22 @@ import kotlinx.serialization.json.Json
 import java.nio.file.Path
 import kotlin.io.path.*
 import org.slf4j.LoggerFactory
+import service.ConnectivityChecker
+import service.HistoryManager
 import java.net.http.HttpClient
 import java.time.Duration
 
 class ArtworkProvider(
     client: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(10))
+        .connectTimeout(Duration.ofSeconds(30))
         .build(),
     private val cacheDir: Path = Path.of(System.getProperty("user.home"), ".artwallpaper", "cache"),
     private val connectivityChecker: ConnectivityChecker = ConnectivityChecker(),
+    historyManager: HistoryManager,
     private val maxRetries: Int = 3
 ) {
     private val logger = LoggerFactory.getLogger(ArtworkProvider::class.java)
-    private val source: ArtworkSource = UnsplashSource(client, cacheDir)
+    private val source: ArtworkSource = UnsplashSource(client, cacheDir, historyManager)
 
     init {
         cacheDir.createDirectories()

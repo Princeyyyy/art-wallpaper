@@ -15,11 +15,11 @@ import java.nio.file.Path
 import kotlinx.coroutines.launch
 import org.jetbrains.skia.Image as SkiaImage
 import androidx.compose.ui.graphics.toComposeImageBitmap
-import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.withTimeout
-import java.util.concurrent.TimeoutException
 import org.slf4j.LoggerFactory
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.TimeoutCancellationException
+import service.ServiceController
 
 @Composable
 fun MainScreen(
@@ -35,6 +35,7 @@ fun MainScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val currentSettings by Settings.currentSettings.collectAsState()
 
     if (isFirstRun) {
         if (isInitializing) {
@@ -215,8 +216,8 @@ fun MainScreen(
             ) {
                 Column {
                     Text(
-                        if (settings.hasSetUpdateTime) {
-                            "Your wallpaper updates daily at ${String.format("%02d:%02d", settings.updateTimeHour, settings.updateTimeMinute)}"
+                        if (currentSettings.hasSetUpdateTime) {
+                            "Your wallpaper updates daily at ${String.format("%02d:%02d", currentSettings.updateTimeHour, currentSettings.updateTimeMinute)}"
                         } else {
                             "Your wallpaper updates daily at 07:00"
                         },
@@ -236,13 +237,13 @@ fun MainScreen(
                             isLoading = true
                             errorMessage = null
                             try {
-                                withTimeout(30000) { // Add timeout
+                                withTimeout(60000) { // Increase timeout to 60 seconds
                                     serviceController.nextWallpaper()
                                 }
                             } catch (e: Exception) {
                                 logger.error("Failed to update wallpaper", e)
                                 errorMessage = when (e) {
-                                    is TimeoutException -> "Operation timed out"
+                                    is TimeoutCancellationException -> "Operation timed out. The server might be slow or the image too large. Please try again."
                                     else -> "Failed to update: ${e.message}"
                                 }
                             } finally {
