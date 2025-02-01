@@ -17,6 +17,9 @@ class ServiceController(
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
     private var scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var cleanupJob: Job? = null
+    private var isRestarting = false
+    private var restartJob: Job? = null
+    private val restartScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     fun startService() {
         if (!_isServiceRunning.value) {
@@ -38,12 +41,24 @@ class ServiceController(
     }
 
     fun restartService() {
-        scope.launch {
-            if (_isServiceRunning.value) {
-                stopService()
-                delay(500)
-                scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-                startService()
+        if (isRestarting) return
+        
+        restartJob?.cancel()
+        restartJob = restartScope.launch {
+            isRestarting = true
+            try {
+                if (_isServiceRunning.value) {
+                    stopService()
+                    delay(500)
+                    scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+                    startService()
+                    delay(100)
+                    if (!_isServiceRunning.value) {
+                        logger.error("Service failed to restart")
+                    }
+                }
+            } finally {
+                isRestarting = false
             }
         }
     }

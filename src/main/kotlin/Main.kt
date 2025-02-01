@@ -27,7 +27,8 @@ fun main(args: Array<String>) {
         wallpaperService = wallpaperService,
         artworkProvider = artworkProvider,
         artworkStorage = artworkStorage,
-        historyManager = historyManager
+        historyManager = historyManager,
+        settings = settings
     )
     
     val serviceController = ServiceController(
@@ -88,7 +89,12 @@ fun main(args: Array<String>) {
             App(
                 wallpaperManager = wallpaperManager,
                 serviceController = serviceController,
-                settings = settings
+                settings = settings,
+                onSettingsChange = { newSettings ->
+                    newSettings.save()
+                    // Restart service to apply new settings
+                    serviceController.restartService()
+                }
             )
         }
     }
@@ -113,10 +119,11 @@ fun main(args: Array<String>) {
 fun App(
     wallpaperManager: WallpaperManager,
     serviceController: ServiceController,
-    settings: Settings
+    settings: Settings,
+    onSettingsChange: (Settings) -> Unit
 ) {
     ArtWallpaperTheme {
-        rememberCoroutineScope()
+        val scope = rememberCoroutineScope()
         val currentArtwork by wallpaperManager.currentArtwork.collectAsState()
         
         Surface(
@@ -126,7 +133,8 @@ fun App(
             MainScreen(
                 currentArtwork = currentArtwork,
                 serviceController = serviceController,
-                settings = settings
+                settings = settings,
+                onSettingsChange = onSettingsChange
             )
         }
     }

@@ -8,6 +8,9 @@ import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.time.Duration
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
 import kotlin.io.path.readText
@@ -18,17 +21,17 @@ class WallpaperManager(
     private val artworkProvider: ArtworkProvider,
     private val artworkStorage: ArtworkStorageManager,
     private val historyManager: HistoryManager,
-    private val connectivityChecker: ConnectivityChecker = ConnectivityChecker()
+    private val connectivityChecker: ConnectivityChecker = ConnectivityChecker(),
+    private val settings: Settings
 ) {
     private val logger = LoggerFactory.getLogger(WallpaperManager::class.java)
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var job: Job? = null
-    private val stateFile = Path.of(System.getProperty("user.home"), ".artwallpaper", "current_wallpaper.json")
+    private val stateFile = Path.of(System.getProperty("user.home"), ".artwallpaper", "wallpaper_state.json")
     private var lastSuccessfulArtwork: Pair<Path, ArtworkMetadata>? = null
     private var lastUpdateTime: Long = 0
     private val _currentArtwork = MutableStateFlow<Pair<Path, ArtworkMetadata>?>(null)
     val currentArtwork: StateFlow<Pair<Path, ArtworkMetadata>?> = _currentArtwork.asStateFlow()
-    val changeInterval: Duration = Duration.ofHours(24)  // Fixed 24-hour interval
 
     @Serializable
     private data class SavedState(
@@ -44,21 +47,20 @@ class WallpaperManager(
         try {
             if (stateFile.exists()) {
                 val state = Json.decodeFromString<SavedState>(stateFile.readText())
-                lastUpdateTime = state.lastUpdateTime
                 val imagePath = artworkStorage.getArtworkPath(state.metadata.id)
                 if (imagePath != null) {
                     setCurrentArtwork(imagePath, state.metadata)
                     logger.info("Loaded saved wallpaper state: ${state.metadata.title}")
                     
-                    // Check if we need to update based on time
-                    val timeSinceLastUpdate = System.currentTimeMillis() - lastUpdateTime
-                    if (timeSinceLastUpdate < changeInterval.toMillis()) {
-                        logger.info("Skipping update - last update was ${Duration.ofMillis(timeSinceLastUpdate).toHours()} hours ago")
-                        return
-                    }
+                    // Update lastUpdateTime to current time since we're loading a saved state
+                    lastUpdateTime = System.currentTimeMillis()
+                    saveState(state.metadata)
+                    
+                    logger.info("Updated last update time to now")
                 }
+            } else {
+                logger.info("No saved wallpaper state found")
             }
-            logger.info("No saved wallpaper state found or update needed")
         } catch (e: Exception) {
             logger.error("Failed to load saved wallpaper state", e)
         }
@@ -78,33 +80,21 @@ class WallpaperManager(
         logger.info("Starting wallpaper manager")
         stop()
         
+        // Load saved state first
+        loadSavedState()
+        
         job = scope.launch {
-            try {
-                loadSavedState() // Load state first
+            while (isActive) {
+                val nextUpdateTime = calculateNextUpdateTime()
+                val delayMillis = nextUpdateTime - System.currentTimeMillis()
                 
-                // Only fetch stored artwork if we don't have current artwork
-                if (_currentArtwork.value == null) {
-                    val storedArtworks = artworkStorage.getStoredArtworks()
-                    if (storedArtworks.isNotEmpty()) {
-                        val lastArtwork = storedArtworks.last()
-                        setCurrentArtwork(lastArtwork.first, lastArtwork.second)
-                        logger.info("Loaded last saved artwork: ${lastArtwork.second.title}")
-                    }
+                if (delayMillis > 0) {
+                    delay(delayMillis)
                 }
                 
-                while (isActive) {
-                    delay(changeInterval.toMillis())
-                    try {
-                        updateWallpaper()
-                    } catch (e: Exception) {
-                        if (e is CancellationException) throw e
-                        logger.error("Failed to update wallpaper", e)
-                        delay(Duration.ofMinutes(5).toMillis())
-                    }
+                if (isActive) {
+                    updateWallpaper()
                 }
-            } catch (e: CancellationException) {
-                logger.info("Wallpaper manager job cancelled")
-                throw e
             }
         }
     }
@@ -122,7 +112,7 @@ class WallpaperManager(
         }
 
         val timeSinceLastUpdate = System.currentTimeMillis() - lastUpdateTime
-        if (timeSinceLastUpdate < changeInterval.toMillis()) {
+        if (timeSinceLastUpdate < Duration.ofHours(settings.changeIntervalHours.toLong()).toMillis()) {
             logger.info("Skipping update - last update was ${Duration.ofMillis(timeSinceLastUpdate).toHours()} hours ago")
             return
         }
@@ -150,6 +140,9 @@ class WallpaperManager(
     suspend fun setWallpaper(path: Path, metadata: ArtworkMetadata) {
         wallpaperService.setWallpaper(path)
         lastSuccessfulArtwork = path to metadata
+        lastUpdateTime = System.currentTimeMillis()
+        _currentArtwork.value = path to metadata
+        saveState(metadata)
         logger.info("Wallpaper set manually: ${metadata.title}")
     }
 
@@ -160,5 +153,27 @@ class WallpaperManager(
             saveState(metadata)
         }
         logger.info("Set current artwork: ${metadata.title}")
+    }
+
+    private fun calculateNextUpdateTime(): Long {
+        val now = LocalDateTime.now()
+        
+        val hour = if (!settings.hasSetUpdateTime) 7 else settings.updateTimeHour
+        val minute = if (!settings.hasSetUpdateTime) 0 else settings.updateTimeMinute
+        
+        var nextUpdate = LocalDateTime.of(
+            now.toLocalDate(),
+            LocalTime.of(hour, minute)
+        )
+        
+        // If today's update time has passed, schedule for tomorrow
+        if (now.isAfter(nextUpdate)) {
+            nextUpdate = nextUpdate.plusDays(1)
+        }
+        
+        val nextUpdateMillis = nextUpdate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        logger.info("Next update scheduled for: ${nextUpdate}")
+        
+        return nextUpdateMillis
     }
 } 

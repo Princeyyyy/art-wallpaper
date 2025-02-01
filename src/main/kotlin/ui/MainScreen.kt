@@ -24,7 +24,8 @@ import org.slf4j.LoggerFactory
 fun MainScreen(
     currentArtwork: Pair<Path, ArtworkMetadata>?,
     serviceController: ServiceController,
-    settings: Settings
+    settings: Settings,
+    onSettingsChange: (Settings) -> Unit
 ) {
     val logger = LoggerFactory.getLogger("MainScreen")
     var isFirstRun by remember { mutableStateOf(settings.isFirstRun) }
@@ -73,9 +74,15 @@ fun MainScreen(
                     isInitializing = true
                     scope.launch {
                         try {
+                            // Enable auto-start on first run
+                            WindowsAutoStart.enable()
                             serviceController.nextWallpaper() // Get first wallpaper
                             serviceController.startService()
-                            settings.copy(isFirstRun = false).save()
+                            settings.copy(
+                                isFirstRun = false,
+                                hasEnabledAutoStart = true,
+                                startWithSystem = true
+                            ).save()
                             isFirstRun = false
                         } catch (e: Exception) {
                             errorMessage = "Failed to set initial wallpaper: ${e.message}"
@@ -207,7 +214,11 @@ fun MainScreen(
             ) {
                 Column {
                     Text(
-                        "Your wallpaper updates every 24 hours",
+                        if (settings.hasSetUpdateTime) {
+                            "Your wallpaper updates daily at ${String.format("%02d:%02d", settings.updateTimeHour, settings.updateTimeMinute)}"
+                        } else {
+                            "Your wallpaper updates daily at 07:00"
+                        },
                         style = MaterialTheme.typography.body1
                     )
                     Text(
@@ -273,6 +284,10 @@ fun MainScreen(
                 settings = settings,
                 onSettingsChange = { newSettings -> 
                     newSettings.save()
+                    onSettingsChange(newSettings)
+                    scope.launch {
+                        serviceController.restartService()
+                    }
                 },
                 onDismiss = { showSettings = false }
             )
