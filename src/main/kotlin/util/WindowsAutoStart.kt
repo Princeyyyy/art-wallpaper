@@ -9,14 +9,16 @@ object WindowsAutoStart {
 
     fun enable() {
         try {
-            val jarPath = WindowsAutoStart::class.java.protectionDomain.codeSource.location.toURI().path
+            val location = WindowsAutoStart::class.java.protectionDomain.codeSource.location
+            val jarPath = location.toURI().path.removePrefix("/")  // Remove leading slash for Windows paths
             val exePath = if (jarPath.endsWith(".jar")) {
-                // Running from JAR
-                "javaw -jar \"$jarPath\" --minimized"
+                // Running from JAR - use full path to javaw.exe
+                val javaHome = System.getProperty("java.home")
+                "\"${javaHome}\\bin\\javaw.exe\" -jar \"${jarPath}\" --minimized"
             } else {
-                // Running from IDE or exe
-                val path = System.getProperty("user.dir")
-                "$path\\build\\compose\\binaries\\main\\app\\ArtWallpaper.exe --minimized"
+                // Running from IDE or exe - use installed exe path
+                val installPath = System.getenv("LOCALAPPDATA") + "\\Programs\\ArtWallpaper"
+                "\"$installPath\\ArtWallpaper.exe\" --minimized"
             }
             
             Advapi32Util.registrySetStringValue(
