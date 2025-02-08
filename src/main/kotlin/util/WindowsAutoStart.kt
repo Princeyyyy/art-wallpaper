@@ -1,6 +1,7 @@
 import com.sun.jna.platform.win32.WinReg
 import com.sun.jna.platform.win32.Advapi32Util
 import org.slf4j.LoggerFactory
+import java.io.File
 
 object WindowsAutoStart {
     private val logger = LoggerFactory.getLogger(WindowsAutoStart::class.java)
@@ -9,25 +10,41 @@ object WindowsAutoStart {
 
     fun enable() {
         try {
-            val location = WindowsAutoStart::class.java.protectionDomain.codeSource.location
-            val jarPath = location.toURI().path.removePrefix("/")  // Remove leading slash for Windows paths
-            val exePath = if (jarPath.endsWith(".jar")) {
-                // Running from JAR - use full path to javaw.exe
-                val javaHome = System.getProperty("java.home")
-                "\"${javaHome}\\bin\\javaw.exe\" -jar \"${jarPath}\" --minimized"
-            } else {
-                // Running from IDE or exe - use installed exe path
-                val installPath = System.getenv("LOCALAPPDATA") + "\\Programs\\ArtWallpaper"
-                "\"$installPath\\ArtWallpaper.exe\" --minimized"
-            }
+            // Get the installation path from environment
+            val localAppData = System.getenv("LOCALAPPDATA")
+            val exePath = "$localAppData\\ArtWallpaper\\ArtWallpaper.exe"
+            val exeFile = File(exePath)
+
+            logger.info("Checking executable at: $exePath")
             
+            if (!exeFile.exists()) {
+                logger.error("Executable not found at expected path: $exePath")
+                throw RuntimeException("Executable not found at expected path")
+            }
+
+            val registryValue = "\"$exePath\" --minimized"
+            logger.info("Setting registry value to: $registryValue")
+
             Advapi32Util.registrySetStringValue(
                 WinReg.HKEY_CURRENT_USER,
                 REGISTRY_KEY,
                 APP_NAME,
-                exePath
+                registryValue
             )
-            logger.info("Enabled auto-start for ArtWallpaper with path: $exePath")
+
+            // Verify the registry entry
+            if (Advapi32Util.registryValueExists(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)) {
+                val verifyPath = Advapi32Util.registryGetStringValue(
+                    WinReg.HKEY_CURRENT_USER,
+                    REGISTRY_KEY,
+                    APP_NAME
+                )
+                logger.info("Verified registry value: $verifyPath")
+            } else {
+                logger.error("Failed to verify registry entry after setting")
+                throw RuntimeException("Registry entry verification failed")
+            }
+
         } catch (e: Exception) {
             logger.error("Failed to enable auto-start", e)
             throw e
@@ -37,12 +54,21 @@ object WindowsAutoStart {
     fun disable() {
         try {
             if (Advapi32Util.registryValueExists(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)) {
+                val currentValue = Advapi32Util.registryGetStringValue(
+                    WinReg.HKEY_CURRENT_USER,
+                    REGISTRY_KEY,
+                    APP_NAME
+                )
+                logger.info("Removing registry value: $currentValue")
+                
                 Advapi32Util.registryDeleteValue(
                     WinReg.HKEY_CURRENT_USER,
                     REGISTRY_KEY,
                     APP_NAME
                 )
-                logger.info("Disabled auto-start for ArtWallpaper")
+                logger.info("Successfully disabled auto-start for ArtWallpaper")
+            } else {
+                logger.info("Auto-start was not enabled, nothing to disable")
             }
         } catch (e: Exception) {
             logger.error("Failed to disable auto-start", e)
@@ -52,7 +78,18 @@ object WindowsAutoStart {
 
     fun isEnabled(): Boolean {
         return try {
-            Advapi32Util.registryValueExists(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)
+            val exists = Advapi32Util.registryValueExists(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)
+            if (exists) {
+                val value = Advapi32Util.registryGetStringValue(
+                    WinReg.HKEY_CURRENT_USER,
+                    REGISTRY_KEY,
+                    APP_NAME
+                )
+                logger.info("Auto-start is enabled with value: $value")
+            } else {
+                logger.info("Auto-start is not enabled")
+            }
+            exists
         } catch (e: Exception) {
             logger.error("Failed to check auto-start status", e)
             false

@@ -18,6 +18,11 @@ fun SettingsDialog(
     var isNotificationsEnabled by remember { mutableStateOf(settings.notificationsEnabled) }
     val logger = LoggerFactory.getLogger("SettingsDialog")
     
+    LaunchedEffect(Unit) {
+        // Check initial auto-start state
+        isAutoStartEnabled = WindowsAutoStart.isEnabled()
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.width(400.dp).padding(16.dp),
@@ -48,13 +53,18 @@ fun SettingsDialog(
                     Switch(
                         checked = isAutoStartEnabled,
                         onCheckedChange = { enabled ->
-                            if (enabled) WindowsAutoStart.enable() else WindowsAutoStart.disable()
-                            isAutoStartEnabled = WindowsAutoStart.isEnabled()
-                            logger.info("Auto-start ${if (enabled) "enabled" else "disabled"}")
-                            onSettingsChange(settings.copy(
-                                startWithSystem = enabled,
-                                hasEnabledAutoStart = enabled
-                            ))
+                            try {
+                                if (enabled) WindowsAutoStart.enable() else WindowsAutoStart.disable()
+                                isAutoStartEnabled = WindowsAutoStart.isEnabled()
+                                logger.info("Auto-start ${if (enabled) "enabled" else "disabled"}")
+                                onSettingsChange(settings.copy(
+                                    startWithSystem = enabled,
+                                    hasEnabledAutoStart = enabled
+                                ))
+                            } catch (e: Exception) {
+                                logger.error("Failed to ${if (enabled) "enable" else "disable"} auto-start", e)
+                                isAutoStartEnabled = WindowsAutoStart.isEnabled()
+                            }
                         }
                     )
                 }
