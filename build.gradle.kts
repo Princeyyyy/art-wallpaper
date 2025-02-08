@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.example"
-version = "3.0.0"
+version = "3.1.0"
 
 kotlin {
     jvmToolchain {
@@ -48,8 +48,8 @@ compose.desktop {
         
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "ArtWallpaper"
-            packageVersion = "3.0.0"
+            packageName = "Art Wallpaper"
+            packageVersion = "3.1.0"
             
             // Bundle JDK with the application
             includeAllModules = true
@@ -63,10 +63,10 @@ compose.desktop {
             modules("java.instrument", "java.management", "java.naming", "java.sql")
             
             windows {
-                menuGroup = "ArtWallpaper"
+                menuGroup = "Art Wallpaper"
                 upgradeUuid = "89ABC678-DEF0-1234-5678-ABCDEF123456"
-                msiPackageVersion = "3.0.0"
-                exePackageVersion = "3.0.0"
+                msiPackageVersion = "3.1.0"
+                exePackageVersion = "3.1.0"
                 
                 // Set application icon
                 iconFile.set(project.file("src/main/resources/app_icon.ico"))
@@ -76,7 +76,7 @@ compose.desktop {
                 shortcut = true
                 
                 // Set specific installation path to match WindowsAutoStart
-                installationPath = "C:\\Users\\%USERNAME%\\AppData\\Local\\ArtWallpaper"
+                installationPath = "C:\\Users\\%USERNAME%\\AppData\\Local\\Art Wallpaper"
                 
                 // Add startup parameters
                 jvmArgs += listOf("-Dfile.encoding=UTF-8")

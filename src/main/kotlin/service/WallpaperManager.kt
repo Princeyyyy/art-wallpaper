@@ -86,6 +86,23 @@ class WallpaperManager(
         // Load saved state first
         loadSavedState()
         
+        // Check if we need to update immediately
+        scope.launch {
+            val now = System.currentTimeMillis()
+            val timeSinceLastUpdate = now - lastUpdateTime
+            val nextUpdateTime = calculateNextUpdateTime()
+            
+            logger.info("Last update: ${lastUpdateTime}, Next scheduled: ${nextUpdateTime}")
+            
+            if (timeSinceLastUpdate >= Duration.ofHours(settings.changeIntervalHours.toLong()).toMillis() ||
+                now >= nextUpdateTime) {
+                logger.info("Initial update needed - last update was ${Duration.ofMillis(timeSinceLastUpdate).toHours()} hours ago")
+                updateWallpaper()
+            } else {
+                logger.info("No immediate update needed - next update at ${nextUpdateTime}")
+            }
+        }
+        
         job = scope.launch {
             while (isActive) {
                 val nextUpdateTime = calculateNextUpdateTime()

@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.serializer
 
 @Serializable
 data class Settings(
@@ -19,10 +20,10 @@ data class Settings(
     val showNotifications: Boolean = true,
     val displayStyle: DisplayStyle = DisplayStyle.FILL,
     val offlineRotationStrategy: RotationStrategy = RotationStrategy.RANDOM,
-    val hasEnabledAutoStart: Boolean = false,
+    val hasEnabledAutoStart: Boolean = true,
     val isFirstRun: Boolean = true,
     val notificationsEnabled: Boolean = true,
-    val hasSetUpdateTime: Boolean = false // New field to track if time was ever set
+    val hasSetUpdateTime: Boolean = true  // Changed to true since we have a default time
 ) {
     @kotlinx.serialization.Transient
     private val logger = LoggerFactory.getLogger(Settings::class.java)
@@ -65,6 +66,12 @@ data class Settings(
         }
     }
 
+    init {
+        require(startWithSystem == hasEnabledAutoStart) {
+            "startWithSystem and hasEnabledAutoStart must have the same value"
+        }
+    }
+
     fun save() {
         try {
             settingsPath.parent.createDirectories()
@@ -72,9 +79,14 @@ data class Settings(
                 prettyPrint = true 
                 encodeDefaults = true
             }
-            settingsPath.writeText(json.encodeToString(serializer(), this))
-            _currentSettings.value = this
-            logger.info("Settings saved: updateTimeHour=$updateTimeHour, updateTimeMinute=$updateTimeMinute, hasSetUpdateTime=$hasSetUpdateTime")
+            val settingsToSave = if (startWithSystem != hasEnabledAutoStart) {
+                this.copy(hasEnabledAutoStart = startWithSystem)
+            } else {
+                this
+            }
+            settingsPath.writeText(json.encodeToString(serializer(), settingsToSave))
+            _currentSettings.value = settingsToSave
+            logger.info("Settings saved: updateTimeHour=$updateTimeHour, updateTimeMinute=$updateTimeMinute, hasSetUpdateTime=$hasSetUpdateTime, startWithSystem=$startWithSystem, hasEnabledAutoStart=$hasEnabledAutoStart")
         } catch (e: Exception) {
             logger.error("Failed to save settings", e)
         }

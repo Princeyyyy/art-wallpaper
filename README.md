@@ -1,4 +1,4 @@
-# 🎨 ArtWallpaper Manager v3.0.0
+# 🎨 ArtWallpaper Manager v3.1.0
 
 > Because staring at the same wallpaper for months is like eating the same breakfast for a year - technically possible, but why would you do that to yourself?
 
@@ -6,13 +6,13 @@ Turn your desktop into a daily art gallery! I built this because I got tired of 
 
 *Results may vary. Side effects may include frequent distractions due to stunning artwork.
 
-## 🌟 What's New in 3.0?
+## 🌟 What's New in 3.1?
 
-- 🚀 **Fixed Auto-Start**: Finally, it actually starts with Windows! (We mean it this time!)
-- 🎨 **Better Icons**: Fresh new application icon for that professional look
-- ⚡ **Installation Path Fix**: Now properly installs to `%LOCALAPPDATA%\ArtWallpaper`
-- 🛠️ **Technical Improvements**: Under-the-hood fixes for better reliability
-- 🎯 **Same Great Features**: All the stuff you love, just working better
+- 🚀 **Improved Auto-Start**: Now properly enabled by default!
+- ⚡ **Better Time Management**: Fixed wallpaper update scheduling
+- 🛠️ **Bug Fixes**: Various under-the-hood improvements
+- 🎯 **Settings Sync**: Better handling of startup preferences
+- 🔄 **Update Reliability**: More consistent wallpaper updates
 
 ## 📁 Installation & Data Locations
 
@@ -86,4 +86,4 @@ Made with ❤️, caffeine, and a firm belief that your desktop deserves better 
 
 *No mountains were harmed in the making of this application.
 
-[Latest Release](https://github.com/Princeyyyy/art-wallpaper/releases/tag/3.0.0)
+[Latest Release](https://github.com/Princeyyyy/art-wallpaper/releases/tag/3.1.0)

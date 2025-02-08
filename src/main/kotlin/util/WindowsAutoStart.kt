@@ -12,7 +12,7 @@ object WindowsAutoStart {
         try {
             // Get the installation path from environment
             val localAppData = System.getenv("LOCALAPPDATA")
-            val exePath = "$localAppData\\ArtWallpaper\\ArtWallpaper.exe"
+            val exePath = "$localAppData\\Art Wallpaper\\Art Wallpaper.exe"
             val exeFile = File(exePath)
 
             logger.info("Checking executable at: $exePath")
@@ -32,6 +32,15 @@ object WindowsAutoStart {
                 APP_NAME,
                 registryValue
             )
+
+            // Update settings to reflect the change
+            val currentSettings = Settings.currentSettings.value
+            if (!currentSettings.startWithSystem || !currentSettings.hasEnabledAutoStart) {
+                currentSettings.copy(
+                    startWithSystem = true,
+                    hasEnabledAutoStart = true
+                ).save()
+            }
 
             // Verify the registry entry
             if (Advapi32Util.registryValueExists(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)) {
@@ -67,7 +76,17 @@ object WindowsAutoStart {
                     REGISTRY_KEY,
                     APP_NAME
                 )
-                logger.info("Successfully disabled auto-start for ArtWallpaper")
+                
+                // Update settings to reflect the change
+                val currentSettings = Settings.currentSettings.value
+                if (currentSettings.startWithSystem || currentSettings.hasEnabledAutoStart) {
+                    currentSettings.copy(
+                        startWithSystem = false,
+                        hasEnabledAutoStart = false
+                    ).save()
+                }
+                
+                logger.info("Disabled auto-start for ArtWallpaper")
             } else {
                 logger.info("Auto-start was not enabled, nothing to disable")
             }

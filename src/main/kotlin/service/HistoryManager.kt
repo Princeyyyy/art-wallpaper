@@ -7,6 +7,8 @@ import kotlinx.coroutines.withContext
 import java.nio.file.Path
 import kotlin.io.path.*
 import org.slf4j.LoggerFactory
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.serializer
 
 class HistoryManager(
     baseDir: Path = Path(System.getProperty("user.home"), ".artwallpaper")
@@ -31,7 +33,7 @@ class HistoryManager(
             val trimmedHistory = history.take(maxHistoryItems)
             
             historyFile.writeText(Json.encodeToString(
-                kotlinx.serialization.builtins.ListSerializer(ArtworkMetadata.serializer()),
+                ListSerializer(ArtworkMetadata.serializer()),
                 trimmedHistory
             ))
         } catch (e: Exception) {
@@ -41,7 +43,7 @@ class HistoryManager(
 
     suspend fun getHistory(): List<ArtworkMetadata> = withContext(Dispatchers.IO) {
         try {
-            Json.decodeFromString<List<ArtworkMetadata>>(historyFile.readText())
+            Json.decodeFromString(ListSerializer(ArtworkMetadata.serializer()), historyFile.readText())
         } catch (e: Exception) {
             logger.error("Failed to read history", e)
             emptyList()
@@ -59,7 +61,7 @@ class HistoryManager(
     private suspend fun saveHistory(history: List<ArtworkMetadata>) = withContext(Dispatchers.IO) {
         try {
             historyFile.writeText(Json.encodeToString(
-                kotlinx.serialization.builtins.ListSerializer(ArtworkMetadata.serializer()),
+                ListSerializer(ArtworkMetadata.serializer()),
                 history
             ))
         } catch (e: Exception) {
