@@ -22,7 +22,8 @@ object WindowsAutoStart {
                 throw RuntimeException("Executable not found at expected path")
             }
 
-            val registryValue = "\"$exePath\" --minimized"
+            // Add --minimized and --autostart flags to ensure proper startup behavior
+            val registryValue = "\"$exePath\" --minimized --autostart"
             logger.info("Setting registry value to: $registryValue")
 
             Advapi32Util.registrySetStringValue(

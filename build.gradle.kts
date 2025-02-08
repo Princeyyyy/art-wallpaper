@@ -76,7 +76,7 @@ compose.desktop {
                 shortcut = true
                 
                 // Set specific installation path to match WindowsAutoStart
-                installationPath = "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\ArtWallpaper"
+                installationPath = "C:\\Users\\%USERNAME%\\AppData\\Local\\ArtWallpaper"
                 
                 // Add startup parameters
                 jvmArgs += listOf("-Dfile.encoding=UTF-8")

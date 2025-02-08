@@ -10,88 +10,71 @@ Turn your desktop into a daily art gallery! I built this because I got tired of 
 
 - 🚀 **Fixed Auto-Start**: Finally, it actually starts with Windows! (We mean it this time!)
 - 🎨 **Better Icons**: Fresh new application icon for that professional look
-- ⚡ **Installation Path Fix**: Properly installs where it should (no more hide and seek!)
+- ⚡ **Installation Path Fix**: Now properly installs to `%LOCALAPPDATA%\ArtWallpaper`
 - 🛠️ **Technical Improvements**: Under-the-hood fixes for better reliability
 - 🎯 **Same Great Features**: All the stuff you love, just working better
 
+## 📁 Installation & Data Locations
+
+### Installation Path
+- Main Application: `C:\Users\[YourUsername]\AppData\Local\ArtWallpaper`
+- Executable: `ArtWallpaper.exe` in the installation directory
+
+### User Data
+Your personal data is stored in `%USERPROFILE%\.artwallpaper\`:
+- `artworks/` - Downloaded artwork cache
+- `cache/` - Temporary files
+- `metadata/` - Artwork information
+- `settings.json` - Your preferences
+- `history.json` - Your wallpaper history
+- `logs/` - Application logs for troubleshooting
+
 ## ✨ Features That Make You Go "Ooooh"
 
-- 🎨 Daily Art Delivery: Fresh artwork served daily, like a fancy art subscription but free!
-- 🕒 Time Lord Mode: Pick exactly when your wallpaper changes! Want new art with your morning coffee at 9:00? Done. Midnight art swap? You got it!
-- 💾 Offline Mode: Because sometimes the internet needs a vacation (works offline like a champ)
-- 🔄 Previous/Next Navigation: Don't like what you see? Swipe left! (well, click left, but you get the idea)
-- 🖼️ High-Quality Only: No pixelated nonsense here - we're not living in 1995
-- 🎯 Clean UI: Because life is complicated enough without a confusing interface
-- 🎬 No Repeats: Like your favorite DJ, we don't play the same track twice
-- 📅 Smart Scheduling: Set it and forget it - until you're blown away by tomorrow's masterpiece
-- 🗂️ History Tracking: We remember every artwork, so you don't have to
+- 🎨 Daily Art Delivery: Fresh artwork served daily
+- 🕒 Time Lord Mode: Pick your wallpaper change time
+- 💾 Offline Mode: Works without internet
+- 🔄 Previous/Next Navigation
+- 🖼️ High-Quality Processing
+- 🎯 Clean System Tray Interface
+- 🚀 Reliable Windows Auto-Start
+- 📝 Persistent Settings
+- 🎬 No Repeat Artworks
 
-## 🚀 Getting Started (It's Easy, Promise!)
+## 🚀 Getting Started
 
-### What You'll Need
-- Windows 10/11 (Mac users, we're working on it! Hang in there!)
-- Internet connection (for the fresh stuff)
-- 100MB free space (for caching)
-- A desire to spice up your digital life
-
-### Quick Start (3 Steps to Happiness)
-1. Grab our latest `.msi` installer from [Releases](https://github.com/Princeyyyy/art-wallpaper/releases)
-2. Double-click and let the magic happen
-3. That's it! We're already running in your system tray, ready to beautify your desktop
+1. Download the latest `.msi` installer from [Releases](https://github.com/Princeyyyy/art-wallpaper/releases)
+2. Run the installer (it'll install to the correct location automatically)
+3. That's it! We're running in your system tray
 
 ## 🎮 Daily Driver Tips
 
-Find us chilling in your system tray (right-click for the good stuff):
-- "New Wallpaper" - For when you just can't wait for tomorrow
-- "Settings" - Where the magic happens:
-  - Set your daily art delivery time (7 AM with coffee? 11 PM before bed?)
-  - Customize your experience
-  - Take control of your desktop's destiny!
-- "Exit" - But like, why would you?
+Right-click our system tray icon for:
+- 🎨 "New Wallpaper" - Instant art refresh
+- ⚙️ "Settings" - Configure:
+  - Auto-start with Windows (now working properly!)
+  - Daily update time
+  - Notifications
+- 📊 View your art history
+- ❌ Exit (but why would you?)
 
-## 🎨 The Art of Timing
+## 🛠️ Technical Details
 
-Want your wallpaper to change at specific times? We've got you covered:
-1. Right-click the tray icon
-2. Hit "Settings"
-3. Pick your perfect time
-4. Watch as your desktop transforms itself daily, like clockwork!
-
-Perfect for:
-- Morning people (Fresh art with your coffee ☕)
-- Night owls (Midnight art appreciation 🦉)
-- Lunch break refreshes (New art with your sandwich 🥪)
-- Any time that suits your fancy!
-
-## 📁 Behind the Scenes
-
-Your art collection lives in `%USERPROFILE%/.artwallpaper/`:
-- `artworks/` - Where the magic is stored
-- `cache/` - The temporary art gallery
-- `metadata/` - The nerdy details
-- `history.json` - Your personal art timeline
-
-## 🙏 Standing on the Shoulders of Giants
-
-- [Unsplash](https://unsplash.com) (Our endless art supply)
-- [Kotlin](https://kotlinlang.org) (The wizard behind the curtain)
-- [Compose for Desktop](https://www.jetbrains.com/lp/compose-desktop/) (Making everything pretty)
-- Caffeine (The real MVP)
+- Windows 10/11 compatible
+- Automatic updates at your chosen time
+- Smart caching system
+- Efficient resource usage
+- Proper Windows integration
+- Logs for troubleshooting
 
 ## 🐛 Known Issues
 
 - 🍎 Mac support still in development
-- 🌐 Might take longer to download very large images
+- 🌐 Large images may take longer to download
 
-## 📜 The Fine Print (License)
+## 📜 License
 
-Licensed under [Creative Commons Attribution-NonCommercial 4.0](http://creativecommons.org/licenses/by-nc/4.0/):
-
-- ✅ Use it like there's no tomorrow
-- ✅ Modify it to your heart's content
-- ✅ Share the love
-- ✅ Credit us (we're not proud... okay, maybe a little)
-- ❌ Sell it (keep the good vibes free)
+Licensed under [Creative Commons Attribution-NonCommercial 4.0](http://creativecommons.org/licenses/by-nc/4.0/)
 
 ## 🐛 Found a Bug?
 
@@ -99,7 +82,7 @@ Open an issue! We'll fix it faster than you can say "abstract expressionism"!
 
 ---
 
-Made with ❤️, caffeine, and a firm belief that your desktop deserves better than that photo you took in 2015.
+Made with ❤️, caffeine, and a firm belief that your desktop deserves better than that photo you took in 2024.
 
 *No mountains were harmed in the making of this application.
 
