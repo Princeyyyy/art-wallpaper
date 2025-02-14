@@ -36,6 +36,7 @@ fun MainScreen(
     var showSettings by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val currentSettings by Settings.currentSettings.collectAsState()
+    val serviceRunning by serviceController.isServiceRunning.collectAsState()
 
     if (isFirstRun) {
         if (isInitializing) {
@@ -107,7 +108,7 @@ fun MainScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Art Wallpaper",
+                    "Art Wallpaper ${if (serviceRunning) "(Running)" else "(Stopped)"}",
                     style = MaterialTheme.typography.h6
                 )
                 IconButton(onClick = { showSettings = true }) {

@@ -6,28 +6,48 @@ import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class ServiceController(
     private val wallpaperManager: WallpaperManager,
     private val artworkStorage: ArtworkStorageManager,
     private val historyManager: HistoryManager,
-    private val connectivityChecker: ConnectivityChecker,
     private val artworkProvider: ArtworkProvider
 ) {
     private val logger = LoggerFactory.getLogger(ServiceController::class.java)
     private val _isServiceRunning = MutableStateFlow(false)
     private var scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var cleanupJob: Job? = null
+    private var checkJob: Job? = null
     private var isRestarting = false
     private val restartScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var restartDebounceJob: Job? = null
 
-    fun startService() {
+    val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
+
+    private fun startPeriodicCheck() {
+        checkJob?.cancel()
+        checkJob = scope.launch {
+            while (isActive) {
+                logger.info("Performing hourly check for wallpaper updates")
+                try {
+                    wallpaperManager.checkAndUpdate()
+                } catch (e: Exception) {
+                    logger.error("Error during periodic check", e)
+                }
+                delay(Duration.ofHours(1).toMillis())
+            }
+        }
+    }
+
+    fun startService(isAutoStart: Boolean = false) {
         if (!_isServiceRunning.value) {
             wallpaperManager.start()
             startCleanupJob()
+            startPeriodicCheck()
             _isServiceRunning.value = true
-            logger.info("Service started")
+            logger.info("Service started${if (isAutoStart) " (auto-start)" else ""}")
         }
     }
 
@@ -35,6 +55,7 @@ class ServiceController(
         if (_isServiceRunning.value) {
             wallpaperManager.stop()
             cleanupJob?.cancel()
+            checkJob?.cancel()
             scope.cancel()
             _isServiceRunning.value = false
             logger.info("Service stopped")
@@ -66,26 +87,18 @@ class ServiceController(
     }
 
     suspend fun nextWallpaper() {
-        var attempts = 0
         val maxAttempts = 3
-        val backoffDelay = 5000L
-        
+        val backoffDelay = 1000L
+        var attempts = 0
+
         while (attempts < maxAttempts) {
             try {
-                if (!connectivityChecker.isNetworkAvailable()) {
-                    logger.info("No internet connection available for next wallpaper")
-                    throw IllegalStateException("No internet connection available")
-                }
-
                 artworkProvider.fetchArtwork()
                     .onSuccess { (path, metadata) ->
                         val storedPath = artworkStorage.saveArtwork(path, metadata)
-                        wallpaperManager.setWallpaper(storedPath, metadata)
-                        wallpaperManager.setCurrentArtwork(storedPath, metadata)
+                        wallpaperManager.setWallpaperManually(storedPath, metadata)
                         historyManager.addToHistory(metadata)
                         artworkProvider.cleanupCacheFiles(metadata.id)
-                        // Save state
-                        wallpaperManager.saveState(metadata)
                         logger.info("Successfully set next wallpaper: ${metadata.title}")
                         return
                     }

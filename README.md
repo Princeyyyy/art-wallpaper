@@ -1,4 +1,4 @@
-# 🎨 ArtWallpaper Manager v3.1.1
+# 🎨 ArtWallpaper Manager v3.1.2
 
 > Because staring at the same wallpaper for months is like eating the same breakfast for a year - technically possible, but why would you do that to yourself?
 
@@ -6,12 +6,14 @@ Turn your desktop into a daily art gallery! I built this because I got tired of 
 
 *Results may vary. Side effects may include frequent distractions due to stunning artwork.
 
-## 🌟 What's New in 3.1.1?
+## 🌟 What's New in 3.1.2?
 
-- 🎯 **Fixed Update Scheduling**: Your wallpaper will now reliably update at your chosen time
-- ⏰ **Better Time Management**: More precise scheduling of daily updates
-- 🔄 **Improved State Handling**: Better tracking of update history
-- 🛠️ **Under-the-Hood Fixes**: Because even art needs good engineering
+- 🎯 **Enhanced Background Service**: Reliable hourly checks ensure you never miss an update
+- ⏰ **Improved Update Scheduling**: More precise timing for wallpaper changes
+- 🔄 **Better State Management**: Improved tracking of manual vs scheduled updates
+- 🛠️ **Optimized Auto-Start**: Smoother background operation without UI overhead
+- 🌐 **Improved Offline Support**: Better handling of network connectivity
+- 📊 **Enhanced Logging**: Better tracking of system events
 
 ## 📁 Installation & Data Locations
 
@@ -39,6 +41,8 @@ Your personal data is stored in `%USERPROFILE%\.artwallpaper\`:
 - 🚀 Reliable Windows Auto-Start
 - 📝 Persistent Settings
 - 🎬 No Repeat Artworks
+- 🔍 Hourly Update Checks
+- 🌙 Silent Background Operation
 
 ## 🚀 Getting Started
 
@@ -61,10 +65,11 @@ Right-click our system tray icon for:
 
 - Windows 10/11 compatible
 - Automatic updates at your chosen time
+- Hourly checks for missed updates
 - Smart caching system
 - Efficient resource usage
 - Proper Windows integration
-- Logs for troubleshooting
+- Detailed logging system
 
 ## 🐛 Known Issues
 
@@ -85,4 +90,4 @@ Made with ❤️, caffeine, and a firm belief that your desktop deserves better 
 
 *No mountains were harmed in the making of this application.
 
-[Latest Release](https://github.com/Princeyyyy/art-wallpaper/releases/tag/3.1.1)
+[Latest Release](https://github.com/Princeyyyy/art-wallpaper/releases/tag/3.1.2)

@@ -17,6 +17,7 @@ import service.WallpaperManager
 fun main(args: Array<String>) {
     val settings = Settings.load()
     val startMinimized = args.contains("--minimized") && !settings.isFirstRun
+    val isAutoStart = args.contains("--autostart")
     
     // Initialize components
     val wallpaperService = WindowsWallpaperService()
@@ -39,13 +40,31 @@ fun main(args: Array<String>) {
         wallpaperManager = wallpaperManager,
         artworkStorage = artworkStorage,
         historyManager = historyManager,
-        connectivityChecker = ConnectivityChecker(),
         artworkProvider = artworkProvider
     )
 
-    // Only start service if not first run
-    if (!settings.isFirstRun) {
-        serviceController.startService()
+    // Start service if auto-starting or not first run
+    if (isAutoStart || !settings.isFirstRun) {
+        serviceController.startService(isAutoStart)
+    }
+
+    // If auto-starting, only run the service without UI
+    if (isAutoStart) {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        
+        Runtime.getRuntime().addShutdownHook(Thread {
+            runBlocking {
+                serviceController.stopService()
+                scope.cancel()
+            }
+        })
+        
+        runBlocking {
+            // Keep the application running
+            while (true) {
+                delay(Long.MAX_VALUE)
+            }
+        }
     }
 
     var windowVisibilityCallback: ((Boolean) -> Unit)? = null

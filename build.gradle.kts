@@ -2,12 +2,12 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
     kotlin("jvm") version "1.9.0"
-    id("org.jetbrains.compose") version "1.5.0"
+    id("org.jetbrains.compose") version "1.8.0-alpha03"
     kotlin("plugin.serialization") version "1.9.0"
 }
 
 group = "com.example"
-version = "3.1.1"
+version = "3.1.2"
 
 kotlin {
     jvmToolchain {
@@ -49,7 +49,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Art Wallpaper"
-            packageVersion = "3.1.1"
+            packageVersion = "3.1.2"
             
             // Bundle JDK with the application
             includeAllModules = true
@@ -64,9 +64,9 @@ compose.desktop {
             
             windows {
                 menuGroup = "Art Wallpaper"
-                upgradeUuid = "89ABC678-DEF0-1234-5678-ABCDEF123456"
-                msiPackageVersion = "3.1.1"
-                exePackageVersion = "3.1.1"
+                upgradeUuid = "89ABC678-DEF0-1234-5678-ABCDEF123457"
+                msiPackageVersion = "3.1.2"
+                exePackageVersion = "3.1.2"
                 
                 // Set application icon
                 iconFile.set(project.file("src/main/resources/app_icon.ico"))
