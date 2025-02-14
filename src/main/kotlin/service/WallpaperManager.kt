@@ -53,19 +53,17 @@ class WallpaperManager(
                 val imagePath = artworkStorage.getArtworkPath(state.metadata.id)
                 if (imagePath != null) {
                     setCurrentArtwork(imagePath, state.metadata)
-                    logger.info("Loaded saved wallpaper state: ${state.metadata.title}")
-                    
-                    // Update lastUpdateTime to current time since we're loading a saved state
-                    lastUpdateTime = System.currentTimeMillis()
-                    saveState(state.metadata)
-                    
-                    logger.info("Updated last update time to now")
+                    lastUpdateTime = state.lastUpdateTime
+                    logger.info("Loaded saved state - Last update time: ${state.lastUpdateTime}")
                 }
             } else {
                 logger.info("No saved wallpaper state found")
+                // Initialize lastUpdateTime to a time that will trigger an immediate update
+                lastUpdateTime = 0
             }
         } catch (e: Exception) {
             logger.error("Failed to load saved wallpaper state", e)
+            lastUpdateTime = 0
         }
     }
 
@@ -83,37 +81,38 @@ class WallpaperManager(
         logger.info("Starting wallpaper manager")
         stop()
         
-        // Load saved state first
         loadSavedState()
         
-        // Check if we need to update immediately
         scope.launch {
-            val now = System.currentTimeMillis()
-            val timeSinceLastUpdate = now - lastUpdateTime
-            val nextUpdateTime = calculateNextUpdateTime()
+            val now = LocalDateTime.now()
+            val scheduledTime = LocalDateTime.of(
+                now.toLocalDate(),
+                LocalTime.of(settings.updateTimeHour, settings.updateTimeMinute)
+            )
             
-            logger.info("Last update: ${lastUpdateTime}, Next scheduled: ${nextUpdateTime}")
-            
-            if (timeSinceLastUpdate >= Duration.ofHours(settings.changeIntervalHours.toLong()).toMillis() ||
-                now >= nextUpdateTime) {
-                logger.info("Initial update needed - last update was ${Duration.ofMillis(timeSinceLastUpdate).toHours()} hours ago")
+            // Check if we need to update immediately
+            if (now.isAfter(scheduledTime) && 
+                Duration.ofMillis(System.currentTimeMillis() - lastUpdateTime).toHours() >= settings.changeIntervalHours) {
+                logger.info("Current time is after scheduled time and interval has passed, updating immediately")
                 updateWallpaper()
             } else {
-                logger.info("No immediate update needed - next update at ${nextUpdateTime}")
+                logger.info("No immediate update needed - waiting for next scheduled time")
             }
-        }
-        
-        job = scope.launch {
-            while (isActive) {
-                val nextUpdateTime = calculateNextUpdateTime()
-                val delayMillis = nextUpdateTime - System.currentTimeMillis()
-                
-                if (delayMillis > 0) {
-                    delay(delayMillis)
-                }
-                
-                if (isActive) {
-                    updateWallpaper()
+            
+            // Start the update loop
+            job = scope.launch {
+                while (isActive) {
+                    val nextUpdateTime = calculateNextUpdateTime()
+                    val delayMillis = nextUpdateTime - System.currentTimeMillis()
+                    
+                    if (delayMillis > 0) {
+                        logger.info("Waiting ${Duration.ofMillis(delayMillis).toHours()} hours until next update")
+                        delay(delayMillis)
+                    }
+                    
+                    if (isActive) {
+                        updateWallpaper()
+                    }
                 }
             }
         }
@@ -177,22 +176,22 @@ class WallpaperManager(
 
     private fun calculateNextUpdateTime(): Long {
         val now = LocalDateTime.now()
-        
-        val hour = if (!settings.hasSetUpdateTime) 7 else settings.updateTimeHour
-        val minute = if (!settings.hasSetUpdateTime) 0 else settings.updateTimeMinute
+        val hour = settings.updateTimeHour
+        val minute = settings.updateTimeMinute
         
         var nextUpdate = LocalDateTime.of(
             now.toLocalDate(),
             LocalTime.of(hour, minute)
         )
         
-        // If today's update time has passed, schedule for tomorrow
+        // If we're past today's update time, schedule for tomorrow
         if (now.isAfter(nextUpdate)) {
             nextUpdate = nextUpdate.plusDays(1)
+            logger.info("Current time is after today's update time, scheduling for tomorrow")
         }
         
         val nextUpdateMillis = nextUpdate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        logger.info("Next update scheduled for: ${nextUpdate}")
+        logger.info("Next update scheduled for: $nextUpdate (in ${Duration.ofMillis(nextUpdateMillis - System.currentTimeMillis()).toHours()} hours)")
         
         return nextUpdateMillis
     }
