@@ -20,6 +20,16 @@ import org.slf4j.LoggerFactory
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.TimeoutCancellationException
 import service.ServiceController
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.with
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun MainScreen(
@@ -28,12 +38,13 @@ fun MainScreen(
     settings: Settings,
     onSettingsChange: (Settings) -> Unit
 ) {
-    val logger = LoggerFactory.getLogger("MainScreen")
+    LoggerFactory.getLogger("MainScreen")
     var isFirstRun by remember { mutableStateOf(settings.isFirstRun) }
-    var isLoading by remember { mutableStateOf(false) }
-    var isInitializing by remember { mutableStateOf(false) }
+    var isInitialLoading by remember { mutableStateOf(false) }
+    val isUpdatingWallpaper by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var isInitializing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val currentSettings by Settings.currentSettings.collectAsState()
     val serviceRunning by serviceController.isServiceRunning.collectAsState()
@@ -73,27 +84,14 @@ fun MainScreen(
             }
         } else {
             WelcomeScreen(
-                onGetStarted = {
-                    isInitializing = true
-                    scope.launch {
-                        try {
-                            // Enable auto-start on first run
-                            WindowsAutoStart.enable()
-                            serviceController.nextWallpaper() // Get first wallpaper
-                            serviceController.startService()
-                            settings.copy(
-                                isFirstRun = false,
-                                hasEnabledAutoStart = true,
-                                startWithSystem = true
-                            ).save()
-                            isFirstRun = false
-                        } catch (e: Exception) {
-                            errorMessage = "Failed to set initial wallpaper: ${e.message}"
-                        } finally {
-                            isInitializing = false
-                        }
-                    }
-                }
+                serviceController = serviceController,
+                settings = settings,
+                isInitializing = isInitializing,
+                onIsInitializingChange = { isInitializing = it },
+                onFirstRunComplete = {
+                    isFirstRun = false
+                },
+                onError = { errorMessage = it }
             )
         }
     } else {
@@ -186,8 +184,8 @@ fun MainScreen(
 
                     // Loading overlay
                     Crossfade(
-                        targetState = isLoading,
-                        label = "loading_overlay"
+                        targetState = isInitialLoading,
+                        label = "initial_loading_overlay"
                     ) { loading ->
                         if (loading) {
                             Box(
@@ -201,7 +199,7 @@ fun MainScreen(
                                     verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
                                     CircularProgressIndicator()
-                                    Text("Fetching new wallpaper...")
+                                    Text("Starting service...")
                                 }
                             }
                         }
@@ -235,34 +233,114 @@ fun MainScreen(
                 Button(
                     onClick = {
                         scope.launch {
-                            isLoading = true
-                            errorMessage = null
+                            isInitialLoading = true
                             try {
-                                withTimeout(60000) { // Increase timeout to 60 seconds
-                                    serviceController.nextWallpaper()
+                                withTimeout(60000) {
+                                    serviceController.startService()
                                 }
                             } catch (e: Exception) {
-                                logger.error("Failed to update wallpaper", e)
-                                errorMessage = when (e) {
-                                    is TimeoutCancellationException -> "Operation timed out. The server might be slow or the image too large. Please try again."
-                                    else -> "Failed to update: ${e.message}"
-                                }
+                                errorMessage = "Failed to start service: ${e.message}"
                             } finally {
-                                isLoading = false
+                                isInitialLoading = false
                             }
                         }
                     },
                     modifier = Modifier.padding(8.dp),
-                    enabled = !isLoading
+                    enabled = !isInitialLoading
                 ) {
-                    if (isLoading) {
+                    if (isInitialLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             color = MaterialTheme.colors.onPrimary
                         )
                     } else {
-                        Text("Next Wallpaper")
+                        Text("Start Service")
                     }
+                }
+            }
+
+            // Next wallpaper button
+            Box(
+                modifier = Modifier.wrapContentWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                var isLoading by remember { mutableStateOf(false) }
+                
+                LaunchedEffect(isLoading) {
+                    if (isLoading) {
+                        try {
+                            serviceController.nextWallpaper()
+                        } catch (e: Exception) {
+                            errorMessage = when (e) {
+                                is TimeoutCancellationException -> "Operation timed out. Please try again."
+                                else -> "Failed to update: ${e.message}"
+                            }
+                        } finally {
+                            isLoading = false
+                        }
+                    }
+                }
+
+                PulsingButton(
+                    onClick = { if (!isLoading) isLoading = true },
+                    enabled = true,
+                    modifier = Modifier.wrapContentWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = if (isLoading) Color.Red else MaterialTheme.colors.primary,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                    ) {
+                        if (isLoading) {
+                            val infiniteTransition = rememberInfiniteTransition(label = "loading_spinner")
+                            val rotation by infiniteTransition.animateFloat(
+                                initialValue = 0f,
+                                targetValue = 360f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(800, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Restart
+                                ),
+                                label = "spinner_rotation"
+                            )
+                            
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .rotate(rotation),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                        }
+                        Text(
+                            text = if (isLoading) "Finding New Artwork..." else "Next Wallpaper"
+                        )
+                    }
+                }
+            }
+
+            // Updating wallpaper overlay
+            AnimatedVisibility(
+                visible = isUpdatingWallpaper,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Updating Wallpaper...",
+                        style = MaterialTheme.typography.h6,
+                        color = MaterialTheme.colors.onPrimary,
+                        modifier = Modifier
+                            .background(MaterialTheme.colors.primary.copy(alpha = 0.7f))
+                            .padding(16.dp)
+                    )
                 }
             }
 
@@ -301,7 +379,17 @@ fun MainScreen(
 }
 
 @Composable
-private fun WelcomeScreen(onGetStarted: () -> Unit) {
+private fun WelcomeScreen(
+    serviceController: ServiceController,
+    settings: Settings,
+    isInitializing: Boolean,
+    onIsInitializingChange: (Boolean) -> Unit,
+    onFirstRunComplete: () -> Unit,
+    onError: (String) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var message by remember { mutableStateOf<String?>(null) }
+    
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -333,18 +421,81 @@ private fun WelcomeScreen(onGetStarted: () -> Unit) {
             color = MaterialTheme.colors.primary.copy(alpha = 0.8f)
         )
         Spacer(Modifier.height(32.dp))
-        Button(
-            onClick = onGetStarted,
-            colors = ButtonDefaults.buttonColors(
-                backgroundColor = MaterialTheme.colors.primary
-            ),
-            modifier = Modifier.padding(16.dp)
+
+        Box(
+            modifier = Modifier.wrapContentWidth(),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                "Let's Make My Desktop Fabulous! ✨",
-                style = MaterialTheme.typography.button,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            val infiniteTransition = rememberInfiniteTransition(label = "loading_spinner")
+            val rotation by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(800, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "spinner_rotation"
             )
+
+            Button(
+                onClick = {
+                    if (!isInitializing) {
+                        message = listOf(
+                            "🎨 Time to make your desktop fabulous!",
+                            "✨ Let's add some artistic flair to your day!",
+                            "🖼️ Your desktop is about to get a glow-up!",
+                            "🎭 Transforming your screen into an art gallery...",
+                            "🌟 Get ready for daily doses of masterpieces!"
+                        ).random()
+                        
+                        onIsInitializingChange(true)
+                        scope.launch {
+                            try {
+                                WindowsAutoStart.enable()
+                                serviceController.nextWallpaper()
+                                serviceController.startService()
+                                settings.copy(
+                                    isFirstRun = false,
+                                    hasEnabledAutoStart = true,
+                                    startWithSystem = true
+                                ).save()
+                                onFirstRunComplete()
+                            } catch (e: Exception) {
+                                onError("Failed to set initial wallpaper: ${e.message}")
+                            } finally {
+                                onIsInitializingChange(false)
+                            }
+                        }
+                    }
+                },
+                enabled = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = if (isInitializing) Color.Red else MaterialTheme.colors.primary,
+                    contentColor = Color.White
+                )
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                ) {
+                    if (isInitializing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .rotate(rotation),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
+                    Text(
+                        text = if (isInitializing) message ?: "Setting Things Up..." else "Get Started",
+                        style = MaterialTheme.typography.button
+                    )
+                }
+            }
         }
     }
 } 

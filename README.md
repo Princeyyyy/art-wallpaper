@@ -1,4 +1,4 @@
-# 🎨 ArtWallpaper Manager v3.1.2
+# 🎨 ArtWallpaper Manager v3.2.0
 
 > Because staring at the same wallpaper for months is like eating the same breakfast for a year - technically possible, but why would you do that to yourself?
 
@@ -6,14 +6,14 @@ Turn your desktop into a daily art gallery! I built this because I got tired of 
 
 *Results may vary. Side effects may include frequent distractions due to stunning artwork.
 
-## 🌟 What's New in 3.1.2?
+## 🌟 What's New in 3.2.0?
 
-- 🎯 **Enhanced Background Service**: Reliable hourly checks ensure you never miss an update
-- ⏰ **Improved Update Scheduling**: More precise timing for wallpaper changes
-- 🔄 **Better State Management**: Improved tracking of manual vs scheduled updates
-- 🛠️ **Optimized Auto-Start**: Smoother background operation without UI overhead
-- 🌐 **Improved Offline Support**: Better handling of network connectivity
-- 📊 **Enhanced Logging**: Better tracking of system events
+- 🎯 **Snazzier UI**: Buttons now pulse with life and show fancy loading animations!
+- 🚀 **Smoother Onboarding**: Get started with style (and some cheeky messages)
+- 🎨 **Enhanced Visual Feedback**: Watch that spinner spin while we fetch your masterpiece
+- 🔄 **Streamlined Interface**: Removed redundant controls for a cleaner experience
+- 🌈 **Better State Management**: More reliable button states and loading indicators
+- 🎭 **Fun Factor Increased**: Because software updates should make you smile
 
 ## 📁 Installation & Data Locations
 
@@ -90,4 +90,4 @@ Made with ❤️, caffeine, and a firm belief that your desktop deserves better 
 
 *No mountains were harmed in the making of this application.
 
-[Latest Release](https://github.com/Princeyyyy/art-wallpaper/releases/tag/3.1.2)
+[Latest Release](https://github.com/Princeyyyy/art-wallpaper/releases/tag/3.2.0)

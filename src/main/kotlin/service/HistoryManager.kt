@@ -8,7 +8,7 @@ import java.nio.file.Path
 import kotlin.io.path.*
 import org.slf4j.LoggerFactory
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.serializer
+import kotlinx.serialization.builtins.serializer
 
 class HistoryManager(
     baseDir: Path = Path(System.getProperty("user.home"), ".artwallpaper")
@@ -16,10 +16,26 @@ class HistoryManager(
     private val logger = LoggerFactory.getLogger(HistoryManager::class.java)
     private val historyFile = baseDir.resolve("history.json")
     private val maxHistoryItems = 100
+    private val history = mutableSetOf<String>()
 
     init {
         baseDir.createDirectories()
         if (!historyFile.exists()) {
+            historyFile.writeText("[]")
+        }
+        loadHistory()
+    }
+
+    private fun loadHistory() {
+        try {
+            if (historyFile.exists()) {
+                val content = historyFile.readText()
+                if (content.isNotEmpty()) {
+                    Json.decodeFromString<List<ArtworkMetadata>>(content)
+                }
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to load history, resetting file", e)
             historyFile.writeText("[]")
         }
     }
@@ -41,9 +57,11 @@ class HistoryManager(
         }
     }
 
-    suspend fun getHistory(): List<ArtworkMetadata> = withContext(Dispatchers.IO) {
+    private suspend fun getHistory(): List<ArtworkMetadata> = withContext(Dispatchers.IO) {
         try {
-            Json.decodeFromString(ListSerializer(ArtworkMetadata.serializer()), historyFile.readText())
+            val content = historyFile.readText()
+            if (content.isBlank()) return@withContext emptyList()
+            Json.decodeFromString(ListSerializer(ArtworkMetadata.serializer()), content)
         } catch (e: Exception) {
             logger.error("Failed to read history", e)
             emptyList()
@@ -64,6 +82,29 @@ class HistoryManager(
                 ListSerializer(ArtworkMetadata.serializer()),
                 history
             ))
+        } catch (e: Exception) {
+            logger.error("Failed to save history", e)
+        }
+    }
+
+    fun isInHistory(id: String): Boolean {
+        return history.contains(id)
+    }
+
+    fun clearHistory() {
+        logger.info("Clearing artwork history")
+        history.clear()
+        saveHistory()
+    }
+
+    private fun saveHistory() {
+        try {
+            historyFile.parent.createDirectories()
+            historyFile.writeText(Json.encodeToString(
+                ListSerializer(String.serializer()),
+                history.toList()
+            ))
+            logger.info("Saved ${history.size} items to history")
         } catch (e: Exception) {
             logger.error("Failed to save history", e)
         }

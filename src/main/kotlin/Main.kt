@@ -43,13 +43,21 @@ fun main(args: Array<String>) {
         artworkProvider = artworkProvider
     )
 
-    // Start service if auto-starting or not first run
-    if (isAutoStart || !settings.isFirstRun) {
-        serviceController.startService(isAutoStart)
-    }
+    var windowVisibilityCallback: ((Boolean) -> Unit)? = null
+    
+    // Initialize system tray
+    val systemTray = SystemTrayMenu(
+        serviceController = serviceController,
+        onShowWindow = { 
+            windowVisibilityCallback?.invoke(true)
+            true
+        }
+    )
+    systemTray.show()
 
-    // If auto-starting, only run the service without UI
+    // If auto-starting, start service and keep running in background
     if (isAutoStart) {
+        serviceController.startService(isAutoStart = true)
         val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         
         Runtime.getRuntime().addShutdownHook(Thread {
@@ -60,24 +68,11 @@ fun main(args: Array<String>) {
         })
         
         runBlocking {
-            // Keep the application running
             while (true) {
                 delay(Long.MAX_VALUE)
             }
         }
     }
-
-    var windowVisibilityCallback: ((Boolean) -> Unit)? = null
-    
-    // Initialize system tray before application
-    val systemTray = SystemTrayMenu(
-        serviceController = serviceController,
-        onShowWindow = { 
-            windowVisibilityCallback?.invoke(true)
-            true
-        }
-    )
-    systemTray.show()
 
     application {
         var isWindowVisible by remember { mutableStateOf(!startMinimized) }
@@ -85,6 +80,13 @@ fun main(args: Array<String>) {
         // Set the callback to control window visibility
         windowVisibilityCallback = { visible -> 
             isWindowVisible = visible 
+        }
+
+        // Start service if not already running
+        LaunchedEffect(Unit) {
+            if (!serviceController.isServiceRunning.value) {
+                serviceController.startService()
+            }
         }
 
         Window(
@@ -115,7 +117,6 @@ fun main(args: Array<String>) {
                 settings = settings,
                 onSettingsChange = { newSettings ->
                     newSettings.save()
-                    // Restart service to apply new settings
                     serviceController.restartService()
                 }
             )
@@ -127,15 +128,6 @@ fun main(args: Array<String>) {
         WindowsAutoStart.enable()
         settings.copy(hasEnabledAutoStart = true).save()
     }
-
-    val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-
-    Runtime.getRuntime().addShutdownHook(Thread {
-        runBlocking {
-            serviceController.stopService()
-            scope.cancel()
-        }
-    })
 }
 
 @Composable

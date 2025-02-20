@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.serializer
+import java.time.Duration
 
 @Serializable
 data class Settings(
@@ -27,6 +28,12 @@ data class Settings(
 ) {
     @kotlinx.serialization.Transient
     private val logger = LoggerFactory.getLogger(Settings::class.java)
+
+    val updateInterval: Duration
+        get() = Duration.ofHours(changeIntervalHours.toLong())
+
+    val preferredHours: Int
+        get() = updateTimeHour
 
     @Serializable
     enum class DisplayStyle {

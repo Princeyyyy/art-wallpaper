@@ -18,7 +18,7 @@ class ArtworkProvider(
     private val maxRetries: Int = 3
 ) {
     private val logger = LoggerFactory.getLogger(ArtworkProvider::class.java)
-    private val source: ArtworkSource = UnsplashSource(client, cacheDir, historyManager)
+    private val source: ArtworkSource = MetMuseumSource(client, cacheDir, historyManager)
 
     init {
         cacheDir.createDirectories()
@@ -60,30 +60,16 @@ class ArtworkProvider(
         artworkPath to metadata
     }
 
-    fun cleanupCacheFiles(artworkId: String) {
+    fun cleanupCacheFiles(exceptId: String? = null) {
         try {
-            val originalPath = cacheDir.resolve("unsplash_${artworkId}.jpg")
-            val processedPath = cacheDir.resolve("processed_unsplash_${artworkId}.jpg")
-            val metadataPath = cacheDir.resolve("unsplash_${artworkId}.json")
-            
-            if (originalPath.exists()) {
-                originalPath.deleteIfExists()
-                logger.debug("Deleted original file: {}", originalPath)
+            cacheDir.listDirectoryEntries().forEach { file ->
+                if (exceptId == null || !file.name.startsWith(exceptId)) {
+                    file.deleteIfExists()
+                    logger.info("Cleaned up cache file: ${file.name}")
+                }
             }
-            
-            if (processedPath.exists()) {
-                processedPath.deleteIfExists()
-                logger.debug("Deleted processed file: {}", processedPath)
-            }
-            
-            if (metadataPath.exists()) {
-                metadataPath.deleteIfExists()
-                logger.debug("Deleted metadata file: {}", metadataPath)
-            }
-            
-            logger.info("Cleaned up cache files for artwork $artworkId")
         } catch (e: Exception) {
-            logger.error("Failed to clean up cache files for artwork $artworkId", e)
+            logger.error("Failed to cleanup cache files", e)
         }
     }
 } 

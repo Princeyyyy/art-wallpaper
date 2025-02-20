@@ -17,25 +17,43 @@ class ImageProcessor {
         val targetWidth = screenSize.width * 1.2  // 20% larger than screen
         val targetHeight = screenSize.height * 1.2
         
-        // Calculate scaling dimensions while maintaining aspect ratio
-        val (scaledWidth, scaledHeight) = calculateDimensions(
-            originalWidth = originalImage.width,
-            originalHeight = originalImage.height,
-            targetWidth = targetWidth.toInt(),
-            targetHeight = targetHeight.toInt()
-        )
+        // Determine if source is portrait and needs special handling
+        val isSourcePortrait = originalImage.height > originalImage.width
+        val isTargetPortrait = targetHeight > targetWidth
+        
+        // Calculate dimensions with special handling for portrait-to-landscape conversion
+        val (scaledWidth, scaledHeight) = if (isSourcePortrait && !isTargetPortrait) {
+            // For portrait images being displayed on landscape screens,
+            // we want to ensure the image fills the width while maintaining aspect ratio
+            calculatePortraitToLandscapeDimensions(
+                originalWidth = originalImage.width,
+                originalHeight = originalImage.height,
+                targetWidth = targetWidth.toInt(),
+                targetHeight = targetHeight.toInt()
+            )
+        } else {
+            calculateDimensions(
+                originalWidth = originalImage.width,
+                originalHeight = originalImage.height,
+                targetWidth = targetWidth.toInt(),
+                targetHeight = targetHeight.toInt()
+            )
+        }
 
-        // Multi-step scaling for better quality
+        // Multi-step scaling with improved quality
         val resized = scaleImageHighQuality(
             originalImage,
             scaledWidth,
             scaledHeight
         )
 
-        // Apply subtle sharpening
-        val sharpened = sharpenImage(resized)
+        // Apply adaptive sharpening based on scaling ratio
+        val sharpened = if (originalImage.width > scaledWidth) {
+            sharpenDownscaledImage(resized)
+        } else {
+            sharpenUpscaledImage(resized)
+        }
 
-        // Save with high quality
         val processedPath = imagePath.parent.resolve("processed_${imagePath.fileName}")
         saveHighQualityImage(sharpened, processedPath)
         
@@ -57,6 +75,32 @@ class ImageProcessor {
             val width = (targetHeight * aspectRatio).toInt()
             width to targetHeight
         }
+    }
+
+    private fun calculatePortraitToLandscapeDimensions(
+        originalWidth: Int,
+        originalHeight: Int,
+        targetWidth: Int,
+        targetHeight: Int
+    ): Pair<Int, Int> {
+        val aspectRatio = originalWidth.toDouble() / originalHeight
+        var height = (targetWidth / aspectRatio).toInt()
+        
+        // If the calculated height is too large, scale down while maintaining aspect ratio
+        if (height > targetHeight * 1.5) {
+            height = targetHeight
+            val width = (height * aspectRatio).toInt()
+            return width to height
+        }
+        
+        // If the calculated height is too small, ensure minimum coverage
+        if (height < targetHeight * 0.8) {
+            height = targetHeight
+            val width = (height * aspectRatio).toInt()
+            return width to height
+        }
+        
+        return targetWidth to height
     }
 
     private fun scaleImageHighQuality(
@@ -96,11 +140,21 @@ class ImageProcessor {
         return finalImage
     }
 
-    private fun sharpenImage(image: BufferedImage): BufferedImage {
+    private fun sharpenDownscaledImage(image: BufferedImage): BufferedImage {
         val kernel = floatArrayOf(
-            0f, -0.2f, 0f,
-            -0.2f, 1.8f, -0.2f,
-            0f, -0.2f, 0f
+            -0.1f, -0.1f, -0.1f,
+            -0.1f,  2.0f, -0.1f,
+            -0.1f, -0.1f, -0.1f
+        )
+        val op = ConvolveOp(Kernel(3, 3, kernel), ConvolveOp.EDGE_NO_OP, null)
+        return op.filter(image, null)
+    }
+
+    private fun sharpenUpscaledImage(image: BufferedImage): BufferedImage {
+        val kernel = floatArrayOf(
+            0f, -0.15f, 0f,
+            -0.15f, 1.6f, -0.15f,
+            0f, -0.15f, 0f
         )
         val op = ConvolveOp(Kernel(3, 3, kernel), ConvolveOp.EDGE_NO_OP, null)
         return op.filter(image, null)

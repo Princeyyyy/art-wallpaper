@@ -4,20 +4,26 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.material.Button
+import androidx.compose.material.ButtonColors
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.Card
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @Composable
 fun PulsingButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    colors: ButtonColors = ButtonDefaults.buttonColors(),
     content: @Composable () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
@@ -30,8 +36,14 @@ fun PulsingButton(
         onClick = {
             isPressed = true
             onClick()
+            scope.launch {
+                delay(100)
+                isPressed = false
+            }
         },
         modifier = modifier.scale(scale),
+        enabled = enabled,
+        colors = colors,
         elevation = ButtonDefaults.elevation(
             defaultElevation = 6.dp,
             pressedElevation = 8.dp
