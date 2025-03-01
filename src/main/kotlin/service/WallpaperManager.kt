@@ -278,6 +278,19 @@ class WallpaperManager(
             logger.info("Wallpaper set manually: ${metadata.title}")
         }
     }
+
+    suspend fun setNextWallpaperManually() {
+        try {
+            val artwork = artworkProvider.fetchArtwork().getOrThrow()
+            val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
+            setWallpaperManually(storedPath, artwork.second)
+            
+            artworkStorage.cleanupOldArtworks()
+        } catch (e: Exception) {
+            logger.error("Failed to set next wallpaper manually", e)
+            throw e
+        }
+    }
 }
 
 class RetryPolicy(

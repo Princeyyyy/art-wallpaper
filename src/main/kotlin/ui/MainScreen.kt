@@ -12,13 +12,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.nio.file.Path
-import kotlinx.coroutines.launch
 import org.jetbrains.skia.Image as SkiaImage
 import androidx.compose.ui.graphics.toComposeImageBitmap
-import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.TimeoutCancellationException
 import service.ServiceController
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedContent
@@ -31,10 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.swing.Swing
+import kotlin.io.path.exists
 
 @Composable
 fun MainScreen(
@@ -170,7 +165,7 @@ fun MainScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.7f))
+                                .background(Color.Black.copy(alpha = 0.5f))
                                 .zIndex(1f),
                             contentAlignment = Alignment.Center
                         ) {
@@ -224,28 +219,57 @@ fun MainScreen(
                 }
                 Button(
                     onClick = {
-                        isLoading = true
-                        errorMessage = null
-                        coroutineScope.launch {
-                            try {
-                                withTimeout(60000) { // Increase timeout to 60 seconds
+                        if (!isLoading) {
+                            isLoading = true
+                            val previousTitle = currentArtwork?.second?.title
+                            logger.info("Starting wallpaper update. Previous artwork: $previousTitle")
+                            
+                            coroutineScope.launch(Dispatchers.Default) {
+                                try {
                                     serviceController.nextWallpaper()
+                                    
+                                    // Wait for the wallpaper to change with a shorter timeout
+                                    withTimeout(30000) { // 30 seconds timeout
+                                        serviceController.wallpaperManager.currentArtwork
+                                            .collect { newArtwork ->
+                                                if (newArtwork != null && 
+                                                    newArtwork.second.title != previousTitle &&
+                                                    newArtwork.first.exists()) {
+                                                    logger.info("New artwork detected - Title: ${newArtwork.second.title}")
+                                                    cancel() // Cancel the timeout coroutine
+                                                }
+                                            }
+                                    }
+                                } catch (e: Exception) {
+                                    logger.error("Failed to set next wallpaper", e)
+                                    withContext(Dispatchers.Main) {
+                                        errorMessage = when (e) {
+                                            is TimeoutCancellationException -> "Taking longer than expected to find suitable artwork. Please try again."
+                                            is CancellationException -> null // Normal completion
+                                            else -> "Failed to set wallpaper: ${e.message}"
+                                        }
+                                    }
+                                } finally {
+                                    withContext(Dispatchers.Main) {
+                                        logger.info("Wallpaper update completed. Loading state set to false")
+                                        isLoading = false
+                                    }
                                 }
-                            } catch (e: Exception) {
-                                logger.error("Failed to update wallpaper", e)
-                                errorMessage = when (e) {
-                                    is TimeoutCancellationException -> "Operation timed out. The server might be slow or the image too large. Please try again."
-                                    else -> "Failed to update: ${e.message}"
-                                }
-                            } finally {
-                                isLoading = false
                             }
                         }
                     },
                     modifier = Modifier.padding(8.dp),
                     enabled = !isLoading
                 ) {
-                    Text("Next Wallpaper")
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = MaterialTheme.colors.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Next Wallpaper")
+                    }
                 }
             }
 
@@ -355,36 +379,54 @@ fun WelcomeScreen(
                                 WindowsAutoStart.enable()
                                 serviceController.nextWallpaper()
                                 
-                                // Wait for the wallpaper to be set
-                                withTimeout(30000) { // 30 seconds timeout
-                                    while (currentArtwork == null) {
-                                        delay(100)
+                                try {
+                                    // Wait for the wallpaper to change with a shorter timeout
+                                    withTimeout(30000) { // 30 seconds timeout
+                                        serviceController.wallpaperManager.currentArtwork
+                                            .collect { newArtwork ->
+                                                if (newArtwork != null && newArtwork.first.exists()) {
+                                                    logger.info("Initial artwork set successfully: ${newArtwork.second.title}")
+                                                    // Update settings and start service
+                                                    withContext(Dispatchers.Main) {
+                                                        val updatedSettings = settings.copy(
+                                                            isFirstRun = false,
+                                                            hasEnabledAutoStart = true,
+                                                            startWithSystem = true
+                                                        )
+                                                        updatedSettings.save()
+                                                        onSettingsChange(updatedSettings)
+                                                    }
+                                                    
+                                                    delay(1000)
+                                                    serviceController.startService()
+                                                    
+                                                    withContext(Dispatchers.Main) {
+                                                        onFirstRunComplete()
+                                                        showCurating = false
+                                                        onIsInitializingChange(false)
+                                                    }
+                                                    return@collect // Use return@withTimeout instead of cancel()
+                                                }
+                                            }
                                     }
-                                }
-                                
-                                // Update settings and start service
-                                withContext(Dispatchers.Main) {
-                                    val updatedSettings = settings.copy(
-                                        isFirstRun = false,
-                                        hasEnabledAutoStart = true,
-                                        startWithSystem = true
-                                    )
-                                    updatedSettings.save()
-                                    onSettingsChange(updatedSettings)
-                                }
-                                
-                                delay(1000)
-                                serviceController.startService()
-                                
-                                withContext(Dispatchers.Main) {
-                                    onFirstRunComplete()
-                                    showCurating = false
-                                    onIsInitializingChange(false)
+                                } catch (e: Exception) {
+                                    when (e) {
+                                        is TimeoutCancellationException -> throw e // Re-throw timeout
+                                        is CancellationException -> {
+                                            // Normal completion - ignore the exception
+                                            logger.info("Setup completed successfully")
+                                        }
+                                        else -> throw e // Re-throw other exceptions
+                                    }
                                 }
                             } catch (e: Exception) {
                                 logger.error("Failed to complete first run setup", e)
                                 withContext(Dispatchers.Main) {
-                                    onError("Failed to complete setup: ${e.message}")
+                                    val errorMessage = when (e) {
+                                        is TimeoutCancellationException -> "Taking longer than expected to find suitable artwork. Please try again."
+                                        else -> "Failed to complete setup: ${e.message}"
+                                    }
+                                    onError(errorMessage)
                                     showCurating = false
                                     onIsInitializingChange(false)
                                 }

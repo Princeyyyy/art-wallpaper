@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class ServiceController(
-    private val wallpaperManager: WallpaperManager,
+    val wallpaperManager: WallpaperManager,
     private val artworkStorage: ArtworkStorageManager,
     private val historyManager: HistoryManager,
     private val artworkProvider: ArtworkProvider
@@ -141,9 +141,10 @@ class ServiceController(
         }
     }
 
-    fun nextWallpaper() {
+    suspend fun nextWallpaper() {
         if (isServiceRunning.value) {
-            return  // Don't proceed if service is already running
+            wallpaperManager.setNextWallpaperManually()
+            return
         }
         
         serviceScope.launch {
