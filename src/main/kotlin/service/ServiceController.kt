@@ -8,6 +8,9 @@ import java.time.Duration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class ServiceController(
     private val wallpaperManager: WallpaperManager,
@@ -17,48 +20,98 @@ class ServiceController(
 ) {
     private val logger = LoggerFactory.getLogger(ServiceController::class.java)
     private val _isServiceRunning = MutableStateFlow(false)
-    private var scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val mutex = Mutex()
     private var cleanupJob: Job? = null
     private var checkJob: Job? = null
     private var isRestarting = false
     private val restartScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var restartDebounceJob: Job? = null
+    private val lastCheckTime = AtomicLong(0)
 
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
 
     private fun startPeriodicCheck() {
         checkJob?.cancel()
-        checkJob = scope.launch {
+        checkJob = serviceScope.launch {
             while (isActive) {
-                logger.info("Performing hourly check for wallpaper updates")
-                try {
-                    wallpaperManager.checkAndUpdate()
-                } catch (e: Exception) {
-                    logger.error("Error during periodic check", e)
+                val now = System.currentTimeMillis()
+                val lastCheck = lastCheckTime.get()
+                
+                if (now - lastCheck >= Duration.ofMinutes(30).toMillis()) {
+                    logger.info("Performing periodic check for wallpaper updates")
+                    try {
+                        wallpaperManager.checkAndUpdate()
+                        lastCheckTime.set(now)
+                    } catch (e: Exception) {
+                        logger.error("Error during periodic check", e)
+                    }
                 }
-                delay(Duration.ofHours(1).toMillis())
+                delay(Duration.ofMinutes(5).toMillis())
             }
         }
     }
 
+    private suspend fun safeServiceOperation(operation: suspend () -> Unit) {
+        val maxRetries = 3
+        var attempts = 0
+        var lastException: Exception? = null
+        
+        while (attempts < maxRetries) {
+            try {
+                operation()
+                return
+            } catch (e: Exception) {
+                lastException = e
+                logger.error("Operation failed (attempt ${attempts + 1}/$maxRetries)", e)
+                attempts++
+                if (attempts < maxRetries) {
+                    delay(Duration.ofSeconds((5 * attempts).toLong()).toMillis())
+                }
+            }
+        }
+        
+        throw lastException ?: RuntimeException("Operation failed after $maxRetries attempts")
+    }
+
     fun startService(isAutoStart: Boolean = false) {
-        if (!_isServiceRunning.value) {
-            wallpaperManager.start()
-            startCleanupJob()
-            startPeriodicCheck()
-            _isServiceRunning.value = true
-            logger.info("Service started${if (isAutoStart) " (auto-start)" else ""}")
+        serviceScope.launch {
+            mutex.withLock {
+                if (!_isServiceRunning.value) {
+                    try {
+                        safeServiceOperation {
+                            wallpaperManager.start()
+                            startCleanupJob()
+                            startPeriodicCheck()
+                            _isServiceRunning.value = true
+                            logger.info("Service started${if (isAutoStart) " (auto-start)" else ""}")
+                        }
+                    } catch (e: Exception) {
+                        logger.error("Failed to start service", e)
+                        _isServiceRunning.value = false
+                        throw e
+                    }
+                }
+            }
         }
     }
 
     fun stopService() {
-        if (_isServiceRunning.value) {
-            wallpaperManager.stop()
-            cleanupJob?.cancel()
-            checkJob?.cancel()
-            scope.cancel()
-            _isServiceRunning.value = false
-            logger.info("Service stopped")
+        serviceScope.launch {
+            mutex.withLock {
+                if (_isServiceRunning.value) {
+                    try {
+                        wallpaperManager.stop()
+                        cleanupJob?.cancel()
+                        checkJob?.cancel()
+                        _isServiceRunning.value = false
+                        logger.info("Service stopped")
+                    } catch (e: Exception) {
+                        logger.error("Error stopping service", e)
+                        throw e
+                    }
+                }
+            }
         }
     }
 
@@ -73,7 +126,7 @@ class ServiceController(
                 if (_isServiceRunning.value) {
                     stopService()
                     delay(500)
-                    scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+                    serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
                     startService()
                     delay(100)
                     if (!_isServiceRunning.value) {
@@ -116,25 +169,29 @@ class ServiceController(
 
     private fun startCleanupJob() {
         cleanupJob?.cancel()
-        cleanupJob = scope.launch {
-            try {
-                while (isActive) {
-                    delay(Duration.ofHours(24).toMillis())
-                    logger.info("Starting scheduled cleanup")
-                    try {
-                        artworkStorage.cleanupStorage()
-                        historyManager.cleanupHistory(50)
-                    } catch (e: Exception) {
-                        if (e is CancellationException) throw e
-                        logger.error("Failed to run cleanup", e)
-                        delay(Duration.ofMinutes(30).toMillis())
-                    }
+        cleanupJob = serviceScope.launch {
+            while (isActive) {
+                try {
+                    artworkStorage.cleanupOldArtworks()
+                } catch (e: Exception) {
+                    logger.error("Error during artwork cleanup", e)
                 }
-            } catch (e: CancellationException) {
-                logger.info("Cleanup job cancelled")
-                throw e
-            } catch (e: Exception) {
-                logger.error("Cleanup job failed", e)
+                delay(Duration.ofHours(24).toMillis())
+            }
+        }
+    }
+
+    fun cleanup() {
+        serviceScope.launch {
+            mutex.withLock {
+                try {
+                    stopService()
+                    artworkStorage.cleanup()
+                    serviceScope.cancel()
+                    restartScope.cancel()
+                } catch (e: Exception) {
+                    logger.error("Error during cleanup", e)
+                }
             }
         }
     }

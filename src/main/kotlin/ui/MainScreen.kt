@@ -38,16 +38,16 @@ fun MainScreen(
     settings: Settings,
     onSettingsChange: (Settings) -> Unit
 ) {
-    LoggerFactory.getLogger("MainScreen")
+    val logger = LoggerFactory.getLogger("MainScreen")
     var isFirstRun by remember { mutableStateOf(settings.isFirstRun) }
-    var isInitialLoading by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    val isInitialLoading by remember { mutableStateOf(false) }
     val isUpdatingWallpaper by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var isInitializing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val currentSettings by Settings.currentSettings.collectAsState()
-    val serviceRunning by serviceController.isServiceRunning.collectAsState()
 
     if (isFirstRun) {
         if (isInitializing) {
@@ -99,14 +99,14 @@ fun MainScreen(
             modifier = Modifier.fillMaxSize().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Top bar with settings
+            // Top bar with settings - removed running state
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Art Wallpaper ${if (serviceRunning) "(Running)" else "(Stopped)"}",
+                    "Art Wallpaper",
                     style = MaterialTheme.typography.h6
                 )
                 IconButton(onClick = { showSettings = true }) {
@@ -183,24 +183,25 @@ fun MainScreen(
                     }
 
                     // Loading overlay
-                    Crossfade(
-                        targetState = isInitialLoading,
-                        label = "initial_loading_overlay"
-                    ) { loading ->
-                        if (loading) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(MaterialTheme.colors.surface.copy(alpha = 0.8f)),
-                                contentAlignment = Alignment.Center
+                    if (isLoading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.7f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    CircularProgressIndicator()
-                                    Text("Starting service...")
-                                }
+                                CircularProgressIndicator(
+                                    color = Color.White
+                                )
+                                Text(
+                                    "Fetching New Artwork...",
+                                    style = MaterialTheme.typography.h6,
+                                    color = Color.White
+                                )
                             }
                         }
                     }
@@ -233,92 +234,47 @@ fun MainScreen(
                 Button(
                     onClick = {
                         scope.launch {
-                            isInitialLoading = true
+                            isLoading = true
+                            errorMessage = null
                             try {
-                                withTimeout(60000) {
-                                    serviceController.startService()
+                                withTimeout(60000) { // 60 second timeout
+                                    serviceController.nextWallpaper()
                                 }
                             } catch (e: Exception) {
-                                errorMessage = "Failed to start service: ${e.message}"
+                                logger.error("Failed to update wallpaper", e)
+                                errorMessage = when (e) {
+                                    is TimeoutCancellationException -> 
+                                        "Operation timed out. The server might be slow or the image too large. Please try again."
+                                    else -> "Failed to update: ${e.message}"
+                                }
                             } finally {
-                                isInitialLoading = false
+                                isLoading = false
                             }
                         }
                     },
                     modifier = Modifier.padding(8.dp),
-                    enabled = !isInitialLoading
-                ) {
-                    if (isInitialLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = MaterialTheme.colors.onPrimary
-                        )
-                    } else {
-                        Text("Start Service")
-                    }
-                }
-            }
-
-            // Next wallpaper button
-            Box(
-                modifier = Modifier.wrapContentWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                var isLoading by remember { mutableStateOf(false) }
-                
-                LaunchedEffect(isLoading) {
-                    if (isLoading) {
-                        try {
-                            serviceController.nextWallpaper()
-                        } catch (e: Exception) {
-                            errorMessage = when (e) {
-                                is TimeoutCancellationException -> "Operation timed out. Please try again."
-                                else -> "Failed to update: ${e.message}"
-                            }
-                        } finally {
-                            isLoading = false
-                        }
-                    }
-                }
-
-                PulsingButton(
-                    onClick = { if (!isLoading) isLoading = true },
-                    enabled = true,
-                    modifier = Modifier.wrapContentWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = if (isLoading) Color.Red else MaterialTheme.colors.primary,
-                        contentColor = Color.White
-                    )
+                    enabled = !isLoading
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     ) {
-                        if (isLoading) {
-                            val infiniteTransition = rememberInfiniteTransition(label = "loading_spinner")
-                            val rotation by infiniteTransition.animateFloat(
-                                initialValue = 0f,
-                                targetValue = 360f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(800, easing = LinearEasing),
-                                    repeatMode = RepeatMode.Restart
-                                ),
-                                label = "spinner_rotation"
-                            )
-                            
+                        AnimatedVisibility(
+                            visible = isLoading,
+                            enter = fadeIn(),
+                            exit = fadeOut()
+                        ) {
                             CircularProgressIndicator(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .rotate(rotation),
-                                color = Color.White,
+                                modifier = Modifier.size(16.dp),
+                                color = MaterialTheme.colors.onPrimary,
                                 strokeWidth = 2.dp
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
                         }
-                        Text(
-                            text = if (isLoading) "Finding New Artwork..." else "Next Wallpaper"
-                        )
+                        if (isLoading) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (isLoading) "Finding New Artwork..." else "Next Wallpaper")
                     }
                 }
             }

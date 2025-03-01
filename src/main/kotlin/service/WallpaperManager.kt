@@ -22,6 +22,7 @@ import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
+import exception.NetworkUnavailableException
 
 class WallpaperManager(
     private val wallpaperService: WindowsWallpaperService,
@@ -40,6 +41,15 @@ class WallpaperManager(
     private var lastScheduledUpdateTime: Long = 0
     private val _currentArtwork = MutableStateFlow<Pair<Path, ArtworkMetadata>?>(null)
     val currentArtwork: StateFlow<Pair<Path, ArtworkMetadata>?> = _currentArtwork.asStateFlow()
+    private val updateLock = Object()
+    private var isUpdating = false
+
+    private val updateRetryPolicy = RetryPolicy(
+        maxAttempts = 3,
+        initialDelay = 1000L,
+        maxDelay = 5000L,
+        factor = 2.0
+    )
 
     @Serializable
     private data class SavedState(
@@ -89,49 +99,32 @@ class WallpaperManager(
     }
 
     private suspend fun updateWallpaper(forceUpdate: Boolean = false) {
-        if (!connectivityChecker.isNetworkAvailable()) {
-            logger.info("No internet connection available, skipping update")
-            return
+        synchronized(updateLock) {
+            if (isUpdating) {
+                logger.info("Update already in progress, skipping")
+                return
+            }
+            isUpdating = true
         }
-
-        val now = LocalDateTime.now()
-        val scheduledTime = LocalDateTime.of(
-            now.toLocalDate(),
-            LocalTime.of(settings.updateTimeHour, settings.updateTimeMinute)
-        )
         
-        if (!forceUpdate) {
-            // Check if we already updated today after scheduled time
-            val lastUpdateDateTime = LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(lastScheduledUpdateTime),
-                ZoneId.systemDefault()
-            )
-            
-            if (lastUpdateDateTime.toLocalDate().isEqual(now.toLocalDate()) &&
-                lastUpdateDateTime.isAfter(scheduledTime)) {
-                logger.info("Already updated today after scheduled time, skipping update")
-                return
-            }
-            
-            if (now.isBefore(scheduledTime)) {
-                logger.info("Current time ${now} is before scheduled time ${scheduledTime}, skipping update")
-                return
-            }
-        }
-
         try {
-            artworkProvider.fetchArtwork()
-                .onSuccess { (path, metadata) ->
-                    val storedPath = artworkStorage.saveArtwork(path, metadata)
-                    wallpaperService.setWallpaper(storedPath).onSuccess {
-                        setScheduledWallpaper(storedPath, metadata)
-                        historyManager.addToHistory(metadata)
-                        artworkProvider.cleanupCacheFiles(metadata.id)
-                    }
+            updateRetryPolicy.execute {
+                if (!connectivityChecker.isNetworkAvailable()) {
+                    throw NetworkUnavailableException()
                 }
+                
+                val artwork = artworkProvider.fetchArtwork().getOrThrow()
+                val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
+                wallpaperService.setWallpaper(storedPath).getOrThrow()
+                setScheduledWallpaper(storedPath, artwork.second)
+            }
         } catch (e: Exception) {
-            logger.error("Failed to update wallpaper", e)
+            logger.error("Failed to update wallpaper after retries", e)
             throw e
+        } finally {
+            synchronized(updateLock) {
+                isUpdating = false
+            }
         }
     }
 
@@ -243,14 +236,14 @@ class WallpaperManager(
             LocalTime.of(settings.updateTimeHour, settings.updateTimeMinute)
         )
         
-        // Get the last scheduled update date (not time)
         val lastUpdateDate = LocalDateTime.ofInstant(
             java.time.Instant.ofEpochMilli(lastScheduledUpdateTime),
             ZoneId.systemDefault()
         ).toLocalDate()
         
-        if (now.isAfter(scheduledTime) && !today.isEqual(lastUpdateDate)) {
-            logger.info("Periodic check: Update needed - haven't updated today and we're past scheduled time $scheduledTime")
+        if ((now.isAfter(scheduledTime) || now.isEqual(scheduledTime)) && 
+            !today.isEqual(lastUpdateDate)) {
+            logger.info("Update needed - haven't updated today and we're at/past scheduled time $scheduledTime")
             scope.launch {
                 updateWallpaper()
             }
@@ -260,7 +253,7 @@ class WallpaperManager(
             } else {
                 scheduledTime.plusDays(1)
             }
-            logger.info("Periodic check: No update needed - next update scheduled for $nextUpdate")
+            logger.info("No update needed - next update scheduled for $nextUpdate")
         }
     }
 
@@ -294,5 +287,25 @@ class WallpaperManager(
             artworkProvider.cleanupCacheFiles(metadata.id)
             logger.info("Wallpaper set manually: ${metadata.title}")
         }
+    }
+}
+
+class RetryPolicy(
+    private val maxAttempts: Int,
+    private val initialDelay: Long,
+    private val maxDelay: Long,
+    private val factor: Double
+) {
+    suspend fun <T> execute(block: suspend () -> T): T {
+        var currentDelay = initialDelay
+        repeat(maxAttempts - 1) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                currentDelay = (currentDelay * factor).toLong().coerceAtMost(maxDelay)
+                delay(currentDelay)
+            }
+        }
+        return block() // Last attempt
     }
 } 

@@ -20,6 +20,8 @@ class ArtworkStorageManager(
         metadataDir.createDirectories()
     }
 
+    fun getArtworksDir(): Path = artworksDir
+
     fun saveArtwork(artwork: Path, metadata: ArtworkMetadata): Path {
         val targetPath = artworksDir.resolve("${metadata.id}.jpg")
         artwork.copyTo(targetPath, overwrite = true)
@@ -53,21 +55,58 @@ class ArtworkStorageManager(
         return if (artworkPath.exists()) artworkPath else null
     }
 
-    suspend fun cleanupStorage() = withContext(Dispatchers.IO) {
+    fun cleanup() {
         try {
             val artworks = getStoredArtworks()
-                .sortedByDescending { it.second.fetchedAt }
-
             if (artworks.size > maxStoredArtworks) {
-                logger.info("Cleaning up storage, removing ${artworks.size - maxStoredArtworks} artworks")
-                artworks.drop(maxStoredArtworks).forEach { (path, _) ->
+                // Sort by last modified time and keep only the most recent ones
+                val toDelete = artworks
+                    .sortedByDescending { it.first.getLastModifiedTime() }
+                    .drop(maxStoredArtworks)
+                
+                toDelete.forEach { (path, metadata) ->
                     path.deleteIfExists()
-                    // Delete associated metadata file
-                    getMetadataPath(path).deleteIfExists()
+                    metadataDir.resolve("${metadata.id}.json").deleteIfExists()
+                    logger.info("Cleaned up old artwork: ${metadata.title}")
+                }
+                
+                cachedArtworks = null // Invalidate cache
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to cleanup old artworks", e)
+        }
+    }
+
+    fun cleanupOldArtworks() {
+        try {
+            // Keep track of valid artwork IDs from metadata
+            val validIds = metadataDir.listDirectoryEntries("*.json")
+                .map { it.nameWithoutExtension }
+                .toSet()
+
+            // Clean up orphaned artwork files
+            artworksDir.listDirectoryEntries("*.jpg").forEach { artworkPath ->
+                val id = artworkPath.nameWithoutExtension
+                if (id !in validIds) {
+                    artworkPath.deleteIfExists()
+                    logger.info("Cleaned up orphaned artwork file: ${artworkPath.fileName}")
+                }
+            }
+
+            // Clean up orphaned metadata files
+            val validArtworkIds = artworksDir.listDirectoryEntries("*.jpg")
+                .map { it.nameWithoutExtension }
+                .toSet()
+
+            metadataDir.listDirectoryEntries("*.json").forEach { metadataPath ->
+                val id = metadataPath.nameWithoutExtension
+                if (id !in validArtworkIds) {
+                    metadataPath.deleteIfExists()
+                    logger.info("Cleaned up orphaned metadata file: ${metadataPath.fileName}")
                 }
             }
         } catch (e: Exception) {
-            logger.error("Failed to clean up storage", e)
+            logger.error("Failed to cleanup old artworks", e)
         }
     }
 

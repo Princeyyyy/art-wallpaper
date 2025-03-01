@@ -20,11 +20,7 @@ class MetMuseumSource(
     private val logger = LoggerFactory.getLogger(MetMuseumSource::class.java)
     private val baseUrl = "https://collectionapi.metmuseum.org/public/collection/v1"
     private val departments = listOf(
-        6,   // Asian Art
-        9,   // Drawings and Prints
         11,  // European Paintings
-        12,  // European Sculpture and Decorative Arts
-        19,  // Photographs
         21   // Modern Art
     )
     private val json = Json { ignoreUnknownKeys = true }

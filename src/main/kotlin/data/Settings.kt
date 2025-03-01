@@ -1,16 +1,12 @@
 import kotlinx.serialization.Serializable
-import kotlin.io.path.Path
-import kotlin.io.path.exists
-import kotlin.io.path.createDirectories
 import kotlinx.serialization.json.Json
-import kotlin.io.path.readText
-import kotlin.io.path.writeText
 import org.slf4j.LoggerFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.serializer
 import java.time.Duration
+import kotlin.io.path.*
 
 @Serializable
 data class Settings(
@@ -56,19 +52,26 @@ data class Settings(
         fun load(): Settings {
             return try {
                 if (settingsPath.exists()) {
-                    Json.decodeFromString<Settings>(settingsPath.readText()).also {
-                        logger.info("Settings loaded: notificationsEnabled=${it.notificationsEnabled}")
-                        _currentSettings.value = it
-                    }
+                    Json.decodeFromString<Settings>(settingsPath.readText())
                 } else {
-                    Settings().also {
-                        logger.info("Using default settings: notificationsEnabled=${it.notificationsEnabled}")
-                        _currentSettings.value = it
-                    }
+                    val defaultSettings = Settings()
+                    defaultSettings.save()
+                    defaultSettings
                 }
             } catch (e: Exception) {
                 logger.error("Failed to load settings, using defaults", e)
-                Settings().also { _currentSettings.value = it }
+                Settings()
+            }
+        }
+
+        fun backup() {
+            try {
+                val backupPath = settingsPath.resolveSibling("settings.backup.json")
+                if (settingsPath.exists()) {
+                    settingsPath.copyTo(backupPath, overwrite = true)
+                }
+            } catch (e: Exception) {
+                logger.error("Failed to backup settings", e)
             }
         }
     }
@@ -81,21 +84,13 @@ data class Settings(
 
     fun save() {
         try {
+            Settings.backup()
             settingsPath.parent.createDirectories()
-            val json = Json { 
-                prettyPrint = true 
-                encodeDefaults = true
-            }
-            val settingsToSave = if (startWithSystem != hasEnabledAutoStart) {
-                this.copy(hasEnabledAutoStart = startWithSystem)
-            } else {
-                this
-            }
-            settingsPath.writeText(json.encodeToString(serializer(), settingsToSave))
-            _currentSettings.value = settingsToSave
-            logger.info("Settings saved: updateTimeHour=$updateTimeHour, updateTimeMinute=$updateTimeMinute, hasSetUpdateTime=$hasSetUpdateTime, startWithSystem=$startWithSystem, hasEnabledAutoStart=$hasEnabledAutoStart")
+            settingsPath.writeText(Json.encodeToString(serializer(), this))
+            _currentSettings.value = this
         } catch (e: Exception) {
             logger.error("Failed to save settings", e)
+            throw e
         }
     }
 } 

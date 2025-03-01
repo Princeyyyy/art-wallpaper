@@ -40,30 +40,79 @@ class SystemTrayMenu(
 
             val popup = PopupMenu().apply {
                 add(MenuItem("Open Art Wallpaper").apply {
-                    addActionListener { onShowWindow() }
+                    addActionListener { 
+                        try {
+                            SwingUtilities.invokeLater {
+                                onShowWindow()
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
                 })
                 addSeparator()
                 
                 add(MenuItem("Pause Auto-Update").apply {
-                    addActionListener { serviceController.stopService() }
+                    addActionListener { 
+                        try {
+                            serviceController.stopService()
+                            displayNotification(
+                                "Art Wallpaper",
+                                "Auto-update paused"
+                            )
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            displayNotification(
+                                "Art Wallpaper",
+                                "Failed to pause auto-update"
+                            )
+                        }
+                    }
                 })
                 add(MenuItem("Resume Auto-Update").apply {
-                    addActionListener { serviceController.startService() }
+                    addActionListener { 
+                        try {
+                            serviceController.startService()
+                            displayNotification(
+                                "Art Wallpaper",
+                                "Auto-update resumed"
+                            )
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            displayNotification(
+                                "Art Wallpaper",
+                                "Failed to resume auto-update"
+                            )
+                        }
+                    }
                 })
                 
                 addSeparator()
                 
                 add(MenuItem("Exit").apply {
                     addActionListener {
-                        serviceController.stopService()
-                        System.exit(0)
+                        try {
+                            serviceController.stopService()
+                            System.exit(0)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            System.exit(1)
+                        }
                     }
                 })
             }
 
             trayIcon = TrayIcon(image, "Art Wallpaper", popup).apply {
                 isImageAutoSize = true
-                addActionListener { onShowWindow() }
+                addActionListener { 
+                    try {
+                        SwingUtilities.invokeLater {
+                            onShowWindow()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
 
             try {
