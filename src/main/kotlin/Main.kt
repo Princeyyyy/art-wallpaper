@@ -39,7 +39,7 @@ fun main(args: Array<String>) {
     }
 
     try {
-        val settings = Settings.load()
+        val settings = Settings.loadSavedSettings()
         val startMinimized = args.contains("--minimized") && !settings.isFirstRun
         val isAutoStart = args.contains("--autostart")
         

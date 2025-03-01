@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.example"
-version = "3.2.0"
+version = "3.3.0"
 
 kotlin {
     jvmToolchain {
@@ -50,7 +50,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Art Wallpaper"
-            packageVersion = "3.2.0"
+            packageVersion = "3.3.0"
             
             // Bundle JDK with the application
             includeAllModules = true
@@ -66,8 +66,8 @@ compose.desktop {
             windows {
                 menuGroup = "Art Wallpaper"
                 upgradeUuid = "89ABC678-DEF0-1234-5678-ABCDEF123457"
-                msiPackageVersion = "3.2.0"
-                exePackageVersion = "3.2.0"
+                msiPackageVersion = "3.3.0"
+                exePackageVersion = "3.3.0"
                 
                 // Set application icon
                 iconFile.set(project.file("src/main/resources/app_icon.ico"))

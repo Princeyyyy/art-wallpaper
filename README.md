@@ -1,4 +1,4 @@
-# 🎨 ArtWallpaper Manager v3.2.0
+# 🎨 ArtWallpaper Manager v3.3.0
 
 > Because staring at the same wallpaper for months is like eating the same breakfast for a year - technically possible, but why would you do that to yourself?
 
@@ -6,14 +6,15 @@ Turn your desktop into a daily art gallery! I built this because I got tired of 
 
 *Results may vary. Side effects may include frequent distractions due to stunning artwork.
 
-## 🌟 What's New in 3.2.0?
+## 🌟 What's New in 3.3.0?
 
-- 🎯 **Snazzier UI**: Buttons now pulse with life and show fancy loading animations!
-- 🚀 **Smoother Onboarding**: Get started with style (and some cheeky messages)
-- 🎨 **Enhanced Visual Feedback**: Watch that spinner spin while we fetch your masterpiece
-- 🔄 **Streamlined Interface**: Removed redundant controls for a cleaner experience
-- 🌈 **Better State Management**: More reliable button states and loading indicators
-- 🎭 **Fun Factor Increased**: Because software updates should make you smile
+- 🎨 **Even Snazzier UI**: Now with more wholesome welcome messages and fun loading screens!
+- 🚀 **Smoother Experience**: Better time management and settings persistence
+- 🎭 **Enhanced Art Journey**: More engaging first-time setup and artwork transitions
+- 🔄 **Reliable Settings**: Your preferences stick around like gum under a desk (but in a good way!)
+- 🌈 **Better State Management**: More reliable than your friend's promises to "be there in 5 minutes"
+- 🎪 **Fun Factor Doubled**: Because who said art management can't be entertaining?
+- 🎯 **Smart Time Updates**: Your chosen update time now actually stays chosen (revolutionary, we know!)
 
 ## 📁 Installation & Data Locations
 
@@ -23,40 +24,40 @@ Turn your desktop into a daily art gallery! I built this because I got tired of 
 
 ### User Data
 Your personal data is stored in `%USERPROFILE%\.artwallpaper\`:
-- `artworks/` - Downloaded artwork cache
-- `cache/` - Temporary files
-- `metadata/` - Artwork information
-- `settings.json` - Your preferences
+- `artworks/` - Your personal art gallery cache
+- `cache/` - Temporary files (they're shy, don't stare)
+- `metadata/` - Artwork information (the nerdy bits)
+- `settings.json` - Your preferences (now with backup!)
 - `history.json` - Your wallpaper history
-- `logs/` - Application logs for troubleshooting
+- `logs/` - Application logs (for when things go sideways)
 
 ## ✨ Features That Make You Go "Ooooh"
 
-- 🎨 Daily Art Delivery: Fresh artwork served daily
-- 🕒 Time Lord Mode: Pick your wallpaper change time
-- 💾 Offline Mode: Works without internet
-- 🔄 Previous/Next Navigation
-- 🖼️ High-Quality Processing
-- 🎯 Clean System Tray Interface
-- 🚀 Reliable Windows Auto-Start
-- 📝 Persistent Settings
-- 🎬 No Repeat Artworks
-- 🔍 Hourly Update Checks
-- 🌙 Silent Background Operation
+- 🎨 Daily Art Delivery: Fresh artwork served daily (no preservatives added)
+- 🕒 Time Lord Mode: Pick your wallpaper change time (and it actually remembers it now!)
+- 💾 Offline Mode: Works without internet (like your grandpa's radio)
+- 🔄 Previous/Next Navigation: For the indecisive art critics
+- 🖼️ High-Quality Processing: Because pixelated art is so 1985
+- 🎯 Clean System Tray Interface: Minimalist, like modern art
+- 🚀 Reliable Windows Auto-Start: More dependable than your alarm clock
+- 📝 Persistent Settings: Now with memory better than an elephant
+- 🎬 No Repeat Artworks: Because déjà vu is so yesterday
+- 🔍 Hourly Update Checks: Punctual like a Swiss watch
+- 🌙 Silent Background Operation: Stealthier than a ninja in fluffy slippers
 
 ## 🚀 Getting Started
 
 1. Download the latest `.msi` installer from [Releases](https://github.com/Princeyyyy/art-wallpaper/releases)
-2. Run the installer (it'll install to the correct location automatically)
-3. That's it! We're running in your system tray
+2. Run the installer (it's smarter than ever!)
+3. That's it! We're running in your system tray, ready to art up your day
 
 ## 🎮 Daily Driver Tips
 
 Right-click our system tray icon for:
-- 🎨 "New Wallpaper" - Instant art refresh
-- ⚙️ "Settings" - Configure:
+- 🎨 "New Wallpaper" - Instant art gratification
+- ⚙️ "Settings" - Configure your art experience:
   - Auto-start with Windows
-  - Daily update time
+  - Daily update time (that actually sticks now!)
   - Notifications
 - 📊 View your art history
 - ❌ Exit (but why would you?)
@@ -64,17 +65,18 @@ Right-click our system tray icon for:
 ## 🛠️ Technical Details
 
 - Windows 10/11 compatible
-- Automatic updates at your chosen time
+- Automatic updates at your chosen time (for real this time)
 - Hourly checks for missed updates
 - Smart caching system
 - Efficient resource usage
 - Proper Windows integration
 - Detailed logging system
+- Settings backup system (because we care about your preferences)
 
 ## 🐛 Known Issues
 
-- 🍎 Mac support still in development
-- 🌐 Large images may take longer to download
+- 🍎 Mac support still in development (Rome wasn't built in a day)
+- 🌐 Large images may take longer to download (blame the internet)
 
 ## 📜 License
 
@@ -90,4 +92,4 @@ Made with ❤️, caffeine, and a firm belief that your desktop deserves better 
 
 *No mountains were harmed in the making of this application.
 
-[Latest Release](https://github.com/Princeyyyy/art-wallpaper/releases/tag/3.2.0)
+[Latest Release](https://github.com/Princeyyyy/art-wallpaper/releases/tag/3.3.0)

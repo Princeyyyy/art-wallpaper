@@ -43,36 +43,51 @@ data class Settings(
 
     companion object {
         private val settingsPath = Path(System.getProperty("user.home"), ".artwallpaper", "settings.json")
+        private val backupPath = Path(System.getProperty("user.home"), ".artwallpaper", "settings.json.bak")
         private val _currentSettings = MutableStateFlow<Settings>(Settings())
         val currentSettings: StateFlow<Settings> = _currentSettings.asStateFlow()
         
         @kotlinx.serialization.Transient
         private val logger = LoggerFactory.getLogger(Settings::class.java)
 
-        fun load(): Settings {
+        fun updateCurrentSettings(settings: Settings) {
+            _currentSettings.value = settings
+            settings.save()
+        }
+
+        fun loadSavedSettings(): Settings {
             return try {
                 if (settingsPath.exists()) {
-                    Json.decodeFromString<Settings>(settingsPath.readText())
+                    val settings = Json.decodeFromString<Settings>(settingsPath.readText())
+                    _currentSettings.value = settings
+                    settings
+                } else if (backupPath.exists()) {
+                    logger.info("Main settings file not found, attempting to restore from backup")
+                    val settings = Json.decodeFromString<Settings>(backupPath.readText())
+                    _currentSettings.value = settings
+                    settings
                 } else {
-                    val defaultSettings = Settings()
-                    defaultSettings.save()
-                    defaultSettings
+                    Settings()
                 }
             } catch (e: Exception) {
-                logger.error("Failed to load settings, using defaults", e)
+                logger.error("Failed to load settings", e)
                 Settings()
             }
         }
 
-        fun backup() {
+        private fun backup() {
             try {
-                val backupPath = settingsPath.resolveSibling("settings.backup.json")
                 if (settingsPath.exists()) {
+                    settingsPath.parent.createDirectories()
                     settingsPath.copyTo(backupPath, overwrite = true)
                 }
             } catch (e: Exception) {
                 logger.error("Failed to backup settings", e)
             }
+        }
+
+        init {
+            loadSavedSettings()
         }
     }
 
@@ -84,7 +99,7 @@ data class Settings(
 
     fun save() {
         try {
-            Settings.backup()
+            backup()
             settingsPath.parent.createDirectories()
             settingsPath.writeText(Json.encodeToString(serializer(), this))
             _currentSettings.value = this

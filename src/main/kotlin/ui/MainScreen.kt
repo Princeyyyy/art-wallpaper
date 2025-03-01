@@ -218,8 +218,8 @@ fun MainScreen(
                     Text(
                         if (isLoading) {
                             "Fetching new artwork..."
-                        } else if (settings.hasSetUpdateTime) {
-                            "Your wallpaper updates daily at ${String.format("%02d:%02d", settings.updateTimeHour, settings.updateTimeMinute)}"
+                        } else if (currentSettings.hasSetUpdateTime) {
+                            "Your wallpaper updates daily at ${String.format("%02d:%02d", currentSettings.updateTimeHour, currentSettings.updateTimeMinute)}"
                         } else {
                             "Your wallpaper updates daily at 07:00"
                         },
@@ -313,7 +313,7 @@ fun MainScreen(
             SettingsDialog(
                 settings = settings,
                 onSettingsChange = { newSettings -> 
-                    newSettings.save()
+                    Settings.updateCurrentSettings(newSettings)
                     onSettingsChange(newSettings)
                     // Debounce restart
                     coroutineScope.launch {
