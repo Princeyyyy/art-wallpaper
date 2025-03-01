@@ -40,16 +40,12 @@ fun MainScreen(
     coroutineScope: CoroutineScope
 ) {
     val logger = LoggerFactory.getLogger("MainScreen")
+    val currentSettings by Settings.currentSettings.collectAsState()
     var isFirstRun by remember { mutableStateOf(settings.isFirstRun) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var isInitializing by remember { mutableStateOf(false) }
-
-    // Add effect to update isFirstRun when settings change
-    LaunchedEffect(settings) {
-        isFirstRun = settings.isFirstRun
-    }
 
     // Move loading state to composition scope
     val loadingState = remember { mutableStateOf(false) }
@@ -171,17 +167,41 @@ fun MainScreen(
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.padding(32.dp)
                             ) {
                                 CircularProgressIndicator(
                                     color = Color.White,
                                     modifier = Modifier.size(48.dp)
                                 )
                                 Text(
-                                    "Fetching New Artwork...",
+                                    "Exploring Art History... 🎨",
                                     style = MaterialTheme.typography.h6,
                                     color = Color.White
                                 )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Text(
+                                        "Searching through centuries of masterpieces... 🖼️",
+                                        style = MaterialTheme.typography.body1,
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        "From canvas to your screen, art is on its way! ✨",
+                                        style = MaterialTheme.typography.body1,
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        "Get ready for your next daily masterpiece! 🌟",
+                                        style = MaterialTheme.typography.body1,
+                                        color = Color.White.copy(alpha = 0.8f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
                         }
                     }
@@ -356,87 +376,184 @@ fun WelcomeScreen(
         if (showCurating) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(32.dp)
             ) {
                 CircularProgressIndicator(
                     color = MaterialTheme.colors.primary,
                     modifier = Modifier.size(48.dp)
                 )
                 Text(
-                    "Curating your masterpiece...",
+                    "Curating your masterpiece... 🎨",
                     style = MaterialTheme.typography.h6
                 )
+                Text(
+                    "We're searching through the world's finest art collections to find something special just for you! ✨",
+                    style = MaterialTheme.typography.body1,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.7f)
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(
+                        "From the halls of the Met to the galleries of Europe... 🏛️",
+                        style = MaterialTheme.typography.body1,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        "Discovering timeless beauty just for your desktop 🖼️",
+                        style = MaterialTheme.typography.body1,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        "Get ready to be inspired! 🌟",
+                        style = MaterialTheme.typography.body1,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colors.primary.copy(alpha = 0.9f)
+                    )
+                    Text(
+                        "Your personal art gallery is just moments away... ⭐",
+                        style = MaterialTheme.typography.body2,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colors.primary.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
         } else {
-            Button(
-                onClick = {
-                    if (!isInitializing) {
-                        showCurating = true
-                        onIsInitializingChange(true)
-                        
-                        coroutineScope.launch(Dispatchers.Default) {
-                            try {
-                                WindowsAutoStart.enable()
-                                serviceController.nextWallpaper()
-                                
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                modifier = Modifier.padding(32.dp)
+            ) {
+                Text(
+                    "Welcome to ArtWallpaper! 🎨",
+                    style = MaterialTheme.typography.h4,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Transform your desktop into a daily gallery of masterpieces ✨",
+                    style = MaterialTheme.typography.h6,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colors.primary
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        "Every day is an opportunity to discover something beautiful! 🌅",
+                        style = MaterialTheme.typography.body1,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.9f)
+                    )
+                    Text(
+                        "From Renaissance masterpieces to modern classics, let your desktop tell a new story every day 📖",
+                        style = MaterialTheme.typography.body1,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        "Curated from the world's greatest museums, bringing art history right to your screen 🏛️",
+                        style = MaterialTheme.typography.body1,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f)
+                    )
+                }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(
+                        "Ready to begin your artistic journey? 🎭",
+                        style = MaterialTheme.typography.body1,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colors.primary.copy(alpha = 0.9f)
+                    )
+                    Text(
+                        "Let's make your desktop a window to the world of art! 🖼️",
+                        style = MaterialTheme.typography.body2,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colors.primary.copy(alpha = 0.8f)
+                    )
+                }
+                Button(
+                    onClick = {
+                        if (!isInitializing) {
+                            showCurating = true
+                            onIsInitializingChange(true)
+                            
+                            coroutineScope.launch(Dispatchers.Default) {
                                 try {
-                                    // Wait for the wallpaper to change with a shorter timeout
-                                    withTimeout(30000) { // 30 seconds timeout
-                                        serviceController.wallpaperManager.currentArtwork
-                                            .collect { newArtwork ->
-                                                if (newArtwork != null && newArtwork.first.exists()) {
-                                                    logger.info("Initial artwork set successfully: ${newArtwork.second.title}")
-                                                    // Update settings and start service
-                                                    withContext(Dispatchers.Main) {
-                                                        val updatedSettings = settings.copy(
-                                                            isFirstRun = false,
-                                                            hasEnabledAutoStart = true,
-                                                            startWithSystem = true
-                                                        )
-                                                        updatedSettings.save()
-                                                        onSettingsChange(updatedSettings)
+                                    WindowsAutoStart.enable()
+                                    serviceController.nextWallpaper()
+                                    
+                                    try {
+                                        // Wait for the wallpaper to change with a shorter timeout
+                                        withTimeout(30000) { // 30 seconds timeout
+                                            serviceController.wallpaperManager.currentArtwork
+                                                .collect { newArtwork ->
+                                                    if (newArtwork != null && newArtwork.first.exists()) {
+                                                        logger.info("Initial artwork set successfully: ${newArtwork.second.title}")
+                                                        // Update settings and start service
+                                                        withContext(Dispatchers.Main) {
+                                                            val updatedSettings = settings.copy(
+                                                                isFirstRun = false,
+                                                                hasEnabledAutoStart = true,
+                                                                startWithSystem = true
+                                                            )
+                                                            updatedSettings.save()
+                                                            onSettingsChange(updatedSettings)
+                                                        }
+                                                        
+                                                        delay(1000)
+                                                        serviceController.startService()
+                                                        
+                                                        withContext(Dispatchers.Main) {
+                                                            onFirstRunComplete()
+                                                            showCurating = false
+                                                            onIsInitializingChange(false)
+                                                        }
+                                                        return@collect // Use return@withTimeout instead of cancel()
                                                     }
-                                                    
-                                                    delay(1000)
-                                                    serviceController.startService()
-                                                    
-                                                    withContext(Dispatchers.Main) {
-                                                        onFirstRunComplete()
-                                                        showCurating = false
-                                                        onIsInitializingChange(false)
-                                                    }
-                                                    return@collect // Use return@withTimeout instead of cancel()
                                                 }
+                                        }
+                                    } catch (e: Exception) {
+                                        when (e) {
+                                            is TimeoutCancellationException -> throw e // Re-throw timeout
+                                            is CancellationException -> {
+                                                // Normal completion - ignore the exception
+                                                logger.info("Setup completed successfully")
                                             }
+                                            else -> throw e // Re-throw other exceptions
+                                        }
                                     }
                                 } catch (e: Exception) {
-                                    when (e) {
-                                        is TimeoutCancellationException -> throw e // Re-throw timeout
-                                        is CancellationException -> {
-                                            // Normal completion - ignore the exception
-                                            logger.info("Setup completed successfully")
+                                    logger.error("Failed to complete first run setup", e)
+                                    withContext(Dispatchers.Main) {
+                                        val errorMessage = when (e) {
+                                            is TimeoutCancellationException -> "Taking longer than expected to find suitable artwork. Please try again."
+                                            else -> "Failed to complete setup: ${e.message}"
                                         }
-                                        else -> throw e // Re-throw other exceptions
+                                        onError(errorMessage)
+                                        showCurating = false
+                                        onIsInitializingChange(false)
                                     }
-                                }
-                            } catch (e: Exception) {
-                                logger.error("Failed to complete first run setup", e)
-                                withContext(Dispatchers.Main) {
-                                    val errorMessage = when (e) {
-                                        is TimeoutCancellationException -> "Taking longer than expected to find suitable artwork. Please try again."
-                                        else -> "Failed to complete setup: ${e.message}"
-                                    }
-                                    onError(errorMessage)
-                                    showCurating = false
-                                    onIsInitializingChange(false)
                                 }
                             }
                         }
-                    }
-                },
-                enabled = !isInitializing
-            ) {
-                Text("Get Started")
+                    },
+                    enabled = !isInitializing,
+                    modifier = Modifier.padding(top = 16.dp)
+                ) {
+                    Text("Begin Your Art Journey 🚀")
+                }
             }
         }
     }
