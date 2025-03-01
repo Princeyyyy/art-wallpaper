@@ -10,7 +10,23 @@ object WindowsAutoStart {
 
     fun enable() {
         try {
-            // Get the installation path from environment
+            // Check if we're running in development mode by checking the execution path
+            val isDevelopment = System.getProperty("java.class.path")?.contains("build\\classes") == true
+            
+            if (isDevelopment) {
+                logger.info("Running in development mode, skipping auto-start configuration")
+                // Update settings to simulate auto-start being enabled
+                val currentSettings = Settings.currentSettings.value
+                if (!currentSettings.startWithSystem || !currentSettings.hasEnabledAutoStart) {
+                    currentSettings.copy(
+                        startWithSystem = true,
+                        hasEnabledAutoStart = true
+                    ).save()
+                }
+                return
+            }
+
+            // Production mode - check for installed executable
             val localAppData = System.getenv("LOCALAPPDATA")
             val exePath = "$localAppData\\Art Wallpaper\\Art Wallpaper.exe"
             val exeFile = File(exePath)
@@ -32,15 +48,6 @@ object WindowsAutoStart {
                 APP_NAME,
                 registryValue
             )
-
-            // Update settings to reflect the change
-            val currentSettings = Settings.currentSettings.value
-            if (!currentSettings.startWithSystem || !currentSettings.hasEnabledAutoStart) {
-                currentSettings.copy(
-                    startWithSystem = true,
-                    hasEnabledAutoStart = true
-                ).save()
-            }
 
             // Verify the registry entry
             if (Advapi32Util.registryValueExists(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)) {

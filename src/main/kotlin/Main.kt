@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory
 import util.DataCleanup
 
 val logger = LoggerFactory.getLogger("MainKt")
-private var serviceController: ServiceController? = null
 
 fun main(args: Array<String>) {
     setupGlobalExceptionHandler()
@@ -44,6 +43,9 @@ fun main(args: Array<String>) {
         val startMinimized = args.contains("--minimized") && !settings.isFirstRun
         val isAutoStart = args.contains("--autostart")
         
+        // Don't start the service if it's first run or if we're not auto-starting
+        val shouldStartService = !settings.isFirstRun && (isAutoStart || !startMinimized)
+        
         // Initialize components
         val wallpaperService = WindowsWallpaperService()
         val historyManager = HistoryManager()
@@ -61,110 +63,25 @@ fun main(args: Array<String>) {
             settings = settings
         )
         
-        serviceController = ServiceController(
+        val controller = ServiceController(
             wallpaperManager = wallpaperManager,
             artworkStorage = artworkStorage,
             historyManager = historyManager,
             artworkProvider = artworkProvider
         )
 
-        // Create a local immutable copy
-        val controller = serviceController ?: run {
-            logger.error("Failed to initialize ServiceController")
-            System.exit(1)
-            return
-        }
-
-        // Create a single shutdown hook handler
-        setupShutdownHook(controller, lockFile)
-
-        var windowVisibilityCallback: ((Boolean) -> Unit)? = null
-        
-        // Initialize system tray with non-null controller
-        val systemTray = SystemTrayMenu(
-            serviceController = controller,
-            onShowWindow = { 
-                windowVisibilityCallback?.invoke(true)
-                true
-            }
+        // Setup system tray and window
+        setupApplication(
+            controller,
+            settings,
+            startMinimized,
+            shouldStartService,
+            lockFile,
+            wallpaperManager
         )
-        systemTray.show()
 
-        // If auto-starting, start service and keep running in background
-        if (isAutoStart) {
-            controller.startService(isAutoStart = true)
-            val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-            
-            Runtime.getRuntime().addShutdownHook(Thread {
-                runBlocking {
-                    controller.stopService()
-                    scope.cancel()
-                }
-            })
-            
-            runBlocking {
-                while (true) {
-                    delay(Long.MAX_VALUE)
-                }
-            }
-        }
-
-        application {
-            var isWindowVisible by remember { mutableStateOf(!startMinimized) }
-            
-            // Set the callback to control window visibility
-            windowVisibilityCallback = { visible -> 
-                isWindowVisible = visible 
-            }
-
-            // Start service if not already running
-            LaunchedEffect(Unit) {
-                if (!controller.isServiceRunning.value) {
-                    controller.startService()
-                }
-            }
-
-            Window(
-                onCloseRequest = {
-                    if (settings.isFirstRun) {
-                        isWindowVisible = false
-                        settings.copy(isFirstRun = false).save()
-                    } else {
-                        isWindowVisible = false
-                        systemTray.displayNotification(
-                            "Art Wallpaper is still running",
-                            "The application has been minimized to the system tray. Right click the tray icon to reopen."
-                        )
-                    }
-                },
-                title = "Art Wallpaper",
-                state = rememberWindowState(
-                    width = 960.dp,
-                    height = 640.dp,
-                    isMinimized = startMinimized
-                ),
-                visible = isWindowVisible,
-                icon = painterResource("tray_icon.png")
-            ) {
-                App(
-                    wallpaperManager = wallpaperManager,
-                    serviceController = controller,
-                    settings = settings,
-                    onSettingsChange = { newSettings ->
-                        newSettings.save()
-                        controller.restartService()
-                    }
-                )
-            }
-        }
-
-        // Enable auto-start on first run
-        if (!settings.hasEnabledAutoStart) {
-            WindowsAutoStart.enable()
-            settings.copy(hasEnabledAutoStart = true).save()
-        }
     } catch (e: Exception) {
-        logger.error("Fatal error during application startup", e)
+        logger.error("Failed to initialize application", e)
         System.exit(1)
     }
 }
@@ -203,12 +120,11 @@ private fun ensureSingleInstance(lockFile: Path): Boolean {
 }
 
 // Create a single shutdown hook handler
-private fun setupShutdownHook(controller: ServiceController, lockFile: Path, scope: CoroutineScope? = null) {
+private fun setupShutdownHook(controller: ServiceController, lockFile: Path) {
     Runtime.getRuntime().addShutdownHook(Thread {
         runBlocking {
             try {
                 controller.cleanup()
-                scope?.cancel()
                 lockFile.deleteIfExists()
                 logger.info("Application shutdown completed")
             } catch (e: Exception) {
@@ -216,6 +132,92 @@ private fun setupShutdownHook(controller: ServiceController, lockFile: Path, sco
             }
         }
     })
+}
+
+private fun setupApplication(
+    controller: ServiceController,
+    settings: Settings,
+    startMinimized: Boolean,
+    shouldStartService: Boolean,
+    lockFile: Path,
+    wallpaperManager: WallpaperManager
+) {
+    var windowVisibilityCallback: ((Boolean) -> Unit)? = null
+    
+    // Initialize system tray
+    val systemTray = SystemTrayMenu(
+        serviceController = controller,
+        onShowWindow = { 
+            windowVisibilityCallback?.invoke(true)
+            true
+        }
+    )
+    systemTray.show()
+
+    // Setup shutdown hook
+    setupShutdownHook(controller, lockFile)
+
+    // Start the service only if needed
+    if (shouldStartService) {
+        runBlocking {
+            controller.startService()
+        }
+    }
+
+    application {
+        var isWindowVisible by remember { mutableStateOf(!startMinimized) }
+        
+        // Set the callback to control window visibility
+        windowVisibilityCallback = { visible -> 
+            isWindowVisible = visible 
+        }
+
+        // Start service if not already running
+        LaunchedEffect(Unit) {
+            if (!controller.isServiceRunning.value) {
+                controller.startService()
+            }
+        }
+
+        Window(
+            onCloseRequest = {
+                if (settings.isFirstRun) {
+                    isWindowVisible = false
+                    settings.copy(isFirstRun = false).save()
+                } else {
+                    isWindowVisible = false
+                    systemTray.displayNotification(
+                        "Art Wallpaper is still running",
+                        "The application has been minimized to the system tray. Right click the tray icon to reopen."
+                    )
+                }
+            },
+            title = "Art Wallpaper",
+            state = rememberWindowState(
+                width = 960.dp,
+                height = 640.dp,
+                isMinimized = startMinimized
+            ),
+            visible = isWindowVisible,
+            icon = painterResource("tray_icon.png")
+        ) {
+            App(
+                wallpaperManager = wallpaperManager,
+                serviceController = controller,
+                settings = settings,
+                onSettingsChange = { newSettings ->
+                    newSettings.save()
+                    controller.restartService()
+                }
+            )
+        }
+    }
+
+    // Enable auto-start on first run
+    if (!settings.hasEnabledAutoStart) {
+        WindowsAutoStart.enable()
+        settings.copy(hasEnabledAutoStart = true).save()
+    }
 }
 
 @Composable
@@ -226,7 +228,7 @@ fun App(
     onSettingsChange: (Settings) -> Unit
 ) {
     ArtWallpaperTheme {
-        rememberCoroutineScope()
+        val scope = rememberCoroutineScope()
         val currentArtwork by wallpaperManager.currentArtwork.collectAsState()
         
         Surface(
@@ -237,7 +239,8 @@ fun App(
                 currentArtwork = currentArtwork,
                 serviceController = serviceController,
                 settings = settings,
-                onSettingsChange = onSettingsChange
+                onSettingsChange = onSettingsChange,
+                coroutineScope = scope
             )
         }
     }

@@ -1,15 +1,61 @@
+import kotlinx.coroutines.*
 import service.ServiceController
 import java.awt.*
 import javax.swing.SwingUtilities
+import javax.imageio.ImageIO
 
 class SystemTrayMenu(
     private val serviceController: ServiceController,
     private val onShowWindow: () -> Boolean
 ) {
-    private var trayIcon: TrayIcon? = null
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var trayIcon: TrayIcon
+
+    init {
+        val popup = PopupMenu()
+        
+        val startItem = MenuItem("Start Service")
+        startItem.addActionListener {
+            scope.launch {
+                serviceController.startService()
+            }
+        }
+
+        val stopItem = MenuItem("Stop Service")
+        stopItem.addActionListener {
+            scope.launch {
+                serviceController.stopService()
+            }
+        }
+
+        val showItem = MenuItem("Show Window")
+        showItem.addActionListener {
+            onShowWindow()
+        }
+
+        val exitItem = MenuItem("Exit")
+        exitItem.addActionListener {
+            scope.launch {
+                serviceController.cleanup()
+                scope.cancel()
+                System.exit(0)
+            }
+        }
+
+        popup.add(startItem)
+        popup.add(stopItem)
+        popup.addSeparator()
+        popup.add(showItem)
+        popup.addSeparator()
+        popup.add(exitItem)
+
+        val image = ImageIO.read(javaClass.getResourceAsStream("/tray_icon.png"))
+        trayIcon = TrayIcon(image, "Art Wallpaper", popup)
+        trayIcon.isImageAutoSize = true
+    }
 
     fun displayNotification(title: String, message: String) {
-        trayIcon?.displayMessage(
+        trayIcon.displayMessage(
             title,
             message,
             TrayIcon.MessageType.NONE
@@ -55,11 +101,13 @@ class SystemTrayMenu(
                 add(MenuItem("Pause Auto-Update").apply {
                     addActionListener { 
                         try {
-                            serviceController.stopService()
-                            displayNotification(
-                                "Art Wallpaper",
-                                "Auto-update paused"
-                            )
+                            scope.launch {
+                                serviceController.stopService()
+                                displayNotification(
+                                    "Art Wallpaper",
+                                    "Auto-update paused"
+                                )
+                            }
                         } catch (e: Exception) {
                             e.printStackTrace()
                             displayNotification(
@@ -72,11 +120,13 @@ class SystemTrayMenu(
                 add(MenuItem("Resume Auto-Update").apply {
                     addActionListener { 
                         try {
-                            serviceController.startService()
-                            displayNotification(
-                                "Art Wallpaper",
-                                "Auto-update resumed"
-                            )
+                            scope.launch {
+                                serviceController.startService()
+                                displayNotification(
+                                    "Art Wallpaper",
+                                    "Auto-update resumed"
+                                )
+                            }
                         } catch (e: Exception) {
                             e.printStackTrace()
                             displayNotification(
@@ -92,8 +142,11 @@ class SystemTrayMenu(
                 add(MenuItem("Exit").apply {
                     addActionListener {
                         try {
-                            serviceController.stopService()
-                            System.exit(0)
+                            scope.launch {
+                                serviceController.stopService()
+                                scope.cancel()
+                                System.exit(0)
+                            }
                         } catch (e: Exception) {
                             e.printStackTrace()
                             System.exit(1)
@@ -116,7 +169,7 @@ class SystemTrayMenu(
             }
 
             try {
-                tray.add(trayIcon!!)
+                tray.add(trayIcon)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

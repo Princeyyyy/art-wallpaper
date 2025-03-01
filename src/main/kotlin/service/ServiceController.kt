@@ -74,24 +74,26 @@ class ServiceController(
         throw lastException ?: RuntimeException("Operation failed after $maxRetries attempts")
     }
 
-    fun startService(isAutoStart: Boolean = false) {
-        serviceScope.launch {
-            mutex.withLock {
-                if (!_isServiceRunning.value) {
-                    try {
-                        safeServiceOperation {
-                            wallpaperManager.start()
-                            startCleanupJob()
-                            startPeriodicCheck()
-                            _isServiceRunning.value = true
-                            logger.info("Service started${if (isAutoStart) " (auto-start)" else ""}")
-                        }
-                    } catch (e: Exception) {
-                        logger.error("Failed to start service", e)
-                        _isServiceRunning.value = false
-                        throw e
-                    }
-                }
+    suspend fun startService() {
+        if (Settings.currentSettings.value.isFirstRun) {
+            logger.info("First run detected, skipping service start")
+            return
+        }
+        
+        mutex.withLock {
+            if (_isServiceRunning.value) {
+                logger.info("Service already running")
+                return
+            }
+            
+            wallpaperManager.start()
+            _isServiceRunning.value = true
+            logger.info("Service started")
+            
+            // Start periodic checks
+            checkJob = serviceScope.launch {
+                logger.info("Performing periodic check for wallpaper updates")
+                wallpaperManager.checkAndUpdateIfNeeded()
             }
         }
     }
@@ -139,30 +141,21 @@ class ServiceController(
         }
     }
 
-    suspend fun nextWallpaper() {
-        val maxAttempts = 3
-        val backoffDelay = 1000L
-        var attempts = 0
-
-        while (attempts < maxAttempts) {
+    fun nextWallpaper() {
+        if (isServiceRunning.value) {
+            return  // Don't proceed if service is already running
+        }
+        
+        serviceScope.launch {
             try {
-                artworkProvider.fetchArtwork()
-                    .onSuccess { (path, metadata) ->
-                        val storedPath = artworkStorage.saveArtwork(path, metadata)
-                        wallpaperManager.setWallpaperManually(storedPath, metadata)
-                        historyManager.addToHistory(metadata)
-                        artworkProvider.cleanupCacheFiles(metadata.id)
-                        logger.info("Successfully set next wallpaper: ${metadata.title}")
-                        return
-                    }
-                attempts++
-                delay(backoffDelay * attempts)
+                val artwork = artworkProvider.fetchArtwork().getOrThrow()
+                val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
+                wallpaperManager.setWallpaperManually(storedPath, artwork.second)
+                
+                artworkStorage.cleanupOldArtworks()
             } catch (e: Exception) {
-                logger.error("Attempt $attempts failed", e)
-                if (attempts >= maxAttempts) {
-                    throw IllegalStateException("Failed to update wallpaper after $maxAttempts attempts")
-                }
-                delay(backoffDelay * attempts)
+                logger.error("Failed to set next wallpaper", e)
+                throw e
             }
         }
     }

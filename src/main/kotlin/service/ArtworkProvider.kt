@@ -63,30 +63,37 @@ class ArtworkProvider(
 
     fun cleanupCacheFiles(exceptId: String? = null) {
         try {
-            // Only delete files that have been successfully processed
+            logger.info("Starting cache cleanup")
             cacheDir.listDirectoryEntries().forEach { file ->
-                // Skip the current artwork being processed
-                if (exceptId != null && file.name.startsWith(exceptId)) {
-                    logger.debug("Skipping cleanup of current artwork: ${file.name}")
-                    return@forEach
-                }
-
-                // Check if this artwork has been stored in artworks directory
-                val artworkId = file.nameWithoutExtension.substringBefore('.')
-                val isStoredInArtworks = artworksDir.resolve("$artworkId.jpg").exists()
-
-                if (isStoredInArtworks) {
-                    file.deleteIfExists()
-                    logger.info("Cleaned up processed cache file: ${file.name}")
-                } else {
-                    // Only delete old unprocessed files
-                    val cutoffTime = System.currentTimeMillis() - Duration.ofHours(24).toMillis()
-                    if (file.getLastModifiedTime().toMillis() < cutoffTime) {
-                        file.deleteIfExists()
-                        logger.info("Cleaned up old unprocessed cache file: ${file.name}")
+                try {
+                    // Extract artwork ID from the processed filename
+                    val artworkId = when {
+                        file.name.startsWith("processed_artwork-") -> {
+                            file.name.substringAfter("processed_artwork-")
+                                .substringBefore("-")
+                        }
+                        else -> file.nameWithoutExtension.substringBefore('.')
                     }
+
+                    // Skip if this is the current artwork being processed
+                    if (exceptId != null && artworkId == exceptId) {
+                        logger.debug("Skipping cleanup of current artwork: ${file.name}")
+                        return@forEach
+                    }
+
+                    val isStoredInArtworks = artworksDir.resolve("$artworkId.jpg").exists()
+
+                    if (isStoredInArtworks || exceptId == null) {
+                        file.deleteIfExists()
+                        // Also delete any associated metadata files
+                        cacheDir.resolve("processed_artwork-$artworkId.json").deleteIfExists()
+                        logger.info("Cleaned up cache file: ${file.name}")
+                    }
+                } catch (e: Exception) {
+                    logger.error("Failed to delete cache file: ${file.name}", e)
                 }
             }
+            logger.info("Cache cleanup completed")
         } catch (e: Exception) {
             logger.error("Failed to cleanup cache files", e)
         }

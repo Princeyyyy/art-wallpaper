@@ -59,13 +59,28 @@ class WallpaperManager(
     )
 
     init {
-        // Check if we need to update on startup
-        scope.launch {
-            checkAndUpdateIfNeeded()
+        // Load last saved state
+        try {
+            if (stateFile.exists()) {
+                val savedState = Json.decodeFromString<SavedState>(stateFile.readText())
+                lastUpdateTime = savedState.lastUpdateTime
+                lastScheduledUpdateTime = savedState.lastScheduledUpdateTime
+                
+                // Set current artwork from saved state
+                val storedPath = artworkStorage.getArtworkPath(savedState.metadata.id)
+                if (storedPath != null) {
+                    if (storedPath.exists()) {
+                        setCurrentArtwork(storedPath, savedState.metadata)
+                        lastSuccessfulArtwork = storedPath to savedState.metadata
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to load wallpaper state", e)
         }
     }
 
-    private suspend fun checkAndUpdateIfNeeded() {
+    suspend fun checkAndUpdateIfNeeded() {
         val state = loadState()
         val now = System.currentTimeMillis()
         
@@ -117,6 +132,7 @@ class WallpaperManager(
                 val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
                 wallpaperService.setWallpaper(storedPath).getOrThrow()
                 setScheduledWallpaper(storedPath, artwork.second)
+                artworkProvider.cleanupCacheFiles()
             }
         } catch (e: Exception) {
             logger.error("Failed to update wallpaper after retries", e)
@@ -154,48 +170,22 @@ class WallpaperManager(
         }
     }
 
-    fun start() {
-        logger.info("Starting wallpaper manager")
-        stop()
-        
-        loadSavedState()
-        
-        scope.launch {
-            val now = LocalDateTime.now()
-            val scheduledTime = LocalDateTime.of(
-                now.toLocalDate(),
-                LocalTime.of(settings.updateTimeHour, settings.updateTimeMinute)
-            )
-            
-            // Check if we missed today's update
-            val lastUpdateDateTime = LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(lastScheduledUpdateTime),
-                ZoneId.systemDefault()
-            )
-            
-            if (now.isAfter(scheduledTime) && 
-                (!lastUpdateDateTime.toLocalDate().isEqual(now.toLocalDate()) ||
-                 lastUpdateDateTime.isBefore(scheduledTime))) {
-                logger.info("Missed today's update, updating now")
-                updateWallpaper()
-            } else {
-                logger.info("No immediate update needed - waiting for next scheduled time at $scheduledTime")
+    suspend fun start() {
+        synchronized(updateLock) {
+            if (job != null) {
+                logger.info("Wallpaper manager already running")
+                return
             }
             
-            // Start the update loop
+            logger.info("Starting wallpaper manager")
             job = scope.launch {
-                while (isActive) {
-                    val nextUpdateTime = calculateNextUpdateTime()
-                    val delayMillis = nextUpdateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() - System.currentTimeMillis()
-                    
-                    if (delayMillis > 0) {
-                        logger.info("Waiting ${Duration.ofMillis(delayMillis).toHours()} hours until next update at ${nextUpdateTime}")
-                        delay(delayMillis)
+                try {
+                    // Only check for updates if not first run
+                    if (!settings.isFirstRun) {
+                        checkAndUpdateIfNeeded()
                     }
-                    
-                    if (isActive) {
-                        updateWallpaper()
-                    }
+                } catch (e: Exception) {
+                    logger.error("Error during wallpaper update check", e)
                 }
             }
         }
@@ -284,7 +274,7 @@ class WallpaperManager(
         wallpaperService.setWallpaper(path).onSuccess {
             setCurrentArtwork(path, metadata)
             lastUpdateTime = System.currentTimeMillis()
-            artworkProvider.cleanupCacheFiles(metadata.id)
+            artworkProvider.cleanupCacheFiles()
             logger.info("Wallpaper set manually: ${metadata.title}")
         }
     }

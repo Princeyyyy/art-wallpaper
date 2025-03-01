@@ -30,70 +30,53 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.swing.Swing
 
 @Composable
 fun MainScreen(
     currentArtwork: Pair<Path, ArtworkMetadata>?,
     serviceController: ServiceController,
     settings: Settings,
-    onSettingsChange: (Settings) -> Unit
+    onSettingsChange: (Settings) -> Unit,
+    coroutineScope: CoroutineScope
 ) {
     val logger = LoggerFactory.getLogger("MainScreen")
     var isFirstRun by remember { mutableStateOf(settings.isFirstRun) }
     var isLoading by remember { mutableStateOf(false) }
-    val isInitialLoading by remember { mutableStateOf(false) }
-    val isUpdatingWallpaper by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var isInitializing by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val currentSettings by Settings.currentSettings.collectAsState()
+
+    // Add effect to update isFirstRun when settings change
+    LaunchedEffect(settings) {
+        isFirstRun = settings.isFirstRun
+    }
+
+    // Move loading state to composition scope
+    val loadingState = remember { mutableStateOf(false) }
+    var isLoadingState by loadingState
+
+    LaunchedEffect(isLoading) {
+        isLoadingState = isLoading
+        logger.info("Loading state changed: $isLoading")
+    }
 
     if (isFirstRun) {
-        if (isInitializing) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(48.dp),
-                        color = MaterialTheme.colors.primary
-                    )
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            "🎨 Curating your first masterpiece...",
-                            style = MaterialTheme.typography.h6,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colors.onSurface
-                        )
-                        Text(
-                            "Your desktop is about to get fabulous! ✨",
-                            style = MaterialTheme.typography.subtitle1,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-            }
-        } else {
-            WelcomeScreen(
-                serviceController = serviceController,
-                settings = settings,
-                isInitializing = isInitializing,
-                onIsInitializingChange = { isInitializing = it },
-                onFirstRunComplete = {
-                    isFirstRun = false
-                },
-                onError = { errorMessage = it }
-            )
-        }
+        WelcomeScreen(
+            isInitializing = isInitializing,
+            onIsInitializingChange = { isInitializing = it },
+            settings = settings,
+            serviceController = serviceController,
+            onFirstRunComplete = { isFirstRun = false },
+            onSettingsChange = onSettingsChange,
+            onError = { error -> errorMessage = error },
+            coroutineScope = coroutineScope,
+            currentArtwork = currentArtwork
+        )
     } else {
         Column(
             modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -141,7 +124,7 @@ fun MainScreen(
                             contentScale = ContentScale.Fit
                         )
 
-                        // Artwork info overlay with rounded corners
+                        // Artwork info overlay
                         Surface(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -183,11 +166,12 @@ fun MainScreen(
                     }
 
                     // Loading overlay
-                    if (isLoading) {
+                    if (isLoadingState) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.7f)),
+                                .background(Color.Black.copy(alpha = 0.7f))
+                                .zIndex(1f),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
@@ -195,7 +179,8 @@ fun MainScreen(
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 CircularProgressIndicator(
-                                    color = Color.White
+                                    color = Color.White,
+                                    modifier = Modifier.size(48.dp)
                                 )
                                 Text(
                                     "Fetching New Artwork...",
@@ -216,15 +201,21 @@ fun MainScreen(
             ) {
                 Column {
                     Text(
-                        if (currentSettings.hasSetUpdateTime) {
-                            "Your wallpaper updates daily at ${String.format("%02d:%02d", currentSettings.updateTimeHour, currentSettings.updateTimeMinute)}"
+                        if (isLoading) {
+                            "Fetching new artwork..."
+                        } else if (settings.hasSetUpdateTime) {
+                            "Your wallpaper updates daily at ${String.format("%02d:%02d", settings.updateTimeHour, settings.updateTimeMinute)}"
                         } else {
                             "Your wallpaper updates daily at 07:00"
                         },
                         style = MaterialTheme.typography.body1
                     )
                     Text(
-                        "Sit back and enjoy the daily art! ✨",
+                        if (isLoading) {
+                            "Please wait while we find something beautiful! ✨"
+                        } else {
+                            "Sit back and enjoy the daily art! ✨"
+                        },
                         style = MaterialTheme.typography.body2.copy(
                             color = MaterialTheme.colors.primary.copy(alpha = 0.8f)
                         ),
@@ -233,18 +224,17 @@ fun MainScreen(
                 }
                 Button(
                     onClick = {
-                        scope.launch {
-                            isLoading = true
-                            errorMessage = null
+                        isLoading = true
+                        errorMessage = null
+                        coroutineScope.launch {
                             try {
-                                withTimeout(60000) { // 60 second timeout
+                                withTimeout(60000) { // Increase timeout to 60 seconds
                                     serviceController.nextWallpaper()
                                 }
                             } catch (e: Exception) {
                                 logger.error("Failed to update wallpaper", e)
                                 errorMessage = when (e) {
-                                    is TimeoutCancellationException -> 
-                                        "Operation timed out. The server might be slow or the image too large. Please try again."
+                                    is TimeoutCancellationException -> "Operation timed out. The server might be slow or the image too large. Please try again."
                                     else -> "Failed to update: ${e.message}"
                                 }
                             } finally {
@@ -255,48 +245,7 @@ fun MainScreen(
                     modifier = Modifier.padding(8.dp),
                     enabled = !isLoading
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    ) {
-                        AnimatedVisibility(
-                            visible = isLoading,
-                            enter = fadeIn(),
-                            exit = fadeOut()
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = MaterialTheme.colors.onPrimary,
-                                strokeWidth = 2.dp
-                            )
-                        }
-                        if (isLoading) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Text(if (isLoading) "Finding New Artwork..." else "Next Wallpaper")
-                    }
-                }
-            }
-
-            // Updating wallpaper overlay
-            AnimatedVisibility(
-                visible = isUpdatingWallpaper,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "Updating Wallpaper...",
-                        style = MaterialTheme.typography.h6,
-                        color = MaterialTheme.colors.onPrimary,
-                        modifier = Modifier
-                            .background(MaterialTheme.colors.primary.copy(alpha = 0.7f))
-                            .padding(16.dp)
-                    )
+                    Text("Next Wallpaper")
                 }
             }
 
@@ -323,7 +272,7 @@ fun MainScreen(
                     newSettings.save()
                     onSettingsChange(newSettings)
                     // Debounce restart
-                    scope.launch {
+                    coroutineScope.launch {
                         delay(1000) // Wait for rapid changes to settle
                         serviceController.restartService()
                     }
@@ -335,122 +284,117 @@ fun MainScreen(
 }
 
 @Composable
-private fun WelcomeScreen(
-    serviceController: ServiceController,
-    settings: Settings,
+fun WelcomeScreen(
     isInitializing: Boolean,
     onIsInitializingChange: (Boolean) -> Unit,
+    settings: Settings,
+    serviceController: ServiceController,
     onFirstRunComplete: () -> Unit,
-    onError: (String) -> Unit
+    onSettingsChange: (Settings) -> Unit,
+    onError: (String) -> Unit,
+    coroutineScope: CoroutineScope,
+    currentArtwork: Pair<Path, ArtworkMetadata>?
 ) {
-    val scope = rememberCoroutineScope()
-    var message by remember { mutableStateOf<String?>(null) }
+    var showCurating by remember { mutableStateOf(false) }
     
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    // Add effect to handle currentArtwork changes
+    LaunchedEffect(currentArtwork) {
+        if (currentArtwork != null && showCurating) {
+            // Give time for the wallpaper to be visible
+            delay(2000)
+            
+            // Update settings and start service
+            withContext(Dispatchers.Main) {
+                val updatedSettings = settings.copy(
+                    isFirstRun = false,
+                    hasEnabledAutoStart = true,
+                    startWithSystem = true
+                )
+                updatedSettings.save()
+                onSettingsChange(updatedSettings)
+            }
+            
+            delay(1000)
+            serviceController.startService()
+            
+            withContext(Dispatchers.Main) {
+                onFirstRunComplete()
+                showCurating = false
+                onIsInitializingChange(false)
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            "🎨 Welcome to Art Wallpaper!",
-            style = MaterialTheme.typography.h4,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(24.dp))
-        Text(
-            "Time to give your desktop a glow-up! 🖼️",
-            style = MaterialTheme.typography.h6,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colors.primary
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Tired of the same old boring wallpaper? We've got your back! Every 24 hours, we'll surprise you with a stunning masterpiece that'll make your coworkers jealous. 🌟",
-            style = MaterialTheme.typography.body1,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "From Van Gogh's swirls to Monet's water lilies - let's turn your screen into the world's coolest mini-museum! ✨",
-            style = MaterialTheme.typography.body1,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colors.primary.copy(alpha = 0.8f)
-        )
-        Spacer(Modifier.height(32.dp))
-
-        Box(
-            modifier = Modifier.wrapContentWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            val infiniteTransition = rememberInfiniteTransition(label = "loading_spinner")
-            val rotation by infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = 360f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(800, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                ),
-                label = "spinner_rotation"
-            )
-
+        if (showCurating) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colors.primary,
+                    modifier = Modifier.size(48.dp)
+                )
+                Text(
+                    "Curating your masterpiece...",
+                    style = MaterialTheme.typography.h6
+                )
+            }
+        } else {
             Button(
                 onClick = {
                     if (!isInitializing) {
-                        message = listOf(
-                            "🎨 Time to make your desktop fabulous!",
-                            "✨ Let's add some artistic flair to your day!",
-                            "🖼️ Your desktop is about to get a glow-up!",
-                            "🎭 Transforming your screen into an art gallery...",
-                            "🌟 Get ready for daily doses of masterpieces!"
-                        ).random()
-                        
+                        showCurating = true
                         onIsInitializingChange(true)
-                        scope.launch {
+                        
+                        coroutineScope.launch(Dispatchers.Default) {
                             try {
                                 WindowsAutoStart.enable()
                                 serviceController.nextWallpaper()
+                                
+                                // Wait for the wallpaper to be set
+                                withTimeout(30000) { // 30 seconds timeout
+                                    while (currentArtwork == null) {
+                                        delay(100)
+                                    }
+                                }
+                                
+                                // Update settings and start service
+                                withContext(Dispatchers.Main) {
+                                    val updatedSettings = settings.copy(
+                                        isFirstRun = false,
+                                        hasEnabledAutoStart = true,
+                                        startWithSystem = true
+                                    )
+                                    updatedSettings.save()
+                                    onSettingsChange(updatedSettings)
+                                }
+                                
+                                delay(1000)
                                 serviceController.startService()
-                                settings.copy(
-                                    isFirstRun = false,
-                                    hasEnabledAutoStart = true,
-                                    startWithSystem = true
-                                ).save()
-                                onFirstRunComplete()
+                                
+                                withContext(Dispatchers.Main) {
+                                    onFirstRunComplete()
+                                    showCurating = false
+                                    onIsInitializingChange(false)
+                                }
                             } catch (e: Exception) {
-                                onError("Failed to set initial wallpaper: ${e.message}")
-                            } finally {
-                                onIsInitializingChange(false)
+                                logger.error("Failed to complete first run setup", e)
+                                withContext(Dispatchers.Main) {
+                                    onError("Failed to complete setup: ${e.message}")
+                                    showCurating = false
+                                    onIsInitializingChange(false)
+                                }
                             }
                         }
                     }
                 },
-                enabled = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = if (isInitializing) Color.Red else MaterialTheme.colors.primary,
-                    contentColor = Color.White
-                )
+                enabled = !isInitializing
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-                ) {
-                    if (isInitializing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .rotate(rotation),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                    }
-                    Text(
-                        text = if (isInitializing) message ?: "Setting Things Up..." else "Get Started",
-                        style = MaterialTheme.typography.button
-                    )
-                }
+                Text("Get Started")
             }
         }
     }
