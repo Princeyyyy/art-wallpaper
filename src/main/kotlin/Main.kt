@@ -199,7 +199,7 @@ private fun setupApplication(
                 isMinimized = startMinimized
             ),
             visible = isWindowVisible,
-            icon = painterResource("tray_icon.png")
+            icon = painterResource("icons/icon.png")
         ) {
             App(
                 wallpaperManager = wallpaperManager,

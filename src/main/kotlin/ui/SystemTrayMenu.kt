@@ -9,9 +9,6 @@ class SystemTrayMenu(
     private val onShowWindow: () -> Boolean
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    // FIX #11: Removed the dead PopupMenu created in init that was immediately
-    // overwritten (and its action listeners orphaned) when show() built a new one.
-    // trayIcon is now initialised properly inside show() and nullable until then.
     private var trayIcon: TrayIcon? = null
 
     fun displayNotification(title: String, message: String) {
@@ -23,19 +20,32 @@ class SystemTrayMenu(
 
         SwingUtilities.invokeLater {
             val tray = SystemTray.getSystemTray()
-            val image = Toolkit.getDefaultToolkit().createImage(
-                SystemTrayMenu::class.java.getResource("/tray_icon.png")
-            )?.let { img ->
-                val tracker = MediaTracker(Canvas())
-                tracker.addImage(img, 0)
-                try {
-                    tracker.waitForAll()
-                } catch (e: InterruptedException) {
-                    e.printStackTrace()
+            val trayIconSize = tray.trayIconSize
+
+            // Pick the pixel-perfect tray asset matching current Windows DPI scale
+            val iconPath = when {
+                trayIconSize.width <= 16 -> "/tray/tray-16.png"
+                trayIconSize.width <= 20 -> "/tray/tray-20.png"
+                trayIconSize.width <= 24 -> "/tray/tray-24.png"
+                trayIconSize.width <= 32 -> "/tray/tray-32.png"
+                trayIconSize.width <= 48 -> "/tray/tray-48.png"
+                else -> "/tray/tray-64.png"
+            }
+            val resourceUrl = SystemTrayMenu::class.java.getResource(iconPath)
+                ?: SystemTrayMenu::class.java.getResource("/tray_icon.png")
+
+            val image = resourceUrl?.let { url ->
+                Toolkit.getDefaultToolkit().createImage(url)?.let { img ->
+                    val tracker = MediaTracker(Canvas())
+                    tracker.addImage(img, 0)
+                    try {
+                        tracker.waitForAll()
+                    } catch (e: InterruptedException) {
+                        e.printStackTrace()
+                    }
+                    img.getScaledInstance(trayIconSize.width, trayIconSize.height, Image.SCALE_SMOOTH)
                 }
-                val trayIconSize = tray.trayIconSize
-                img.getScaledInstance(trayIconSize.width, trayIconSize.height, Image.SCALE_SMOOTH)
-            } ?: throw IllegalStateException("Could not load tray icon")
+            } ?: throw IllegalStateException("Could not load tray icon from $iconPath or /tray_icon.png")
 
             val popup = PopupMenu().apply {
                 add(MenuItem("Open Art Wallpaper").apply {

@@ -1,3 +1,6 @@
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,7 +36,7 @@ fun SettingsDialog(
                 modifier = Modifier.padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                // ── Header ────────────────────────────────────────────────
+                // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 Text(
                     "Settings",
                     style = MaterialTheme.typography.h6,
@@ -44,7 +47,7 @@ fun SettingsDialog(
                 Divider(color = ArtColors.DividerLine)
                 Spacer(Modifier.height(20.dp))
 
-                // ── Section: System ───────────────────────────────────────
+                // â”€â”€ Section: System â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 SettingsSectionLabel("SYSTEM")
                 Spacer(Modifier.height(12.dp))
 
@@ -74,7 +77,7 @@ fun SettingsDialog(
                 Divider(color = ArtColors.DividerLine)
                 Spacer(Modifier.height(16.dp))
 
-                // ── Section: Wallpaper ────────────────────────────────────
+                // â”€â”€ Section: Wallpaper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 SettingsSectionLabel("WALLPAPER")
                 Spacer(Modifier.height(12.dp))
 
@@ -87,7 +90,7 @@ fun SettingsDialog(
                 Divider(color = ArtColors.DividerLine)
                 Spacer(Modifier.height(16.dp))
 
-                // ── Section: Notifications ────────────────────────────────
+                // â”€â”€ Section: Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 SettingsSectionLabel("NOTIFICATIONS")
                 Spacer(Modifier.height(12.dp))
 
@@ -104,7 +107,7 @@ fun SettingsDialog(
 
                 Spacer(Modifier.height(24.dp))
 
-                // ── Footer ────────────────────────────────────────────────
+                // â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -174,7 +177,7 @@ private fun SettingsRow(
     }
 }
 
-// ── Time Picker ───────────────────────────────────────────────────────────────
+// â”€â”€ Time Picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
 fun TimePickerSection(
@@ -340,7 +343,7 @@ private fun TimeSpinner(
         Text(label, style = MaterialTheme.typography.caption, color = ArtColors.PaperMuted)
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onDecrement, modifier = Modifier.size(32.dp)) {
-                Text("−", color = ArtColors.PaperMuted, style = MaterialTheme.typography.h6)
+                Text("âˆ’", color = ArtColors.PaperMuted, style = MaterialTheme.typography.h6)
             }
             Text(
                 format.format(value),

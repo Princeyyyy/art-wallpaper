@@ -80,7 +80,7 @@ compose.desktop {
                 exePackageVersion = "3.3.0"
                 
                 // Set application icon
-                iconFile.set(project.file("src/main/resources/app_icon.ico"))
+                iconFile.set(project.file("src/main/resources/icons/icon.ico"))
                 
                 dirChooser = true
                 perUserInstall = true

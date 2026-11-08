@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.zIndex
 import java.nio.file.Path
 import org.jetbrains.skia.Image as SkiaImage
@@ -61,7 +62,7 @@ fun MainScreen(
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // ── Top bar ──────────────────────────────────────────────────
+                // â”€â”€ Top bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -69,12 +70,24 @@ fun MainScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Art Wallpaper",
-                        style = MaterialTheme.typography.h6,
-                        color = ArtColors.PaperWhite,
-                        letterSpacing = 0.5.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Image(
+                            painter = painterResource("icons/32x32.png"),
+                            contentDescription = "Art Wallpaper Logo",
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                        )
+                        Text(
+                            "Art Wallpaper",
+                            style = MaterialTheme.typography.h6,
+                            color = ArtColors.PaperWhite,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
                     IconButton(
                         onClick = { showSettings = true },
                         modifier = Modifier.size(36.dp)
@@ -87,7 +100,7 @@ fun MainScreen(
                     }
                 }
 
-                // ── Artwork card — full-bleed ────────────────────────────────
+                // â”€â”€ Artwork card â€” full-bleed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -141,7 +154,7 @@ fun MainScreen(
                                 Text(
                                     buildString {
                                         append(artist)
-                                        metadata.year?.let { append(" · $it") }
+                                        metadata.year?.let { append(" Â· $it") }
                                     },
                                     style = MaterialTheme.typography.subtitle2,
                                     color = Color.White.copy(alpha = 0.75f)
@@ -175,7 +188,7 @@ fun MainScreen(
                         }
                     }
 
-                    // ── Loading overlay ──────────────────────────────────────
+                    // â”€â”€ Loading overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     AnimatedVisibility(
                         visible = isLoading,
                         enter = fadeIn(animationSpec = tween(200)),
@@ -207,7 +220,7 @@ fun MainScreen(
                     }
                 }
 
-                // ── Controls bar ─────────────────────────────────────────────
+                // â”€â”€ Controls bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -306,7 +319,7 @@ fun MainScreen(
                     }
                 }
 
-                // ── Error snackbar ───────────────────────────────────────────
+                // â”€â”€ Error snackbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 errorMessage?.let { error ->
                     Snackbar(
                         modifier = Modifier
@@ -344,7 +357,7 @@ fun MainScreen(
     }
 }
 
-// ── Welcome / Onboarding ──────────────────────────────────────────────────────
+// â”€â”€ Welcome / Onboarding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Composable
 fun WelcomeScreen(
@@ -390,7 +403,7 @@ fun WelcomeScreen(
         contentAlignment = Alignment.Center
     ) {
         if (showCurating) {
-            // ── Curating state ────────────────────────────────────────────
+            // â”€â”€ Curating state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -415,7 +428,7 @@ fun WelcomeScreen(
             }
 
         } else {
-            // ── Welcome state ─────────────────────────────────────────────
+            // â”€â”€ Welcome state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -423,6 +436,16 @@ fun WelcomeScreen(
                     .widthIn(max = 460.dp)
                     .padding(horizontal = 40.dp, vertical = 32.dp)
             ) {
+                Image(
+                    painter = painterResource("icons/128x128.png"),
+                    contentDescription = "ArtWallpaper Logo",
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                )
+
+                Spacer(Modifier.height(16.dp))
+
                 Text(
                     "ArtWallpaper",
                     style = MaterialTheme.typography.h4,
@@ -456,7 +479,7 @@ fun WelcomeScreen(
                     )
                     WelcomeFeature(
                         label = "Museum-grade curation",
-                        detail = "Every piece drawn from the Met's public collection — over 400,000 works."
+                        detail = "Every piece drawn from the Met's public collection â€” over 400,000 works."
                     )
                     WelcomeFeature(
                         label = "Works offline",
