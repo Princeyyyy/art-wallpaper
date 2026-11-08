@@ -23,21 +23,18 @@ This document maps and audits every user-facing interaction, state transition, b
 
 ## User Journeys & End-to-End Flows
 
-### 1. Fresh Installation & First-Run Onboarding
+### 1. Fresh Installation & Guided 4-Step Onboarding
 * **Trigger:** User launches application for the first time (`isFirstRun = true` in `Settings`).
 * **Expected Sequence:**
   1. App initializes single-instance lock file (`~/.artwallpaper/app.lock`).
-  2. `Settings.loadSavedSettings()` detects missing file, initializes default settings with `isFirstRun = true`.
-  3. Window renders at 960x640 with the curated `WelcomeScreen` (editorial dark palette, typography, feature list).
-  4. User clicks **"BEGIN"**.
-  5. UI switches to curating progress indicator (`"Curating your first artwork"`).
-  6. In background coroutine:
-     - `WindowsAutoStart.enable()` registers application in Windows Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
-     - `serviceController.nextWallpaper()` triggers `ArtworkProvider.fetchArtwork()`.
-     - Artwork is fetched from The Metropolitan Museum of Art API, resized/padded via Skia, saved to `~/.artwallpaper/artworks/{id}.jpg` and `~/.artwallpaper/metadata/{id}.json`.
-     - `WindowsWallpaperService` executes `SystemParametersInfoW` to set desktop background.
-     - State updates: `isFirstRun = false`, settings saved to `settings.json`, service started.
-  7. Transition: Window switches to `MainScreen` showing full-bleed artwork, title, artist, and daily update schedule.
+  2. `Settings.loadSavedSettings()` initializes default settings with `isFirstRun = true`.
+  3. Window renders at 960x640 with the interactive `GuidedOnboarding` stepper (4-step animated flow):
+     - **Step 1 (Welcome & Value)**: Brand emblem, 400,000+ works from The Met, offline gallery overview.
+     - **Step 2 (Daily Schedule)**: Presets (07:00 AM, 09:00 AM, 18:00 PM) + interactive spinner for any custom time.
+     - **Step 3 (Windows Integration)**: Clear toggles and visual explanation for auto-start at boot and subtle taskbar tray behavior.
+     - **Step 4 (Live Curation & Reveal)**: Live step-by-step curation status (Connecting -> Downloading -> Enhancing -> Applying), desktop wallpaper is set, and artwork title/artist are revealed with "ENTER GALLERY" confirmation button.
+  4. State updates: `isFirstRun = false`, user's chosen update time and auto-start settings are saved atomically, and background service starts.
+  5. Window transitions smoothly into the main gallery view.
 
 ### 2. Auto-Start on System Boot
 * **Trigger:** Windows starts and launches `Art Wallpaper.exe --minimized --autostart`.

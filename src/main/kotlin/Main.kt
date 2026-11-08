@@ -157,6 +157,12 @@ private fun setupApplication(
     // Setup shutdown hook
     setupShutdownHook(controller, lockFile)
 
+    // Configure auto-start if not already enabled
+    if (!settings.hasEnabledAutoStart && !settings.isFirstRun) {
+        WindowsAutoStart.enable()
+        settings.copy(hasEnabledAutoStart = true).save()
+    }
+
     // Start the service only if needed
     if (shouldStartService) {
         runBlocking {
@@ -211,12 +217,6 @@ private fun setupApplication(
                 }
             )
         }
-    }
-
-    // Enable auto-start on first run
-    if (!settings.hasEnabledAutoStart) {
-        WindowsAutoStart.enable()
-        settings.copy(hasEnabledAutoStart = true).save()
     }
 }
 

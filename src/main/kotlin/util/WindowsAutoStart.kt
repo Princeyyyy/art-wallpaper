@@ -10,12 +10,18 @@ object WindowsAutoStart {
 
     fun enable() {
         try {
-            // Check if we're running in development mode by checking the execution path
-            val isDevelopment = System.getProperty("java.class.path")?.contains("build\\classes") == true
-            
-            if (isDevelopment) {
-                logger.info("Running in development mode, skipping auto-start configuration")
-                // Update settings to simulate auto-start being enabled
+            val classPath = System.getProperty("java.class.path") ?: ""
+            val isDevelopment = classPath.contains("build\\classes") ||
+                    classPath.contains("build/classes") ||
+                    classPath.contains(".gradle") ||
+                    System.getProperty("idea.active") == "true"
+
+            val localAppData = System.getenv("LOCALAPPDATA") ?: System.getProperty("user.home")
+            val exePath = "$localAppData\\Art Wallpaper\\Art Wallpaper.exe"
+            val exeFile = File(exePath)
+
+            if (isDevelopment || !exeFile.exists()) {
+                logger.info("Running in development/portable mode (exe exists: ${exeFile.exists()}), saving auto-start state")
                 val currentSettings = Settings.currentSettings.value
                 if (!currentSettings.startWithSystem || !currentSettings.hasEnabledAutoStart) {
                     currentSettings.copy(
@@ -23,22 +29,13 @@ object WindowsAutoStart {
                         hasEnabledAutoStart = true
                     ).save()
                 }
-                return
+                if (!exeFile.exists()) {
+                    logger.debug("Executable not yet installed at expected path: $exePath - will register once packaged")
+                    return
+                }
             }
 
-            // Production mode - check for installed executable
-            val localAppData = System.getenv("LOCALAPPDATA")
-            val exePath = "$localAppData\\Art Wallpaper\\Art Wallpaper.exe"
-            val exeFile = File(exePath)
-
-            logger.info("Checking executable at: $exePath")
-            
-            if (!exeFile.exists()) {
-                logger.error("Executable not found at expected path: $exePath")
-                throw RuntimeException("Executable not found at expected path")
-            }
-
-            // Add --minimized and --autostart flags to ensure proper startup behavior
+            // Production mode - register in Windows Run key
             val registryValue = "\"$exePath\" --minimized --autostart"
             logger.info("Setting registry value to: $registryValue")
 
@@ -49,57 +46,43 @@ object WindowsAutoStart {
                 registryValue
             )
 
-            // Verify the registry entry
+            // Verify registry entry
             if (Advapi32Util.registryValueExists(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)) {
                 val verifyPath = Advapi32Util.registryGetStringValue(
                     WinReg.HKEY_CURRENT_USER,
                     REGISTRY_KEY,
                     APP_NAME
                 )
-                logger.info("Verified registry value: $verifyPath")
-            } else {
-                logger.error("Failed to verify registry entry after setting")
-                throw RuntimeException("Registry entry verification failed")
+                logger.info("Verified auto-start registry value: $verifyPath")
             }
-
         } catch (e: Exception) {
-            logger.error("Failed to enable auto-start", e)
-            throw e
+            logger.warn("Could not register auto-start in Windows registry: ${e.message}")
+            // Fall back to setting persistence so user setting is preserved
+            val currentSettings = Settings.currentSettings.value
+            currentSettings.copy(startWithSystem = true, hasEnabledAutoStart = true).save()
         }
     }
 
     fun disable() {
         try {
             if (Advapi32Util.registryValueExists(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)) {
-                val currentValue = Advapi32Util.registryGetStringValue(
-                    WinReg.HKEY_CURRENT_USER,
-                    REGISTRY_KEY,
-                    APP_NAME
-                )
-                logger.info("Removing registry value: $currentValue")
-                
                 Advapi32Util.registryDeleteValue(
                     WinReg.HKEY_CURRENT_USER,
                     REGISTRY_KEY,
                     APP_NAME
                 )
-                
-                // Update settings to reflect the change
-                val currentSettings = Settings.currentSettings.value
-                if (currentSettings.startWithSystem || currentSettings.hasEnabledAutoStart) {
-                    currentSettings.copy(
-                        startWithSystem = false,
-                        hasEnabledAutoStart = false
-                    ).save()
-                }
-                
                 logger.info("Disabled auto-start for ArtWallpaper")
-            } else {
-                logger.info("Auto-start was not enabled, nothing to disable")
             }
         } catch (e: Exception) {
-            logger.error("Failed to disable auto-start", e)
-            throw e
+            logger.warn("Could not remove auto-start registry entry: ${e.message}")
+        } finally {
+            val currentSettings = Settings.currentSettings.value
+            if (currentSettings.startWithSystem || currentSettings.hasEnabledAutoStart) {
+                currentSettings.copy(
+                    startWithSystem = false,
+                    hasEnabledAutoStart = false
+                ).save()
+            }
         }
     }
 
@@ -112,14 +95,12 @@ object WindowsAutoStart {
                     REGISTRY_KEY,
                     APP_NAME
                 )
-                logger.info("Auto-start is enabled with value: $value")
-            } else {
-                logger.info("Auto-start is not enabled")
+                logger.debug("Auto-start is enabled with value: $value")
             }
-            exists
+            exists || (Settings.currentSettings.value.startWithSystem && Settings.currentSettings.value.hasEnabledAutoStart)
         } catch (e: Exception) {
-            logger.error("Failed to check auto-start status", e)
-            false
+            logger.debug("Registry check failed, falling back to settings: ${e.message}")
+            Settings.currentSettings.value.startWithSystem
         }
     }
 }

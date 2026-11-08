@@ -25,8 +25,6 @@ class ServiceController(
     private val mutex = Mutex()
     private var cleanupJob: Job? = null
     private var checkJob: Job? = null
-    // FIX #9: Use AtomicBoolean for isRestarting — plain Boolean read/write from
-    // multiple coroutines without synchronisation is a data race.
     private val isRestarting = AtomicBoolean(false)
     private val restartScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var restartDebounceJob: Job? = null
@@ -34,54 +32,37 @@ class ServiceController(
 
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
 
-    // FIX #8: startPeriodicCheck() was defined but never called. It is now invoked
-    // by startService() so scheduled wallpaper checks actually fire at runtime.
+    // Battery & CPU optimization: Sleep precisely until the next 30-minute interval
+    // rather than constantly polling every 5 minutes and waking CPU cores.
     private fun startPeriodicCheck() {
         checkJob?.cancel()
         checkJob = serviceScope.launch {
+            val checkInterval = Duration.ofMinutes(30).toMillis()
             while (isActive) {
                 val now = System.currentTimeMillis()
                 val lastCheck = lastCheckTime.get()
+                val elapsed = now - lastCheck
 
-                if (now - lastCheck >= Duration.ofMinutes(30).toMillis()) {
-                    logger.info("Performing periodic check for wallpaper updates")
+                if (lastCheck == 0L || elapsed >= checkInterval) {
                     try {
+                        logger.info("Running periodic check for wallpaper update")
                         wallpaperManager.checkAndUpdate()
-                        lastCheckTime.set(now)
+                        lastCheckTime.set(System.currentTimeMillis())
                     } catch (e: Exception) {
-                        logger.error("Error during periodic check", e)
+                        logger.error("Error during periodic wallpaper check", e)
                     }
-                }
-                delay(Duration.ofMinutes(5).toMillis())
-            }
-        }
-    }
-
-    private suspend fun safeServiceOperation(operation: suspend () -> Unit) {
-        val maxRetries = 3
-        var attempts = 0
-        var lastException: Exception? = null
-
-        while (attempts < maxRetries) {
-            try {
-                operation()
-                return
-            } catch (e: Exception) {
-                lastException = e
-                logger.error("Operation failed (attempt ${attempts + 1}/$maxRetries)", e)
-                attempts++
-                if (attempts < maxRetries) {
-                    delay(Duration.ofSeconds((5 * attempts).toLong()).toMillis())
+                    delay(checkInterval)
+                } else {
+                    val waitTime = (checkInterval - elapsed).coerceAtLeast(10_000L)
+                    delay(waitTime)
                 }
             }
         }
-
-        throw lastException ?: RuntimeException("Operation failed after $maxRetries attempts")
     }
 
     suspend fun startService() {
         if (Settings.currentSettings.value.isFirstRun) {
-            logger.info("First run detected, skipping service start")
+            logger.info("First run active, skipping background service start")
             return
         }
 
@@ -93,13 +74,10 @@ class ServiceController(
 
             wallpaperManager.start()
             _isServiceRunning.value = true
-            logger.info("Service started")
+            logger.info("Service started successfully")
 
-            // FIX #8: Do an immediate check on startup, then start the periodic loop.
-            // Previously only the one-shot check ran and startPeriodicCheck() was never called.
             serviceScope.launch {
                 try {
-                    logger.info("Performing initial check for wallpaper updates")
                     wallpaperManager.checkAndUpdateIfNeeded()
                 } catch (e: Exception) {
                     logger.error("Error during initial wallpaper update check", e)
@@ -119,10 +97,9 @@ class ServiceController(
                         cleanupJob?.cancel()
                         checkJob?.cancel()
                         _isServiceRunning.value = false
-                        logger.info("Service stopped")
+                        logger.info("Service stopped successfully")
                     } catch (e: Exception) {
                         logger.error("Error stopping service", e)
-                        throw e
                     }
                 }
             }
@@ -130,29 +107,22 @@ class ServiceController(
     }
 
     fun restartService() {
-        // FIX #9: compareAndSet is atomic — no race between the read and write.
         if (!isRestarting.compareAndSet(false, true)) return
 
         restartDebounceJob?.cancel()
         restartDebounceJob = restartScope.launch {
             try {
-                delay(500) // Debounce multiple rapid calls
+                delay(300) // Debounce rapid settings changes
                 if (_isServiceRunning.value) {
-                    // Stop service and wait for it to actually stop before restarting.
                     mutex.withLock {
                         wallpaperManager.stop()
                         cleanupJob?.cancel()
                         checkJob?.cancel()
                         _isServiceRunning.value = false
                     }
-                    delay(300)
-                    // Fresh scope for the new service lifecycle.
+                    delay(150)
                     serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
                     startService()
-                    delay(100)
-                    if (!_isServiceRunning.value) {
-                        logger.error("Service failed to restart")
-                    }
                 }
             } finally {
                 isRestarting.set(false)
@@ -166,7 +136,7 @@ class ServiceController(
             return
         }
 
-        serviceScope.launch {
+        withContext(Dispatchers.IO) {
             try {
                 val artwork = artworkProvider.fetchArtwork().getOrThrow()
                 val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
@@ -182,37 +152,38 @@ class ServiceController(
     private fun startCleanupJob() {
         cleanupJob?.cancel()
         cleanupJob = serviceScope.launch {
+            val cleanupInterval = Duration.ofHours(24).toMillis()
             while (isActive) {
+                delay(cleanupInterval)
                 try {
-                    artworkStorage.cleanupOldArtworks()
+                    withContext(Dispatchers.IO) {
+                        artworkStorage.cleanupOldArtworks()
+                        artworkStorage.cleanup()
+                    }
                 } catch (e: Exception) {
-                    logger.error("Error during artwork cleanup", e)
+                    logger.error("Error during scheduled artwork cleanup", e)
                 }
-                delay(Duration.ofHours(24).toMillis())
             }
         }
     }
 
-    // FIX #10: cleanup() previously launched work onto serviceScope and then cancelled
-    // that same scope, so the inner work could be killed before completing.
-    // Now we do all cleanup directly in the caller's scope (the shutdown hook calls
-    // this via runBlocking, so it has its own context).
     suspend fun cleanup() {
         try {
-            // Stop service state synchronously before cancelling scopes.
             if (_isServiceRunning.value) {
                 wallpaperManager.stop()
                 cleanupJob?.cancel()
                 checkJob?.cancel()
                 _isServiceRunning.value = false
             }
-            artworkStorage.cleanup()
+            withContext(Dispatchers.IO) {
+                artworkStorage.cleanup()
+            }
         } catch (e: Exception) {
             logger.error("Error during service cleanup", e)
         } finally {
             serviceScope.cancel()
             restartScope.cancel()
-            logger.info("Service scopes cancelled")
+            logger.info("Service cleanup completed")
         }
     }
 }

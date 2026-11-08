@@ -1,19 +1,77 @@
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Button
-import androidx.compose.material.ButtonColors
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Card
+import androidx.compose.material.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.jetbrains.skia.Image as SkiaImage
+import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.io.path.exists
+import kotlin.io.path.readBytes
+
+// ── In-Memory Bitmap Cache for Instant UI Rendering ─────────────────────────
+
+object ArtworkBitmapCache {
+    private val memoryCache = ConcurrentHashMap<String, ImageBitmap>()
+
+    fun get(path: Path): ImageBitmap? = memoryCache[path.toAbsolutePath().toString()]
+
+    fun put(path: Path, bitmap: ImageBitmap) {
+        if (memoryCache.size > 8) {
+            memoryCache.clear() // Prevent memory bloat; keep recent few in RAM
+        }
+        memoryCache[path.toAbsolutePath().toString()] = bitmap
+    }
+}
+
+/**
+ * Decodes high-resolution artwork asynchronously on Dispatchers.IO.
+ * Avoids blocking the Compose rendering thread, ensuring smooth 60fps animations.
+ */
+@Composable
+fun rememberArtworkBitmap(path: Path?): ImageBitmap? {
+    if (path == null) return null
+
+    var bitmap by remember(path) { mutableStateOf(ArtworkBitmapCache.get(path)) }
+
+    LaunchedEffect(path) {
+        if (bitmap == null) {
+            val loaded = withContext(Dispatchers.IO) {
+                try {
+                    if (path.exists()) {
+                        val bytes = path.readBytes()
+                        SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap().also {
+                            ArtworkBitmapCache.put(path, it)
+                        }
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            bitmap = loaded
+        }
+    }
+
+    return bitmap
+}
+
+// ── Interactive Pulsing Button ───────────────────────────────────────────────
 
 @Composable
 fun PulsingButton(
@@ -22,14 +80,16 @@ fun PulsingButton(
     enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.buttonColors(
         backgroundColor = ArtColors.GalleryGold,
-        contentColor = ArtColors.Canvas
+        contentColor = ArtColors.Canvas,
+        disabledBackgroundColor = ArtColors.GalleryGoldDim.copy(alpha = 0.4f),
+        disabledContentColor = ArtColors.Canvas.copy(alpha = 0.5f)
     ),
     content: @Composable () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
@@ -41,7 +101,7 @@ fun PulsingButton(
             isPressed = true
             onClick()
             scope.launch {
-                delay(100)
+                delay(120)
                 isPressed = false
             }
         },
@@ -52,34 +112,105 @@ fun PulsingButton(
             defaultElevation = 0.dp,
             pressedElevation = 2.dp
         ),
-        shape = RoundedCornerShape(4.dp)
+        shape = RoundedCornerShape(6.dp)
     ) {
         content()
     }
 }
 
+// ── Step Indicator Pill ───────────────────────────────────────────────────────
+
 @Composable
-fun FadeInCard(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
+fun StepIndicator(
+    currentStep: Int,
+    totalSteps: Int,
+    modifier: Modifier = Modifier
 ) {
-    var visible by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) { visible = true }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(animationSpec = tween(400)),
-        exit = fadeOut(animationSpec = tween(300))
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Card(
-            modifier = modifier,
-            backgroundColor = ArtColors.Surface,
-            contentColor = ArtColors.PaperWhite,
-            elevation = 0.dp,
-            shape = RoundedCornerShape(8.dp)
+        for (step in 1..totalSteps) {
+            val isCurrent = step == currentStep
+            val isDone = step < currentStep
+            val width by animateDpAsState(
+                targetValue = if (isCurrent) 24.dp else 8.dp,
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+            )
+            val color by animateColorAsState(
+                targetValue = when {
+                    isCurrent -> ArtColors.GalleryGold
+                    isDone -> ArtColors.GalleryGoldDim
+                    else -> ArtColors.DividerLine
+                },
+                animationSpec = tween(250)
+            )
+
+            Box(
+                modifier = Modifier
+                    .height(6.dp)
+                    .width(width)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(color)
+            )
+        }
+    }
+}
+
+// ── Onboarding Option Card ───────────────────────────────────────────────────
+
+@Composable
+fun OnboardingOptionCard(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailingContent: (@Composable () -> Unit)? = null
+) {
+    val borderColor by animateColorAsState(
+        targetValue = if (selected) ArtColors.GalleryGold else ArtColors.DividerLine,
+        animationSpec = tween(200)
+    )
+    val backgroundColor by animateColorAsState(
+        targetValue = if (selected) ArtColors.SurfaceVariant else ArtColors.Surface,
+        animationSpec = tween(200)
+    )
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        backgroundColor = backgroundColor,
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        elevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            content()
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.subtitle2,
+                    color = ArtColors.PaperWhite
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.caption,
+                    color = ArtColors.PaperMuted,
+                    lineHeight = 16.sp
+                )
+            }
+            if (trailingContent != null) {
+                trailingContent()
+            }
         }
     }
 }
