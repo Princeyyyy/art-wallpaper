@@ -6,8 +6,20 @@ plugins {
     kotlin("plugin.serialization") version "1.9.0"
 }
 
+fun normalizeVersion(raw: String): String {
+    val clean = raw.trim().removePrefix("v").removePrefix("V")
+    val parts = clean.split('.').mapNotNull { part ->
+        part.takeWhile { it.isDigit() }.toIntOrNull()
+    }
+    val major = parts.getOrNull(0) ?: 4
+    val minor = parts.getOrNull(1) ?: 0
+    val patch = parts.getOrNull(2) ?: 0
+    return "$major.$minor.$patch"
+}
+
 // Single source of truth for build versioning (from gradle.properties or -PappVersion)
-val appVersion: String = project.findProperty("appVersion")?.toString() ?: "4.0.0"
+val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.0.0"
+val appVersion: String = normalizeVersion(rawVersion)
 val appGroup: String = project.findProperty("appGroup")?.toString() ?: "com.prince.artwallpaper"
 
 group = appGroup

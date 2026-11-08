@@ -55,7 +55,14 @@ jobs:
           done
 
       - name: Run tests
-        run: ./gradlew test -PappVersion=${{ inputs.version }}
+        shell: bash
+        run: |
+          RAW="${{ inputs.version }}"
+          RAW="${RAW#v}"
+          RAW="${RAW#V}"
+          IFS='.' read -r -a PARTS <<< "$RAW"
+          V="${PARTS[0]:-4}.${PARTS[1]:-0}.${PARTS[2]:-0}"
+          ./gradlew test -PappVersion=$V
 
       - name: Upload test reports
         if: always()
@@ -98,7 +105,12 @@ jobs:
       - name: Update gradle.properties & version.properties
         shell: pwsh
         run: |
-          $v = "${{ inputs.version }}"
+          $raw = "${{ inputs.version }}".Trim().TrimStart('v', 'V')
+          $parts = $raw.Split('.') | Where-Object { $_ -match '^\d+' }
+          $major = if ($parts.Count -gt 0) { $parts[0] } else { "4" }
+          $minor = if ($parts.Count -gt 1) { $parts[1] } else { "0" }
+          $patch = if ($parts.Count -gt 2) { $parts[2] } else { "0" }
+          $v = "$major.$minor.$patch"
           # gradle.properties — build-time single source of truth
           $gp = Get-Content gradle.properties -Raw
           $gp = $gp -replace '(?<=appVersion=)[^\r\n]*', $v
@@ -107,19 +119,33 @@ jobs:
           $vp = Get-Content src\main\resources\version.properties -Raw
           $vp = $vp -replace '(?<=version=)[^\r\n]*', $v
           [System.IO.File]::WriteAllText("$PWD\src\main\resources\version.properties", $vp)
-          Write-Output "Version bumped to $v"
+          Write-Output "Version normalized and bumped to $v"
 
       - name: Package Windows MSI
-        run: .\gradlew packageMsi -PappVersion=${{ inputs.version }}
+        shell: pwsh
+        run: |
+          $raw = "${{ inputs.version }}".Trim().TrimStart('v', 'V')
+          $parts = $raw.Split('.') | Where-Object { $_ -match '^\d+' }
+          $major = if ($parts.Count -gt 0) { $parts[0] } else { "4" }
+          $minor = if ($parts.Count -gt 1) { $parts[1] } else { "0" }
+          $patch = if ($parts.Count -gt 2) { $parts[2] } else { "0" }
+          $v = "$major.$minor.$patch"
+          .\gradlew packageMsi -PappVersion=$v
 
       - name: Locate and stage MSI artifact
         shell: pwsh
         run: |
+          $raw = "${{ inputs.version }}".Trim().TrimStart('v', 'V')
+          $parts = $raw.Split('.') | Where-Object { $_ -match '^\d+' }
+          $major = if ($parts.Count -gt 0) { $parts[0] } else { "4" }
+          $minor = if ($parts.Count -gt 1) { $parts[1] } else { "0" }
+          $patch = if ($parts.Count -gt 2) { $parts[2] } else { "0" }
+          $v = "$major.$minor.$patch"
           $f = Get-ChildItem -Path build -Filter "*.msi" -Recurse | Select-Object -First 1
           if (-not $f) { throw "MSI artifact not found" }
           New-Item -ItemType Directory -Force "dist-windows" | Out-Null
-          Copy-Item $f.FullName "dist-windows\ArtWallpaper-${{ inputs.version }}-Windows.msi"
-          Write-Output "MSI staged: dist-windows\ArtWallpaper-${{ inputs.version }}-Windows.msi"
+          Copy-Item $f.FullName "dist-windows\ArtWallpaper-$v-Windows.msi"
+          Write-Output "MSI staged: dist-windows\ArtWallpaper-$v-Windows.msi"
 
       - name: Upload Windows MSI artifact
         uses: actions/upload-artifact@v4
@@ -160,26 +186,44 @@ jobs:
 
       - name: Update gradle.properties & version.properties
         run: |
-          V="${{ inputs.version }}"
+          RAW="${{ inputs.version }}"
+          RAW="${RAW#v}"
+          RAW="${RAW#V}"
+          IFS='.' read -r -a PARTS <<< "$RAW"
+          MAJOR="${PARTS[0]:-4}"
+          MINOR="${PARTS[1]:-0}"
+          PATCH="${PARTS[2]:-0}"
+          V="$MAJOR.$MINOR.$PATCH"
           # gradle.properties
           sed -i.bak "s/^appVersion=.*/appVersion=$V/" gradle.properties
           # version.properties
           sed -i.bak "s/^version=.*/version=$V/" src/main/resources/version.properties
-          echo "Version bumped to $V"
+          echo "Version normalized and bumped to $V"
 
       - name: Package macOS DMG
-        run: ./gradlew packageDmg -PappVersion=${{ inputs.version }}
+        run: |
+          RAW="${{ inputs.version }}"
+          RAW="${RAW#v}"
+          RAW="${RAW#V}"
+          IFS='.' read -r -a PARTS <<< "$RAW"
+          V="${PARTS[0]:-4}.${PARTS[1]:-0}.${PARTS[2]:-0}"
+          ./gradlew packageDmg -PappVersion=$V
 
       - name: Locate and stage DMG artifact
         run: |
+          RAW="${{ inputs.version }}"
+          RAW="${RAW#v}"
+          RAW="${RAW#V}"
+          IFS='.' read -r -a PARTS <<< "$RAW"
+          V="${PARTS[0]:-4}.${PARTS[1]:-0}.${PARTS[2]:-0}"
           mkdir -p dist-macos
           DMG=$(find build -name "*.dmg" | head -n 1)
           if [ -z "$DMG" ]; then
             echo "ERROR: DMG artifact not found!"
             exit 1
           fi
-          cp "$DMG" "dist-macos/ArtWallpaper-${{ inputs.version }}-macOS.dmg"
-          echo "DMG staged: dist-macos/ArtWallpaper-${{ inputs.version }}-macOS.dmg"
+          cp "$DMG" "dist-macos/ArtWallpaper-$V-macOS.dmg"
+          echo "DMG staged: dist-macos/ArtWallpaper-$V-macOS.dmg"
 
       - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v4
@@ -219,7 +263,14 @@ jobs:
 
       - name: Commit version bump & tag
         run: |
-          V="${{ inputs.version }}"
+          RAW="${{ inputs.version }}"
+          RAW="${RAW#v}"
+          RAW="${RAW#V}"
+          IFS='.' read -r -a PARTS <<< "$RAW"
+          MAJOR="${PARTS[0]:-4}"
+          MINOR="${PARTS[1]:-0}"
+          PATCH="${PARTS[2]:-0}"
+          V="$MAJOR.$MINOR.$PATCH"
           sed -i "s/^appVersion=.*/appVersion=$V/" gradle.properties
           sed -i "s/^version=.*/version=$V/" src/main/resources/version.properties
           git config user.name "github-actions[bot]"
