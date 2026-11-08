@@ -70,7 +70,7 @@ This document maps and audits every user-facing interaction, state transition, b
   1. `SettingsDialog` opens with spring scale animation: `SYSTEM INTEGRATION`, `DAILY SCHEDULE`, `NOTIFICATIONS`, `ABOUT`.
   2. **Toggle Auto-Start:**
      - On Windows: updates `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
-     - On macOS: creates or removes `~/Library/LaunchAgents/com.example.artwallpaper.plist`.
+     - On macOS: creates or removes `~/Library/LaunchAgents/com.prince.artwallpaper.plist`.
      - Settings state updates and triggers debounce restart of background service.
   3. **Change Daily Update Time:**
      - User clicks the current time (e.g. `07:00`).

@@ -107,7 +107,7 @@ class WindowsAutoStartService : AutoStartService {
 
 class MacAutoStartService(
     private val launchAgentsDir: Path = Path.of(System.getProperty("user.home"), "Library", "LaunchAgents"),
-    private val bundleId: String = "com.example.artwallpaper",
+    private val bundleId: String = AppInfo.BUNDLE_ID,
     private val appExecutablePath: String = "/Applications/Art Wallpaper.app/Contents/MacOS/Art Wallpaper"
 ) : AutoStartService {
     private val logger = LoggerFactory.getLogger(MacAutoStartService::class.java)

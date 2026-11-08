@@ -18,6 +18,29 @@ class PlatformServicesTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Test 0: AppInfo — dynamic versioning & bundle identity
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `AppInfo BUNDLE_ID is com prince artwallpaper`() {
+        assertEquals("com.prince.artwallpaper", AppInfo.BUNDLE_ID)
+    }
+
+    @Test
+    fun `AppInfo version is a valid semver string`() {
+        val v = AppInfo.version
+        assertTrue(v.isNotBlank(), "version must not be blank")
+        // Must match X.Y.Z with optional pre-release suffix
+        val semverRegex = Regex("""^\d+\.\d+\.\d+.*$""")
+        assertTrue(semverRegex.matches(v), "version '$v' must match semver X.Y.Z pattern")
+    }
+
+    @Test
+    fun `AppInfo APP_NAME is correct`() {
+        assertEquals("Art Wallpaper", AppInfo.APP_NAME)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Test 1: OS Detection & Factory Dispatch
     // ─────────────────────────────────────────────────────────────────────────
 

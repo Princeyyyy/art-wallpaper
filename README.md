@@ -67,7 +67,7 @@ ArtWallpaper includes a complete professional multi-platform asset pack:
 - 🧹 **Automatic Storage Pruning**: Keeps up to 100 recent artworks, automatically cleaning up orphaned files and cache artifacts.
 - 🚀 **Cross-Platform Auto-Start**:
   - *Windows*: Configured directly in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
-  - *macOS*: Configured in `~/Library/LaunchAgents/com.example.artwallpaper.plist`.
+  - *macOS*: Configured in `~/Library/LaunchAgents/com.prince.artwallpaper.plist`.
 - 🛡️ **Crash-Resilient Settings**: Dual-layer settings storage with automatic `.json.bak` backup restoration.
 
 ---

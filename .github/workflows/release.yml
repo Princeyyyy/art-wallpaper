@@ -5,14 +5,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 4.0.0) — must be valid 3-part semver'
+        description: 'Release version (e.g. 4.1.0) — must be valid 3-part semver'
         required: true
         type: string
         default: '4.0.0'
       release_notes:
         description: 'Release notes (supports markdown)'
         required: false
-        default: 'ArtWallpaper v4.0.0 — Cross-platform Windows & macOS release with complete guided onboarding and performance overhaul.'
+        default: 'ArtWallpaper — Cross-platform Windows & macOS release.'
         type: string
       prerelease:
         description: 'Mark as pre-release?'
@@ -44,7 +44,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run tests
-        run: ./gradlew test
+        run: ./gradlew test -PappVersion=${{ inputs.version }}
 
       - name: Upload test reports
         if: always()
@@ -73,30 +73,31 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Bump version in build.gradle.kts
+      - name: Update gradle.properties & version.properties
         shell: pwsh
         run: |
           $v = "${{ inputs.version }}"
-          $content = Get-Content build.gradle.kts -Raw
-          $content = $content -replace '(?<=version = ")[^"]*', $v
-          $content = $content -replace '(?<=packageVersion = ")[^"]*', $v
-          $content = $content -replace '(?<=msiPackageVersion = ")[^"]*', $v
-          $content = $content -replace '(?<=exePackageVersion = ")[^"]*', $v
-          [System.IO.File]::WriteAllText("$PWD\build.gradle.kts", $content)
-          Write-Output "Bumped version to $v"
+          # gradle.properties — build-time single source of truth
+          $gp = Get-Content gradle.properties -Raw
+          $gp = $gp -replace '(?<=appVersion=)[^\r\n]*', $v
+          [System.IO.File]::WriteAllText("$PWD\gradle.properties", $gp)
+          # version.properties — runtime single source of truth
+          $vp = Get-Content src\main\resources\version.properties -Raw
+          $vp = $vp -replace '(?<=version=)[^\r\n]*', $v
+          [System.IO.File]::WriteAllText("$PWD\src\main\resources\version.properties", $vp)
+          Write-Output "Version bumped to $v"
 
       - name: Package Windows MSI
-        run: .\gradlew packageMsi
+        run: .\gradlew packageMsi -PappVersion=${{ inputs.version }}
 
-      - name: Locate MSI artifact
-        id: find_msi
+      - name: Locate and stage MSI artifact
         shell: pwsh
         run: |
           $f = Get-ChildItem -Path build -Filter "*.msi" -Recurse | Select-Object -First 1
           if (-not $f) { throw "MSI artifact not found" }
           New-Item -ItemType Directory -Force "dist-windows" | Out-Null
           Copy-Item $f.FullName "dist-windows\ArtWallpaper-${{ inputs.version }}-Windows.msi"
-          Write-Output "MSI copied: dist-windows\ArtWallpaper-${{ inputs.version }}-Windows.msi"
+          Write-Output "MSI staged: dist-windows\ArtWallpaper-${{ inputs.version }}-Windows.msi"
 
       - name: Upload Windows MSI artifact
         uses: actions/upload-artifact@v4
@@ -124,33 +125,28 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Bump version in build.gradle.kts
+      - name: Update gradle.properties & version.properties
         run: |
-          python3 -c "
-          import re
-          v = '${{ inputs.version }}'
-          with open('build.gradle.kts', 'r') as f:
-              c = f.read()
-          c = re.sub(r'(?<=version = \")[^\"]*', v, c)
-          c = re.sub(r'(?<=packageVersion = \")[^\"]*', v, c)
-          with open('build.gradle.kts', 'w') as f:
-              f.write(c)
-          "
-          echo "Bumped version in build.gradle.kts to ${{ inputs.version }}"
+          V="${{ inputs.version }}"
+          # gradle.properties
+          sed -i.bak "s/^appVersion=.*/appVersion=$V/" gradle.properties
+          # version.properties
+          sed -i.bak "s/^version=.*/version=$V/" src/main/resources/version.properties
+          echo "Version bumped to $V"
 
       - name: Package macOS DMG
-        run: ./gradlew packageDmg
+        run: ./gradlew packageDmg -PappVersion=${{ inputs.version }}
 
-      - name: Locate DMG artifact
+      - name: Locate and stage DMG artifact
         run: |
           mkdir -p dist-macos
           DMG=$(find build -name "*.dmg" | head -n 1)
           if [ -z "$DMG" ]; then
-            echo "DMG artifact not found!"
+            echo "ERROR: DMG artifact not found!"
             exit 1
           fi
           cp "$DMG" "dist-macos/ArtWallpaper-${{ inputs.version }}-macOS.dmg"
-          echo "DMG copied to dist-macos/ArtWallpaper-${{ inputs.version }}-macOS.dmg"
+          echo "DMG staged: dist-macos/ArtWallpaper-${{ inputs.version }}-macOS.dmg"
 
       - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v4
@@ -185,32 +181,22 @@ jobs:
           name: release-dmg
           path: release-artifacts/
 
-      - name: List downloaded release binaries
-        run: |
-          ls -lh release-artifacts/
+      - name: List release binaries
+        run: ls -lh release-artifacts/
 
-      - name: Bump version in repository & tag
+      - name: Commit version bump & tag
         run: |
-          python3 -c "
-          import re
-          v = '${{ inputs.version }}'
-          with open('build.gradle.kts', 'r') as f:
-              c = f.read()
-          c = re.sub(r'(?<=version = \")[^\"]*', v, c)
-          c = re.sub(r'(?<=packageVersion = \")[^\"]*', v, c)
-          c = re.sub(r'(?<=msiPackageVersion = \")[^\"]*', v, c)
-          c = re.sub(r'(?<=exePackageVersion = \")[^\"]*', v, c)
-          with open('build.gradle.kts', 'w') as f:
-              f.write(c)
-          "
+          V="${{ inputs.version }}"
+          sed -i "s/^appVersion=.*/appVersion=$V/" gradle.properties
+          sed -i "s/^version=.*/version=$V/" src/main/resources/version.properties
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add build.gradle.kts
-          git commit -m "chore: release version ${{ inputs.version }}" || echo "No changes to commit"
-          git tag -f "v${{ inputs.version }}"
+          git add gradle.properties src/main/resources/version.properties
+          git diff --staged --quiet || git commit -m "chore: bump version to $V for release"
+          git tag -f "v$V"
           git push origin master --tags
 
-      - name: Create GitHub Release with Windows MSI and macOS DMG
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}

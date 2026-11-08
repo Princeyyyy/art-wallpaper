@@ -255,7 +255,7 @@ fun MainScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
                                 if (currentSettings.hasSetUpdateTime) {
-                                    "Daily update at %02d:%02d".format(
+                                    String.format(java.util.Locale.ROOT, "Daily update at %02d:%02d",
                                         currentSettings.updateTimeHour,
                                         currentSettings.updateTimeMinute
                                     )
@@ -684,7 +684,7 @@ private fun OnboardingStep2Schedule(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Custom Time: %02d:%02d".format(hour, minute),
+                    String.format(java.util.Locale.ROOT, "Custom Time: %02d:%02d", hour, minute),
                     style = MaterialTheme.typography.subtitle2,
                     color = ArtColors.PaperWhite
                 )
@@ -697,7 +697,7 @@ private fun OnboardingStep2Schedule(
                         Text("-", color = ArtColors.GalleryGold, style = MaterialTheme.typography.h6)
                     }
                     Text(
-                        "%02d".format(hour),
+                        String.format(java.util.Locale.ROOT, "%02d", hour),
                         style = MaterialTheme.typography.subtitle1,
                         color = ArtColors.GalleryGold,
                         modifier = Modifier.padding(horizontal = 4.dp)
