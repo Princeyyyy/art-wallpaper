@@ -9,45 +9,48 @@ import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
 
 class ImageProcessor {
+    // FIX #12: Capture screen size once at construction time.
+    // Toolkit.getDefaultToolkit() is AWT and must be called on the AWT/EDT thread,
+    // but construction is triggered from the AWT-safe main() path before coroutines
+    // take over. Calling it inside processImage() (which runs on Dispatchers.Default)
+    // risks intermittent crashes on some JDK / display driver combinations.
+    private val screenWidth: Int
+    private val screenHeight: Int
+
+    init {
+        val screenSize = Toolkit.getDefaultToolkit().screenSize
+        screenWidth = screenSize.width
+        screenHeight = screenSize.height
+    }
+
     fun processImage(imagePath: Path): Path {
         val originalImage = ImageIO.read(imagePath.toFile())
-        val screenSize = Toolkit.getDefaultToolkit().screenSize
-        
-        // Calculate target dimensions based on screen resolution
-        val targetWidth = screenSize.width * 1.2  // 20% larger than screen
-        val targetHeight = screenSize.height * 1.2
-        
-        // Determine if source is portrait and needs special handling
+
+        // 20% larger than screen for pan/crop headroom
+        val targetWidth = (screenWidth * 1.2).toInt()
+        val targetHeight = (screenHeight * 1.2).toInt()
+
         val isSourcePortrait = originalImage.height > originalImage.width
         val isTargetPortrait = targetHeight > targetWidth
-        
-        // Calculate dimensions with special handling for portrait-to-landscape conversion
+
         val (scaledWidth, scaledHeight) = if (isSourcePortrait && !isTargetPortrait) {
-            // For portrait images being displayed on landscape screens,
-            // we want to ensure the image fills the width while maintaining aspect ratio
             calculatePortraitToLandscapeDimensions(
                 originalWidth = originalImage.width,
                 originalHeight = originalImage.height,
-                targetWidth = targetWidth.toInt(),
-                targetHeight = targetHeight.toInt()
+                targetWidth = targetWidth,
+                targetHeight = targetHeight
             )
         } else {
             calculateDimensions(
                 originalWidth = originalImage.width,
                 originalHeight = originalImage.height,
-                targetWidth = targetWidth.toInt(),
-                targetHeight = targetHeight.toInt()
+                targetWidth = targetWidth,
+                targetHeight = targetHeight
             )
         }
 
-        // Multi-step scaling with improved quality
-        val resized = scaleImageHighQuality(
-            originalImage,
-            scaledWidth,
-            scaledHeight
-        )
+        val resized = scaleImageHighQuality(originalImage, scaledWidth, scaledHeight)
 
-        // Apply adaptive sharpening based on scaling ratio
         val sharpened = if (originalImage.width > scaledWidth) {
             sharpenDownscaledImage(resized)
         } else {
@@ -56,7 +59,7 @@ class ImageProcessor {
 
         val processedPath = imagePath.parent.resolve("processed_${imagePath.fileName}")
         saveHighQualityImage(sharpened, processedPath)
-        
+
         return processedPath
     }
 
@@ -67,7 +70,7 @@ class ImageProcessor {
         targetHeight: Int
     ): Pair<Int, Int> {
         val aspectRatio = originalWidth.toDouble() / originalHeight
-        
+
         return if (originalWidth > originalHeight) {
             val height = (targetWidth / aspectRatio).toInt()
             targetWidth to height
@@ -85,21 +88,19 @@ class ImageProcessor {
     ): Pair<Int, Int> {
         val aspectRatio = originalWidth.toDouble() / originalHeight
         var height = (targetWidth / aspectRatio).toInt()
-        
-        // If the calculated height is too large, scale down while maintaining aspect ratio
+
         if (height > targetHeight * 1.5) {
             height = targetHeight
             val width = (height * aspectRatio).toInt()
             return width to height
         }
-        
-        // If the calculated height is too small, ensure minimum coverage
+
         if (height < targetHeight * 0.8) {
             height = targetHeight
             val width = (height * aspectRatio).toInt()
             return width to height
         }
-        
+
         return targetWidth to height
     }
 
@@ -108,7 +109,6 @@ class ImageProcessor {
         targetWidth: Int,
         targetHeight: Int
     ): BufferedImage {
-        // Multi-step scaling for better quality
         var currentWidth = image.width
         var currentHeight = image.height
         var currentImage = image
@@ -128,7 +128,6 @@ class ImageProcessor {
             currentImage = temp
         }
 
-        // Final resize to target size
         val finalImage = BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB)
         val g2d = finalImage.createGraphics()
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
@@ -164,7 +163,7 @@ class ImageProcessor {
         val writer = ImageIO.getImageWritersByFormatName("jpg").next()
         val writeParam = writer.defaultWriteParam
         writeParam.compressionMode = ImageWriteParam.MODE_EXPLICIT
-        writeParam.compressionQuality = 0.95f  // High quality compression
+        writeParam.compressionQuality = 0.95f
 
         val output = ImageIO.createImageOutputStream(path.toFile())
         writer.output = output
@@ -172,4 +171,4 @@ class ImageProcessor {
         writer.dispose()
         output.close()
     }
-} 
+}

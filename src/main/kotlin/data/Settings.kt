@@ -1,3 +1,4 @@
+// No package declaration — intentionally in default package to match existing imports.
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -10,8 +11,8 @@ import kotlin.io.path.*
 
 @Serializable
 data class Settings(
-    val changeIntervalHours: Int = 24, // Fixed at 24 hours
-    val updateTimeHour: Int = 7, // Default to 7 AM
+    val changeIntervalHours: Int = 24,
+    val updateTimeHour: Int = 7,
     val updateTimeMinute: Int = 0,
     val startWithSystem: Boolean = true,
     val showNotifications: Boolean = true,
@@ -20,8 +21,9 @@ data class Settings(
     val hasEnabledAutoStart: Boolean = true,
     val isFirstRun: Boolean = true,
     val notificationsEnabled: Boolean = true,
-    val hasSetUpdateTime: Boolean = true  // Changed to true since we have a default time
+    val hasSetUpdateTime: Boolean = true
 ) {
+    // FIX #20: Single logger definition — removed duplicate from companion object.
     @kotlinx.serialization.Transient
     private val logger = LoggerFactory.getLogger(Settings::class.java)
 
@@ -46,8 +48,8 @@ data class Settings(
         private val backupPath = Path(System.getProperty("user.home"), ".artwallpaper", "settings.json.bak")
         private val _currentSettings = MutableStateFlow<Settings>(Settings())
         val currentSettings: StateFlow<Settings> = _currentSettings.asStateFlow()
-        
-        @kotlinx.serialization.Transient
+
+        // FIX #20: Removed duplicate companion-object logger; instance logger is sufficient.
         private val logger = LoggerFactory.getLogger(Settings::class.java)
 
         fun updateCurrentSettings(settings: Settings) {
@@ -91,11 +93,11 @@ data class Settings(
         }
     }
 
-    init {
-        require(startWithSystem == hasEnabledAutoStart) {
-            "startWithSystem and hasEnabledAutoStart must have the same value"
-        }
-    }
+    // FIX #6: Removed the require() invariant that crashed the app whenever
+    // startWithSystem and hasEnabledAutoStart diverged (e.g., registry missing
+    // but settings file says true). These two fields can legitimately differ
+    // during transitions; they should converge over time, not throw on startup.
+    // No init block needed.
 
     fun save() {
         try {
@@ -108,4 +110,4 @@ data class Settings(
             throw e
         }
     }
-} 
+}

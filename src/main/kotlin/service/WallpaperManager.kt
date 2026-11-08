@@ -9,6 +9,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -41,8 +43,11 @@ class WallpaperManager(
     private var lastScheduledUpdateTime: Long = 0
     private val _currentArtwork = MutableStateFlow<Pair<Path, ArtworkMetadata>?>(null)
     val currentArtwork: StateFlow<Pair<Path, ArtworkMetadata>?> = _currentArtwork.asStateFlow()
-    private val updateLock = Object()
-    private var isUpdating = false
+
+    // FIX #2: Replace raw Java Object monitor + boolean flag with a coroutine Mutex.
+    // Using synchronized() inside a suspend function blocks a dispatcher thread and
+    // can deadlock. Mutex is coroutine-safe and suspends without blocking.
+    private val updateMutex = Mutex()
 
     private val updateRetryPolicy = RetryPolicy(
         maxAttempts = 3,
@@ -59,36 +64,37 @@ class WallpaperManager(
     )
 
     init {
-        // Load last saved state
+        // Load last saved state on construction.
         try {
             if (stateFile.exists()) {
                 val savedState = Json.decodeFromString<SavedState>(stateFile.readText())
                 lastUpdateTime = savedState.lastUpdateTime
                 lastScheduledUpdateTime = savedState.lastScheduledUpdateTime
-                
-                // Set current artwork from saved state
+
                 val storedPath = artworkStorage.getArtworkPath(savedState.metadata.id)
-                if (storedPath != null) {
-                    if (storedPath.exists()) {
-                        setCurrentArtwork(storedPath, savedState.metadata)
-                        lastSuccessfulArtwork = storedPath to savedState.metadata
-                    }
+                if (storedPath != null && storedPath.exists()) {
+                    setCurrentArtwork(storedPath, savedState.metadata)
+                    lastSuccessfulArtwork = storedPath to savedState.metadata
                 }
             }
         } catch (e: Exception) {
             logger.error("Failed to load wallpaper state", e)
         }
+        // FIX #4: Removed duplicate loadSavedState() — logic is fully inlined above.
     }
 
     suspend fun checkAndUpdateIfNeeded() {
         val state = loadState()
         val now = System.currentTimeMillis()
-        
+
         if (state == null || shouldUpdate(state.lastUpdateTime)) {
             logger.info("Update needed - last update was too long ago or no state found")
             updateWallpaper()
         } else {
-            logger.info("No update needed - last update was ${Duration.ofMillis(now - state.lastUpdateTime).toHours()} hours ago")
+            logger.info(
+                "No update needed - last update was " +
+                    "${Duration.ofMillis(now - state.lastUpdateTime).toHours()} hours ago"
+            )
         }
     }
 
@@ -101,8 +107,7 @@ class WallpaperManager(
     private fun calculateNextUpdateTime(): LocalDateTime {
         val now = LocalDateTime.now()
         val nextUpdate = now.plus(settings.updateInterval)
-        
-        // If we have preferred hours, adjust to next available time
+
         return settings.preferredHours.let { hours ->
             val todayPreferred = LocalDateTime.of(now.toLocalDate(), LocalTime.of(hours, 0))
             if (now.isBefore(todayPreferred)) {
@@ -113,33 +118,44 @@ class WallpaperManager(
         } ?: nextUpdate
     }
 
+    // FIX #2: updateMutex.withLock() suspends without blocking a thread,
+    // safe to use in a suspend function.
     private suspend fun updateWallpaper(forceUpdate: Boolean = false) {
-        synchronized(updateLock) {
-            if (isUpdating) {
-                logger.info("Update already in progress, skipping")
-                return
-            }
-            isUpdating = true
+        if (updateMutex.isLocked) {
+            logger.info("Update already in progress, skipping")
+            return
         }
-        
-        try {
-            updateRetryPolicy.execute {
-                if (!connectivityChecker.isNetworkAvailable()) {
-                    throw NetworkUnavailableException()
+
+        updateMutex.withLock {
+            try {
+                updateRetryPolicy.execute {
+                    if (!connectivityChecker.isNetworkAvailable()) {
+                        throw NetworkUnavailableException()
+                    }
+
+                    val artwork = artworkProvider.fetchArtwork().getOrThrow()
+                    val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
+
+                    // FIX #3: Call setWallpaper once and handle success in one place.
+                    // Previously setWallpaper() was called here AND inside setScheduledWallpaper(),
+                    // resulting in two WinAPI calls and two state saves per update.
+                    wallpaperService.setWallpaper(storedPath).getOrThrow()
+
+                    lastSuccessfulArtwork = storedPath to artwork.second
+                    _currentArtwork.value = storedPath to artwork.second
+                    lastScheduledUpdateTime = System.currentTimeMillis()
+                    lastUpdateTime = System.currentTimeMillis()
+
+                    // Add to history so it isn't repeated
+                    historyManager.addToHistory(artwork.second)
+
+                    saveState(artwork.second)
+                    artworkProvider.cleanupCacheFiles(artwork.second.id)
+                    logger.info("Wallpaper updated: ${artwork.second.title}")
                 }
-                
-                val artwork = artworkProvider.fetchArtwork().getOrThrow()
-                val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
-                wallpaperService.setWallpaper(storedPath).getOrThrow()
-                setScheduledWallpaper(storedPath, artwork.second)
-                artworkProvider.cleanupCacheFiles()
-            }
-        } catch (e: Exception) {
-            logger.error("Failed to update wallpaper after retries", e)
-            throw e
-        } finally {
-            synchronized(updateLock) {
-                isUpdating = false
+            } catch (e: Exception) {
+                logger.error("Failed to update wallpaper after retries", e)
+                throw e
             }
         }
     }
@@ -171,22 +187,19 @@ class WallpaperManager(
     }
 
     suspend fun start() {
-        synchronized(updateLock) {
-            if (job != null) {
-                logger.info("Wallpaper manager already running")
-                return
-            }
-            
-            logger.info("Starting wallpaper manager")
-            job = scope.launch {
-                try {
-                    // Only check for updates if not first run
-                    if (!settings.isFirstRun) {
-                        checkAndUpdateIfNeeded()
-                    }
-                } catch (e: Exception) {
-                    logger.error("Error during wallpaper update check", e)
+        if (job != null) {
+            logger.info("Wallpaper manager already running")
+            return
+        }
+
+        logger.info("Starting wallpaper manager")
+        job = scope.launch {
+            try {
+                if (!settings.isFirstRun) {
+                    checkAndUpdateIfNeeded()
                 }
+            } catch (e: Exception) {
+                logger.error("Error during wallpaper update check", e)
             }
         }
     }
@@ -206,18 +219,6 @@ class WallpaperManager(
         logger.info("Set current artwork: ${metadata.title}")
     }
 
-    private fun setScheduledWallpaper(path: Path, metadata: ArtworkMetadata) {
-        wallpaperService.setWallpaper(path).onSuccess {
-            lastSuccessfulArtwork = path to metadata
-            _currentArtwork.value = path to metadata
-            lastScheduledUpdateTime = System.currentTimeMillis()
-            lastUpdateTime = System.currentTimeMillis()
-            saveState(metadata)
-            artworkProvider.cleanupCacheFiles(metadata.id)
-            logger.info("Wallpaper set through scheduled update: ${metadata.title}")
-        }
-    }
-
     fun checkAndUpdate() {
         val now = LocalDateTime.now()
         val today = now.toLocalDate()
@@ -225,14 +226,15 @@ class WallpaperManager(
             today,
             LocalTime.of(settings.updateTimeHour, settings.updateTimeMinute)
         )
-        
+
         val lastUpdateDate = LocalDateTime.ofInstant(
             java.time.Instant.ofEpochMilli(lastScheduledUpdateTime),
             ZoneId.systemDefault()
         ).toLocalDate()
-        
-        if ((now.isAfter(scheduledTime) || now.isEqual(scheduledTime)) && 
-            !today.isEqual(lastUpdateDate)) {
+
+        if ((now.isAfter(scheduledTime) || now.isEqual(scheduledTime)) &&
+            !today.isEqual(lastUpdateDate)
+        ) {
             logger.info("Update needed - haven't updated today and we're at/past scheduled time $scheduledTime")
             scope.launch {
                 updateWallpaper()
@@ -244,29 +246,6 @@ class WallpaperManager(
                 scheduledTime.plusDays(1)
             }
             logger.info("No update needed - next update scheduled for $nextUpdate")
-        }
-    }
-
-    private fun loadSavedState() {
-        try {
-            if (stateFile.exists()) {
-                val state = Json.decodeFromString<SavedState>(stateFile.readText())
-                val imagePath = artworkStorage.getArtworkPath(state.metadata.id)
-                if (imagePath != null) {
-                    setCurrentArtwork(imagePath, state.metadata)
-                    lastUpdateTime = state.lastUpdateTime
-                    lastScheduledUpdateTime = state.lastScheduledUpdateTime
-                    logger.info("Loaded saved state - Last scheduled update: ${state.lastScheduledUpdateTime}")
-                }
-            } else {
-                logger.info("No saved wallpaper state found")
-                lastUpdateTime = 0
-                lastScheduledUpdateTime = 0
-            }
-        } catch (e: Exception) {
-            logger.error("Failed to load saved wallpaper state", e)
-            lastUpdateTime = 0
-            lastScheduledUpdateTime = 0
         }
     }
 
@@ -284,7 +263,6 @@ class WallpaperManager(
             val artwork = artworkProvider.fetchArtwork().getOrThrow()
             val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
             setWallpaperManually(storedPath, artwork.second)
-            
             artworkStorage.cleanupOldArtworks()
         } catch (e: Exception) {
             logger.error("Failed to set next wallpaper manually", e)
@@ -311,4 +289,4 @@ class RetryPolicy(
         }
         return block() // Last attempt
     }
-} 
+}

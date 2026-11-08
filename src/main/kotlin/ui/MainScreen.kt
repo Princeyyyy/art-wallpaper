@@ -1,32 +1,29 @@
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import java.nio.file.Path
 import org.jetbrains.skia.Image as SkiaImage
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import org.slf4j.LoggerFactory
 import service.ServiceController
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.with
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import kotlinx.coroutines.*
 import kotlinx.coroutines.swing.Swing
 import kotlin.io.path.exists
@@ -47,15 +44,6 @@ fun MainScreen(
     var showSettings by remember { mutableStateOf(false) }
     var isInitializing by remember { mutableStateOf(false) }
 
-    // Move loading state to composition scope
-    val loadingState = remember { mutableStateOf(false) }
-    var isLoadingState by loadingState
-
-    LaunchedEffect(isLoading) {
-        isLoadingState = isLoading
-        logger.info("Loading state changed: $isLoading")
-    }
-
     if (isFirstRun) {
         WelcomeScreen(
             isInitializing = isInitializing,
@@ -69,42 +57,48 @@ fun MainScreen(
             currentArtwork = currentArtwork
         )
     } else {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Top bar with settings - removed running state
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Box(modifier = Modifier.fillMaxSize().background(ArtColors.Canvas)) {
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                Text(
-                    "Art Wallpaper",
-                    style = MaterialTheme.typography.h6
-                )
-                IconButton(onClick = { showSettings = true }) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = MaterialTheme.colors.primary
+                // ── Top bar ──────────────────────────────────────────────────
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Art Wallpaper",
+                        style = MaterialTheme.typography.h6,
+                        color = ArtColors.PaperWhite,
+                        letterSpacing = 0.5.sp
                     )
+                    IconButton(
+                        onClick = { showSettings = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = ArtColors.PaperMuted
+                        )
+                    }
                 }
-            }
 
-            // Current artwork display
-            Card(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                elevation = 4.dp,
-                backgroundColor = MaterialTheme.colors.surface,
-                shape = MaterialTheme.shapes.medium
-            ) {
+                // ── Artwork card — full-bleed ────────────────────────────────
                 Box(
-                    modifier = Modifier.fillMaxSize()
-                        .padding(16.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clip(RoundedCornerShape(8.dp))
                 ) {
                     if (currentArtwork != null) {
                         val (path, metadata) = currentArtwork
+
+                        // Full-bleed image
                         Image(
                             bitmap = remember(path) {
                                 SkiaImage.makeFromEncoded(path.toFile().readBytes())
@@ -112,198 +106,222 @@ fun MainScreen(
                             },
                             contentDescription = metadata.title,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
+                            contentScale = ContentScale.Crop
+                        )
+
+                        // Gradient scrim at bottom for readability
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                                .align(Alignment.BottomCenter)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(Color.Transparent, ArtColors.ScrimBlack)
+                                    )
+                                )
                         )
 
                         // Artwork info overlay
-                        Surface(
+                        Column(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
-                                .fillMaxWidth(),
-                            color = MaterialTheme.colors.surface.copy(alpha = 0.9f),
-                            shape = MaterialTheme.shapes.medium,
-                            elevation = 2.dp
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                Text(
-                                    metadata.title,
-                                    style = MaterialTheme.typography.h6,
-                                    color = MaterialTheme.colors.onSurface
-                                )
-                                metadata.artist?.let {
-                                    Text(
-                                        "By $it",
-                                        style = MaterialTheme.typography.subtitle1,
-                                        color = MaterialTheme.colors.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        // No artwork placeholder
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 14.dp)
                         ) {
                             Text(
-                                "No wallpaper set yet",
+                                metadata.title,
                                 style = MaterialTheme.typography.h6,
-                                color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                                color = Color.White,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            metadata.artist?.let { artist ->
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    buildString {
+                                        append(artist)
+                                        metadata.year?.let { append(" · $it") }
+                                    },
+                                    style = MaterialTheme.typography.subtitle2,
+                                    color = Color.White.copy(alpha = 0.75f)
+                                )
+                            }
                         }
-                    }
 
-                    // Loading overlay
-                    if (isLoadingState) {
+                    } else {
+                        // No artwork placeholder
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.5f))
-                                .zIndex(1f),
+                                .background(ArtColors.Surface),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.padding(32.dp)
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                CircularProgressIndicator(
-                                    color = Color.White,
-                                    modifier = Modifier.size(48.dp)
+                                Text(
+                                    "No artwork yet",
+                                    style = MaterialTheme.typography.subtitle1,
+                                    color = ArtColors.PaperMuted
                                 )
                                 Text(
-                                    "Exploring Art History... 🎨",
-                                    style = MaterialTheme.typography.h6,
+                                    "Press Next Artwork to begin",
+                                    style = MaterialTheme.typography.body2,
+                                    color = ArtColors.PaperMuted.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+
+                    // ── Loading overlay ──────────────────────────────────────
+                    AnimatedVisibility(
+                        visible = isLoading,
+                        enter = fadeIn(animationSpec = tween(200)),
+                        exit = fadeOut(animationSpec = tween(300)),
+                        modifier = Modifier.fillMaxSize().zIndex(2f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.65f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    color = ArtColors.GalleryGold,
+                                    modifier = Modifier.size(44.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    "Fetching artwork",
+                                    style = MaterialTheme.typography.subtitle1,
                                     color = Color.White
                                 )
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Text(
-                                        "Searching through centuries of masterpieces... 🖼️",
-                                        style = MaterialTheme.typography.body1,
-                                        color = Color.White.copy(alpha = 0.9f),
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Text(
-                                        "From canvas to your screen, art is on its way! ✨",
-                                        style = MaterialTheme.typography.body1,
-                                        color = Color.White.copy(alpha = 0.8f),
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Text(
-                                        "Get ready for your next daily masterpiece! 🌟",
-                                        style = MaterialTheme.typography.body1,
-                                        color = Color.White.copy(alpha = 0.8f),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Controls
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
+                // ── Controls bar ─────────────────────────────────────────────
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            if (currentSettings.hasSetUpdateTime) {
+                                "Updates daily at %02d:%02d".format(
+                                    currentSettings.updateTimeHour,
+                                    currentSettings.updateTimeMinute
+                                )
+                            } else {
+                                "Updates daily at 07:00"
+                            },
+                            style = MaterialTheme.typography.body2,
+                            color = ArtColors.PaperMuted
+                        )
                         if (isLoading) {
-                            "Fetching new artwork..."
-                        } else if (currentSettings.hasSetUpdateTime) {
-                            "Your wallpaper updates daily at ${String.format("%02d:%02d", currentSettings.updateTimeHour, currentSettings.updateTimeMinute)}"
-                        } else {
-                            "Your wallpaper updates daily at 07:00"
-                        },
-                        style = MaterialTheme.typography.body1
-                    )
-                    Text(
-                        if (isLoading) {
-                            "Please wait while we find something beautiful! ✨"
-                        } else {
-                            "Sit back and enjoy the daily art! ✨"
-                        },
-                        style = MaterialTheme.typography.body2.copy(
-                            color = MaterialTheme.colors.primary.copy(alpha = 0.8f)
-                        ),
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                Button(
-                    onClick = {
-                        if (!isLoading) {
-                            isLoading = true
-                            val previousTitle = currentArtwork?.second?.title
-                            logger.info("Starting wallpaper update. Previous artwork: $previousTitle")
-                            
-                            coroutineScope.launch(Dispatchers.Default) {
-                                try {
-                                    serviceController.nextWallpaper()
-                                    
-                                    // Wait for the wallpaper to change with a shorter timeout
-                                    withTimeout(30000) { // 30 seconds timeout
-                                        serviceController.wallpaperManager.currentArtwork
-                                            .collect { newArtwork ->
-                                                if (newArtwork != null && 
-                                                    newArtwork.second.title != previousTitle &&
-                                                    newArtwork.first.exists()) {
-                                                    logger.info("New artwork detected - Title: ${newArtwork.second.title}")
-                                                    cancel() // Cancel the timeout coroutine
+                            Text(
+                                "Searching collections...",
+                                style = MaterialTheme.typography.caption,
+                                color = ArtColors.GalleryGold.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (!isLoading) {
+                                isLoading = true
+                                val previousTitle = currentArtwork?.second?.title
+                                logger.info("Starting wallpaper update. Previous: $previousTitle")
+
+                                coroutineScope.launch(Dispatchers.Default) {
+                                    try {
+                                        serviceController.nextWallpaper()
+
+                                        withTimeout(30_000L) {
+                                            serviceController.wallpaperManager.currentArtwork
+                                                .collect { newArtwork ->
+                                                    if (newArtwork != null &&
+                                                        newArtwork.second.title != previousTitle &&
+                                                        newArtwork.first.exists()
+                                                    ) {
+                                                        logger.info("New artwork: ${newArtwork.second.title}")
+                                                        cancel()
+                                                    }
                                                 }
+                                        }
+                                    } catch (e: Exception) {
+                                        logger.error("Failed to set next wallpaper", e)
+                                        withContext(Dispatchers.Main) {
+                                            errorMessage = when (e) {
+                                                is TimeoutCancellationException ->
+                                                    "Taking longer than expected. Please try again."
+                                                is CancellationException -> null
+                                                else -> "Could not update wallpaper: ${e.message}"
                                             }
-                                    }
-                                } catch (e: Exception) {
-                                    logger.error("Failed to set next wallpaper", e)
-                                    withContext(Dispatchers.Main) {
-                                        errorMessage = when (e) {
-                                            is TimeoutCancellationException -> "Taking longer than expected to find suitable artwork. Please try again."
-                                            is CancellationException -> null // Normal completion
-                                            else -> "Failed to set wallpaper: ${e.message}"
+                                        }
+                                    } finally {
+                                        withContext(Dispatchers.Main) {
+                                            isLoading = false
                                         }
                                     }
-                                } finally {
-                                    withContext(Dispatchers.Main) {
-                                        logger.info("Wallpaper update completed. Loading state set to false")
-                                        isLoading = false
-                                    }
                                 }
                             }
+                        },
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = ArtColors.GalleryGold,
+                            contentColor = ArtColors.Canvas,
+                            disabledBackgroundColor = ArtColors.GalleryGoldDim.copy(alpha = 0.4f),
+                            disabledContentColor = ArtColors.Canvas.copy(alpha = 0.5f)
+                        ),
+                        elevation = ButtonDefaults.elevation(
+                            defaultElevation = 0.dp,
+                            pressedElevation = 2.dp
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                color = ArtColors.Canvas,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
                         }
-                    },
-                    modifier = Modifier.padding(8.dp),
-                    enabled = !isLoading
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = MaterialTheme.colors.onPrimary,
-                            strokeWidth = 2.dp
+                        Text(
+                            "NEXT ARTWORK",
+                            style = MaterialTheme.typography.button
                         )
-                    } else {
-                        Text("Next Wallpaper")
                     }
                 }
-            }
 
-            // Error message display
-            errorMessage?.let { error ->
-                Snackbar(
-                    modifier = Modifier.padding(16.dp),
-                    action = {
-                        TextButton(onClick = { errorMessage = null }) {
-                            Text("Dismiss")
+                // ── Error snackbar ───────────────────────────────────────────
+                errorMessage?.let { error ->
+                    Snackbar(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 8.dp),
+                        backgroundColor = ArtColors.SurfaceVariant,
+                        contentColor = ArtColors.PaperWhite,
+                        action = {
+                            TextButton(onClick = { errorMessage = null }) {
+                                Text("Dismiss", color = ArtColors.GalleryGold)
+                            }
                         }
+                    ) {
+                        Text(error, style = MaterialTheme.typography.body2)
                     }
-                ) {
-                    Text(error)
                 }
             }
         }
@@ -312,12 +330,11 @@ fun MainScreen(
         if (showSettings) {
             SettingsDialog(
                 settings = settings,
-                onSettingsChange = { newSettings -> 
+                onSettingsChange = { newSettings ->
                     Settings.updateCurrentSettings(newSettings)
                     onSettingsChange(newSettings)
-                    // Debounce restart
                     coroutineScope.launch {
-                        delay(1000) // Wait for rapid changes to settle
+                        delay(1000)
                         serviceController.restartService()
                     }
                 },
@@ -326,6 +343,8 @@ fun MainScreen(
         }
     }
 }
+
+// ── Welcome / Onboarding ──────────────────────────────────────────────────────
 
 @Composable
 fun WelcomeScreen(
@@ -339,15 +358,12 @@ fun WelcomeScreen(
     coroutineScope: CoroutineScope,
     currentArtwork: Pair<Path, ArtworkMetadata>?
 ) {
+    val logger = LoggerFactory.getLogger("WelcomeScreen")
     var showCurating by remember { mutableStateOf(false) }
-    
-    // Add effect to handle currentArtwork changes
+
     LaunchedEffect(currentArtwork) {
         if (currentArtwork != null && showCurating) {
-            // Give time for the wallpaper to be visible
             delay(2000)
-            
-            // Update settings and start service
             withContext(Dispatchers.Main) {
                 val updatedSettings = settings.copy(
                     isFirstRun = false,
@@ -357,10 +373,8 @@ fun WelcomeScreen(
                 updatedSettings.save()
                 onSettingsChange(updatedSettings)
             }
-            
             delay(1000)
             serviceController.startService()
-            
             withContext(Dispatchers.Main) {
                 onFirstRunComplete()
                 showCurating = false
@@ -370,138 +384,105 @@ fun WelcomeScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ArtColors.Canvas),
         contentAlignment = Alignment.Center
     ) {
         if (showCurating) {
+            // ── Curating state ────────────────────────────────────────────
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(32.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                modifier = Modifier.padding(48.dp)
             ) {
                 CircularProgressIndicator(
-                    color = MaterialTheme.colors.primary,
-                    modifier = Modifier.size(48.dp)
+                    color = ArtColors.GalleryGold,
+                    modifier = Modifier.size(44.dp),
+                    strokeWidth = 2.dp
                 )
                 Text(
-                    "Curating your masterpiece... 🎨",
-                    style = MaterialTheme.typography.h6
+                    "Curating your first artwork",
+                    style = MaterialTheme.typography.h6,
+                    color = ArtColors.PaperWhite
                 )
                 Text(
-                    "We're searching through the world's finest art collections to find something special just for you! ✨",
+                    "Searching the Metropolitan Museum of Art collection for a piece worth your desktop.",
                     style = MaterialTheme.typography.body1,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.7f)
+                    color = ArtColors.PaperMuted
                 )
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Text(
-                        "From the halls of the Met to the galleries of Europe... 🏛️",
-                        style = MaterialTheme.typography.body1,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f)
-                    )
-                    Text(
-                        "Discovering timeless beauty just for your desktop 🖼️",
-                        style = MaterialTheme.typography.body1,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f)
-                    )
-                    Text(
-                        "Get ready to be inspired! 🌟",
-                        style = MaterialTheme.typography.body1,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.primary.copy(alpha = 0.9f)
-                    )
-                    Text(
-                        "Your personal art gallery is just moments away... ⭐",
-                        style = MaterialTheme.typography.body2,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.primary.copy(alpha = 0.8f),
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
             }
+
         } else {
+            // ── Welcome state ─────────────────────────────────────────────
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-                modifier = Modifier.padding(32.dp)
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+                modifier = Modifier
+                    .widthIn(max = 460.dp)
+                    .padding(horizontal = 40.dp, vertical = 32.dp)
             ) {
                 Text(
-                    "Welcome to ArtWallpaper! 🎨",
+                    "ArtWallpaper",
                     style = MaterialTheme.typography.h4,
+                    color = ArtColors.GalleryGold,
                     textAlign = TextAlign.Center
                 )
+
+                Spacer(Modifier.height(8.dp))
+
                 Text(
-                    "Transform your desktop into a daily gallery of masterpieces ✨",
+                    "A new masterpiece. Every morning.",
                     style = MaterialTheme.typography.h6,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colors.primary
+                    color = ArtColors.PaperWhite,
+                    textAlign = TextAlign.Center
                 )
+
+                Spacer(Modifier.height(24.dp))
+
+                // Divider
+                Divider(color = ArtColors.DividerLine, thickness = 1.dp)
+
+                Spacer(Modifier.height(24.dp))
+
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalAlignment = Alignment.Start
                 ) {
-                    Text(
-                        "Every day is an opportunity to discover something beautiful! 🌅",
-                        style = MaterialTheme.typography.body1,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.9f)
+                    WelcomeFeature(
+                        label = "Daily rotation",
+                        detail = "Your wallpaper changes automatically at a time you choose."
                     )
-                    Text(
-                        "From Renaissance masterpieces to modern classics, let your desktop tell a new story every day 📖",
-                        style = MaterialTheme.typography.body1,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f)
+                    WelcomeFeature(
+                        label = "Museum-grade curation",
+                        detail = "Every piece drawn from the Met's public collection — over 400,000 works."
                     )
-                    Text(
-                        "Curated from the world's greatest museums, bringing art history right to your screen 🏛️",
-                        style = MaterialTheme.typography.body1,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.8f)
+                    WelcomeFeature(
+                        label = "Works offline",
+                        detail = "Previously seen artwork stays on your device as a fallback."
                     )
                 }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Text(
-                        "Ready to begin your artistic journey? 🎭",
-                        style = MaterialTheme.typography.body1,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.primary.copy(alpha = 0.9f)
-                    )
-                    Text(
-                        "Let's make your desktop a window to the world of art! 🖼️",
-                        style = MaterialTheme.typography.body2,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colors.primary.copy(alpha = 0.8f)
-                    )
-                }
+
+                Spacer(Modifier.height(32.dp))
+
                 Button(
                     onClick = {
                         if (!isInitializing) {
                             showCurating = true
                             onIsInitializingChange(true)
-                            
+
                             coroutineScope.launch(Dispatchers.Default) {
                                 try {
                                     WindowsAutoStart.enable()
                                     serviceController.nextWallpaper()
-                                    
+
                                     try {
-                                        // Wait for the wallpaper to change with a shorter timeout
-                                        withTimeout(30000) { // 30 seconds timeout
+                                        withTimeout(30_000L) {
                                             serviceController.wallpaperManager.currentArtwork
                                                 .collect { newArtwork ->
                                                     if (newArtwork != null && newArtwork.first.exists()) {
-                                                        logger.info("Initial artwork set successfully: ${newArtwork.second.title}")
-                                                        // Update settings and start service
+                                                        logger.info("Initial artwork: ${newArtwork.second.title}")
                                                         withContext(Dispatchers.Main) {
                                                             val updatedSettings = settings.copy(
                                                                 isFirstRun = false,
@@ -511,37 +492,34 @@ fun WelcomeScreen(
                                                             updatedSettings.save()
                                                             onSettingsChange(updatedSettings)
                                                         }
-                                                        
                                                         delay(1000)
                                                         serviceController.startService()
-                                                        
                                                         withContext(Dispatchers.Main) {
                                                             onFirstRunComplete()
                                                             showCurating = false
                                                             onIsInitializingChange(false)
                                                         }
-                                                        return@collect // Use return@withTimeout instead of cancel()
+                                                        return@collect
                                                     }
                                                 }
                                         }
                                     } catch (e: Exception) {
                                         when (e) {
-                                            is TimeoutCancellationException -> throw e // Re-throw timeout
-                                            is CancellationException -> {
-                                                // Normal completion - ignore the exception
-                                                logger.info("Setup completed successfully")
-                                            }
-                                            else -> throw e // Re-throw other exceptions
+                                            is TimeoutCancellationException -> throw e
+                                            is CancellationException -> logger.info("Setup completed")
+                                            else -> throw e
                                         }
                                     }
                                 } catch (e: Exception) {
-                                    logger.error("Failed to complete first run setup", e)
+                                    logger.error("Failed to complete first run", e)
                                     withContext(Dispatchers.Main) {
-                                        val errorMessage = when (e) {
-                                            is TimeoutCancellationException -> "Taking longer than expected to find suitable artwork. Please try again."
-                                            else -> "Failed to complete setup: ${e.message}"
-                                        }
-                                        onError(errorMessage)
+                                        onError(
+                                            when (e) {
+                                                is TimeoutCancellationException ->
+                                                    "Taking longer than expected. Please try again."
+                                                else -> "Setup failed: ${e.message}"
+                                            }
+                                        )
                                         showCurating = false
                                         onIsInitializingChange(false)
                                     }
@@ -550,11 +528,57 @@ fun WelcomeScreen(
                         }
                     },
                     enabled = !isInitializing,
-                    modifier = Modifier.padding(top = 16.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = ArtColors.GalleryGold,
+                        contentColor = ArtColors.Canvas,
+                        disabledBackgroundColor = ArtColors.GalleryGoldDim.copy(alpha = 0.4f),
+                        disabledContentColor = ArtColors.Canvas.copy(alpha = 0.5f)
+                    ),
+                    elevation = ButtonDefaults.elevation(0.dp),
+                    shape = RoundedCornerShape(4.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp)
                 ) {
-                    Text("Begin Your Art Journey 🚀")
+                    Text("BEGIN", style = MaterialTheme.typography.button)
                 }
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "Requires an internet connection on first launch.",
+                    style = MaterialTheme.typography.caption,
+                    color = ArtColors.PaperMuted.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
-} 
+}
+
+@Composable
+private fun WelcomeFeature(label: String, detail: String) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        // Gold bullet
+        Box(
+            modifier = Modifier
+                .padding(top = 5.dp)
+                .size(5.dp)
+                .background(ArtColors.GalleryGold, shape = RoundedCornerShape(50))
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.subtitle2,
+                color = ArtColors.PaperWhite
+            )
+            Text(
+                detail,
+                style = MaterialTheme.typography.body2,
+                color = ArtColors.PaperMuted
+            )
+        }
+    }
+}

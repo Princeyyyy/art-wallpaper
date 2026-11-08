@@ -3,6 +3,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonColors
 import androidx.compose.material.ButtonDefaults
@@ -11,24 +12,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun PulsingButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    colors: ButtonColors = ButtonDefaults.buttonColors(),
+    colors: ButtonColors = ButtonDefaults.buttonColors(
+        backgroundColor = ArtColors.GalleryGold,
+        contentColor = ArtColors.Canvas
+    ),
     content: @Composable () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
+        targetValue = if (isPressed) 0.96f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
+            stiffness = Spring.StiffnessMedium
         )
     )
 
@@ -45,9 +49,10 @@ fun PulsingButton(
         enabled = enabled,
         colors = colors,
         elevation = ButtonDefaults.elevation(
-            defaultElevation = 6.dp,
-            pressedElevation = 8.dp
-        )
+            defaultElevation = 0.dp,
+            pressedElevation = 2.dp
+        ),
+        shape = RoundedCornerShape(4.dp)
     ) {
         content()
     }
@@ -59,23 +64,22 @@ fun FadeInCard(
     content: @Composable () -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
-    
-    LaunchedEffect(Unit) {
-        visible = true
-    }
+
+    LaunchedEffect(Unit) { visible = true }
 
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(animationSpec = tween(500)) +
-                expandVertically(animationSpec = tween(500)),
-        exit = fadeOut(animationSpec = tween(500)) +
-                shrinkVertically(animationSpec = tween(500))
+        enter = fadeIn(animationSpec = tween(400)),
+        exit = fadeOut(animationSpec = tween(300))
     ) {
         Card(
             modifier = modifier,
-            elevation = 4.dp
+            backgroundColor = ArtColors.Surface,
+            contentColor = ArtColors.PaperWhite,
+            elevation = 0.dp,
+            shape = RoundedCornerShape(8.dp)
         ) {
             content()
         }
     }
-} 
+}

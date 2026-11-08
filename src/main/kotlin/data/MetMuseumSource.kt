@@ -25,6 +25,10 @@ class MetMuseumSource(
     )
     private val json = Json { ignoreUnknownKeys = true }
 
+    // FIX #5: Maximum attempts before giving up — prevents unbounded recursion /
+    // StackOverflowError when many artworks in a row have no image.
+    private val maxFetchAttempts = 10
+
     @Serializable
     private data class ObjectIdsResponse(
         val total: Int,
@@ -56,7 +60,6 @@ class MetMuseumSource(
 
     private fun parseYear(dateString: String): Int? {
         return try {
-            // Try to extract a year from various formats
             val yearPattern = "\\d{4}".toRegex()
             yearPattern.find(dateString)?.value?.toInt()
         } catch (e: Exception) {
@@ -65,83 +68,94 @@ class MetMuseumSource(
         }
     }
 
+    // FIX #5: Changed from recursive to iterative. Each failure skips to the
+    // next candidate instead of growing the call stack.
     override suspend fun fetchRandomArtwork(): Result<Pair<Path, ArtworkMetadata>> = runCatching {
-        // Select a random department for this fetch
         val selectedDepartment = departments.random()
         logger.info("Fetching random artwork from Met Museum API, Department ID: $selectedDepartment")
-        
-        // Get all object IDs for the selected department
+
         val objectIdsRequest = HttpRequest.newBuilder()
             .uri(URI.create("$baseUrl/objects?departmentIds=$selectedDepartment"))
             .build()
-            
+
         val objectIdsResponse: HttpResponse<String> = client.send(objectIdsRequest, BodyHandlers.ofString())
         val objectIds = json.decodeFromString<ObjectIdsResponse>(objectIdsResponse.body()).objectIDs
-        
+
         if (objectIds.isEmpty()) {
-            throw IllegalStateException("No artworks found in the selected department")
+            throw IllegalStateException("No artworks found in department $selectedDepartment")
         }
 
-        // Filter out IDs that are in history
-        val availableIds = objectIds.filter { !historyManager.isInHistory(it.toString()) }
+        var availableIds = objectIds.filter { !historyManager.isInHistory(it.toString()) }
         if (availableIds.isEmpty()) {
             logger.info("All artworks have been shown, clearing history")
             historyManager.clearHistory()
-            return@runCatching fetchRandomArtwork().getOrThrow()
+            availableIds = objectIds
         }
 
-        // Get random artwork ID
-        val randomId = availableIds[Random.nextInt(availableIds.size)]
-        
-        // Fetch artwork details
+        val shuffledIds = availableIds.shuffled()
+        var lastError: Exception? = null
+
+        // Iterate through candidates — no recursion.
+        for (attempt in 0 until minOf(maxFetchAttempts, shuffledIds.size)) {
+            val candidateId = shuffledIds[attempt]
+            try {
+                val result = tryFetchArtwork(candidateId)
+                if (result != null) return@runCatching result
+            } catch (e: Exception) {
+                logger.warn("Attempt ${attempt + 1} failed for objectID $candidateId: ${e.message}")
+                lastError = e
+            }
+        }
+
+        throw lastError ?: IllegalStateException(
+            "Could not find a usable artwork after $maxFetchAttempts attempts"
+        )
+    }
+
+    /** Fetches, downloads, processes a single artwork. Returns null if it should be skipped. */
+    private suspend fun tryFetchArtwork(objectId: Int): Pair<Path, ArtworkMetadata>? {
         val artworkRequest = HttpRequest.newBuilder()
-            .uri(URI.create("$baseUrl/objects/$randomId"))
+            .uri(URI.create("$baseUrl/objects/$objectId"))
             .build()
-            
+
         val artworkResponse: HttpResponse<String> = client.send(artworkRequest, BodyHandlers.ofString())
         val artwork = json.decodeFromString<ArtworkResponse>(artworkResponse.body())
-        
+
         if (artwork.primaryImage.isEmpty()) {
-            logger.info("Artwork has no image, trying another one")
-            return@runCatching fetchRandomArtwork().getOrThrow()
+            logger.info("Artwork $objectId has no image, skipping")
+            return null
         }
 
-        // Download the image
         val imageRequest = HttpRequest.newBuilder()
             .uri(URI.create(artwork.primaryImage))
             .build()
-            
+
         val imageResponse: HttpResponse<ByteArray> = client.send(imageRequest, BodyHandlers.ofByteArray())
-        
-        // Add validation
+
         if (imageResponse.statusCode() != 200 || imageResponse.body().isEmpty()) {
-            logger.error("Failed to download image for artwork ${artwork.objectID}")
-            return@runCatching fetchRandomArtwork().getOrThrow()
+            logger.error("Failed to download image for artwork $objectId (status ${imageResponse.statusCode()})")
+            return null
         }
 
-        // Save to temp file
-        val tempFile = createTempFile(cacheDir, "artwork-${artwork.objectID}-", ".jpg")
+        val tempFile = kotlin.io.path.createTempFile(cacheDir, "artwork-$objectId-", ".jpg")
         tempFile.writeBytes(imageResponse.body())
 
-        // Validate the saved file
         if (!tempFile.exists() || tempFile.fileSize() == 0L) {
-            logger.error("Failed to save image for artwork ${artwork.objectID}")
+            logger.error("Failed to save image for artwork $objectId")
             tempFile.deleteIfExists()
-            return@runCatching fetchRandomArtwork().getOrThrow()
+            return null
         }
 
-        try {
-            // Process the image
+        return try {
             val imageProcessor = ImageProcessor()
             val processedFile = imageProcessor.processImage(tempFile)
-            tempFile.deleteIfExists() // Clean up original file
-            
+            tempFile.deleteIfExists()
+
             if (!processedFile.exists()) {
-                logger.error("Image processing failed for artwork ${artwork.objectID}")
-                return@runCatching fetchRandomArtwork().getOrThrow()
+                logger.error("Image processing failed for artwork $objectId")
+                return null
             }
-            
-            // Create metadata with more detailed information
+
             val metadata = ArtworkMetadata(
                 id = artwork.objectID.toString(),
                 title = artwork.title,
@@ -167,9 +181,9 @@ class MetMuseumSource(
             logger.info("Successfully fetched artwork: ${metadata.title} by ${metadata.artist}")
             processedFile to metadata
         } catch (e: Exception) {
-            logger.error("Failed to process image for artwork ${artwork.objectID}", e)
+            logger.error("Failed to process image for artwork $objectId", e)
             tempFile.deleteIfExists()
-            return@runCatching fetchRandomArtwork().getOrThrow()
+            null
         }
     }
-} 
+}

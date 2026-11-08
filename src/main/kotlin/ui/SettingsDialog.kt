@@ -1,8 +1,11 @@
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -17,95 +20,161 @@ fun SettingsDialog(
     var isAutoStartEnabled by remember { mutableStateOf(WindowsAutoStart.isEnabled()) }
     var isNotificationsEnabled by remember { mutableStateOf(settings.notificationsEnabled) }
     val logger = LoggerFactory.getLogger("SettingsDialog")
-    
-    LaunchedEffect(Unit) {
-        // Check initial auto-start state
-        isAutoStartEnabled = WindowsAutoStart.isEnabled()
-    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            modifier = Modifier.width(400.dp).padding(16.dp),
-            shape = MaterialTheme.shapes.medium,
-            elevation = 8.dp
+            modifier = Modifier.width(400.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = ArtColors.Surface,
+            contentColor = ArtColors.PaperWhite,
+            elevation = 12.dp
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
+                // ── Header ────────────────────────────────────────────────
                 Text(
                     "Settings",
-                    style = MaterialTheme.typography.h6
+                    style = MaterialTheme.typography.h6,
+                    color = ArtColors.PaperWhite
                 )
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Start with Windows")
-                        Text(
-                            "Launch automatically at system startup",
-                            style = MaterialTheme.typography.caption
-                        )
-                    }
-                    Switch(
-                        checked = isAutoStartEnabled,
-                        onCheckedChange = { enabled ->
-                            try {
-                                if (enabled) WindowsAutoStart.enable() else WindowsAutoStart.disable()
-                                isAutoStartEnabled = WindowsAutoStart.isEnabled()
-                                logger.info("Auto-start ${if (enabled) "enabled" else "disabled"}")
-                                onSettingsChange(settings.copy(
+
+                Spacer(Modifier.height(20.dp))
+                Divider(color = ArtColors.DividerLine)
+                Spacer(Modifier.height(20.dp))
+
+                // ── Section: System ───────────────────────────────────────
+                SettingsSectionLabel("SYSTEM")
+                Spacer(Modifier.height(12.dp))
+
+                SettingsRow(
+                    label = "Start with Windows",
+                    description = "Launch automatically at login",
+                    checked = isAutoStartEnabled,
+                    onCheckedChange = { enabled ->
+                        try {
+                            if (enabled) WindowsAutoStart.enable() else WindowsAutoStart.disable()
+                            isAutoStartEnabled = WindowsAutoStart.isEnabled()
+                            logger.info("Auto-start ${if (enabled) "enabled" else "disabled"}")
+                            onSettingsChange(
+                                settings.copy(
                                     startWithSystem = enabled,
                                     hasEnabledAutoStart = enabled
-                                ))
-                            } catch (e: Exception) {
-                                logger.error("Failed to ${if (enabled) "enable" else "disable"} auto-start", e)
-                                isAutoStartEnabled = WindowsAutoStart.isEnabled()
-                            }
+                                )
+                            )
+                        } catch (e: Exception) {
+                            logger.error("Failed to ${if (enabled) "enable" else "disable"} auto-start", e)
+                            isAutoStartEnabled = WindowsAutoStart.isEnabled()
                         }
-                    )
-                }
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Show Notifications")
-                        Text(
-                            "Display notifications when wallpaper changes",
-                            style = MaterialTheme.typography.caption
-                        )
                     }
-                    Switch(
-                        checked = isNotificationsEnabled,
-                        onCheckedChange = { enabled ->
-                            logger.info("Notifications ${if (enabled) "enabled" else "disabled"}")
-                            onSettingsChange(settings.copy(notificationsEnabled = enabled))
-                            isNotificationsEnabled = enabled
-                        }
-                    )
-                }
-                
+                )
+
+                Spacer(Modifier.height(16.dp))
+                Divider(color = ArtColors.DividerLine)
+                Spacer(Modifier.height(16.dp))
+
+                // ── Section: Wallpaper ────────────────────────────────────
+                SettingsSectionLabel("WALLPAPER")
+                Spacer(Modifier.height(12.dp))
+
                 TimePickerSection(
                     settings = settings,
                     onSettingsChange = onSettingsChange
                 )
-                
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
+
+                Spacer(Modifier.height(16.dp))
+                Divider(color = ArtColors.DividerLine)
+                Spacer(Modifier.height(16.dp))
+
+                // ── Section: Notifications ────────────────────────────────
+                SettingsSectionLabel("NOTIFICATIONS")
+                Spacer(Modifier.height(12.dp))
+
+                SettingsRow(
+                    label = "Wallpaper change alerts",
+                    description = "Show a notification when a new artwork is set",
+                    checked = isNotificationsEnabled,
+                    onCheckedChange = { enabled ->
+                        logger.info("Notifications ${if (enabled) "enabled" else "disabled"}")
+                        onSettingsChange(settings.copy(notificationsEnabled = enabled))
+                        isNotificationsEnabled = enabled
+                    }
+                )
+
+                Spacer(Modifier.height(24.dp))
+
+                // ── Footer ────────────────────────────────────────────────
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Text("Close")
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = ArtColors.GalleryGold,
+                            contentColor = ArtColors.Canvas
+                        ),
+                        elevation = ButtonDefaults.elevation(0.dp),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text("CLOSE", style = MaterialTheme.typography.button)
+                    }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun SettingsSectionLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.caption,
+        color = ArtColors.GalleryGold,
+        letterSpacing = 1.5.dp.value.sp
+    )
+}
+
+@Composable
+private fun SettingsRow(
+    label: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.subtitle2,
+                color = ArtColors.PaperWhite
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                description,
+                style = MaterialTheme.typography.caption,
+                color = ArtColors.PaperMuted
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = ArtColors.GalleryGold,
+                checkedTrackColor = ArtColors.GalleryGold.copy(alpha = 0.4f),
+                uncheckedThumbColor = ArtColors.PaperMuted,
+                uncheckedTrackColor = ArtColors.PaperMuted.copy(alpha = 0.3f)
+            )
+        )
+    }
+}
+
+// ── Time Picker ───────────────────────────────────────────────────────────────
 
 @Composable
 fun TimePickerSection(
@@ -115,7 +184,7 @@ fun TimePickerSection(
     val currentSettings by Settings.currentSettings.collectAsState()
     var showPicker by remember { mutableStateOf(false) }
     val timeString = remember(currentSettings.updateTimeHour, currentSettings.updateTimeMinute) {
-        String.format("%02d:%02d", currentSettings.updateTimeHour, currentSettings.updateTimeMinute)
+        "%02d:%02d".format(currentSettings.updateTimeHour, currentSettings.updateTimeMinute)
     }
 
     Row(
@@ -123,15 +192,24 @@ fun TimePickerSection(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text("Update Time")
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
             Text(
-                "Daily wallpaper update time",
-                style = MaterialTheme.typography.caption
+                "Daily update time",
+                style = MaterialTheme.typography.subtitle2,
+                color = ArtColors.PaperWhite
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Wallpaper refreshes automatically at this time",
+                style = MaterialTheme.typography.caption,
+                color = ArtColors.PaperMuted
             )
         }
-        TextButton(onClick = { showPicker = true }) {
-            Text(timeString)
+        TextButton(
+            onClick = { showPicker = true },
+            colors = ButtonDefaults.textButtonColors(contentColor = ArtColors.GalleryGold)
+        ) {
+            Text(timeString, style = MaterialTheme.typography.subtitle1)
         }
     }
 
@@ -140,11 +218,13 @@ fun TimePickerSection(
             initialHour = currentSettings.updateTimeHour,
             initialMinute = currentSettings.updateTimeMinute,
             onTimeSelected = { hour, minute ->
-                onSettingsChange(settings.copy(
-                    updateTimeHour = hour,
-                    updateTimeMinute = minute,
-                    hasSetUpdateTime = true
-                ))
+                onSettingsChange(
+                    settings.copy(
+                        updateTimeHour = hour,
+                        updateTimeMinute = minute,
+                        hasSetUpdateTime = true
+                    )
+                )
                 showPicker = false
             },
             onDismiss = { showPicker = false }
@@ -161,17 +241,23 @@ fun TimePickerDialog(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = MaterialTheme.shapes.medium,
-            elevation = 8.dp,
-            modifier = Modifier.width(320.dp)
+            shape = RoundedCornerShape(8.dp),
+            color = ArtColors.Surface,
+            contentColor = ArtColors.PaperWhite,
+            elevation = 12.dp,
+            modifier = Modifier.width(300.dp)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Text("Select Update Time", style = MaterialTheme.typography.h6)
-                
+                Text(
+                    "Update time",
+                    style = MaterialTheme.typography.h6,
+                    color = ArtColors.PaperWhite
+                )
+
                 var selectedHour by remember { mutableStateOf(initialHour) }
                 var selectedMinute by remember { mutableStateOf(initialMinute) }
 
@@ -179,78 +265,93 @@ fun TimePickerDialog(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Hour picker
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Hour")
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { 
-                                selectedHour = (selectedHour - 1).coerceIn(0, 23)
-                            }) {
-                                Text("-")
-                            }
-                            Text(
-                                String.format("%02d", selectedHour),
-                                modifier = Modifier.width(40.dp),
-                                textAlign = TextAlign.Center
-                            )
-                            IconButton(onClick = { 
-                                selectedHour = (selectedHour + 1).coerceIn(0, 23)
-                            }) {
-                                Text("+")
-                            }
-                        }
-                    }
+                    // Hour
+                    TimeSpinner(
+                        label = "HH",
+                        value = selectedHour,
+                        onDecrement = { selectedHour = (selectedHour - 1).coerceIn(0, 23) },
+                        onIncrement = { selectedHour = (selectedHour + 1).coerceIn(0, 23) },
+                        format = "%02d"
+                    )
 
-                    // Separator with adjusted padding
-                    Column(
-                        modifier = Modifier.padding(top = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(":")
-                    }
+                    Text(
+                        ":",
+                        style = MaterialTheme.typography.h5,
+                        color = ArtColors.GalleryGold,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
 
-                    // Minute picker
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Minute")
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { 
-                                selectedMinute = (selectedMinute - 5).coerceIn(0, 55)
-                            }) {
-                                Text("-")
-                            }
-                            Text(
-                                String.format("%02d", selectedMinute),
-                                modifier = Modifier.width(40.dp),
-                                textAlign = TextAlign.Center
-                            )
-                            IconButton(onClick = { 
-                                selectedMinute = (selectedMinute + 5).coerceIn(0, 55)
-                            }) {
-                                Text("+")
-                            }
-                        }
-                    }
+                    // Minute
+                    TimeSpinner(
+                        label = "MM",
+                        value = selectedMinute,
+                        onDecrement = { selectedMinute = (selectedMinute - 5).coerceIn(0, 55) },
+                        onIncrement = { selectedMinute = (selectedMinute + 5).coerceIn(0, 55) },
+                        format = "%02d"
+                    )
                 }
+
+                Divider(color = ArtColors.DividerLine)
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel")
+                    TextButton(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.textButtonColors(contentColor = ArtColors.PaperMuted)
+                    ) {
+                        Text("Cancel", style = MaterialTheme.typography.button)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = {
                             onTimeSelected(selectedHour, selectedMinute)
                             onDismiss()
-                        }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = ArtColors.GalleryGold,
+                            contentColor = ArtColors.Canvas
+                        ),
+                        elevation = ButtonDefaults.elevation(0.dp),
+                        shape = RoundedCornerShape(4.dp)
                     ) {
-                        Text("Set")
+                        Text("SET", style = MaterialTheme.typography.button)
                     }
                 }
             }
         }
     }
-} 
+}
+
+@Composable
+private fun TimeSpinner(
+    label: String,
+    value: Int,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit,
+    format: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.caption, color = ArtColors.PaperMuted)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onDecrement, modifier = Modifier.size(32.dp)) {
+                Text("−", color = ArtColors.PaperMuted, style = MaterialTheme.typography.h6)
+            }
+            Text(
+                format.format(value),
+                style = MaterialTheme.typography.h5,
+                color = ArtColors.PaperWhite,
+                modifier = Modifier.width(44.dp),
+                textAlign = TextAlign.Center
+            )
+            IconButton(onClick = onIncrement, modifier = Modifier.size(32.dp)) {
+                Text("+", color = ArtColors.PaperMuted, style = MaterialTheme.typography.h6)
+            }
+        }
+    }
+}

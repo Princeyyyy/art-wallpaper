@@ -13,6 +13,7 @@ class ArtworkProvider(
         .connectTimeout(Duration.ofSeconds(30))
         .build(),
     private val cacheDir: Path = Path.of(System.getProperty("user.home"), ".artwallpaper", "cache"),
+    // FIX #7: artworksDir is now used by getRandomCachedArtwork() (was silently ignored before).
     private val artworksDir: Path = Path.of(System.getProperty("user.home"), ".artwallpaper", "artworks"),
     private val connectivityChecker: ConnectivityChecker = ConnectivityChecker(),
     historyManager: HistoryManager,
@@ -23,6 +24,7 @@ class ArtworkProvider(
 
     init {
         cacheDir.createDirectories()
+        artworksDir.createDirectories()
     }
 
     suspend fun fetchArtwork(): Result<Pair<Path, ArtworkMetadata>> = runCatching {
@@ -40,24 +42,36 @@ class ArtworkProvider(
                 lastError = e
             }
         }
-        
+
         throw lastError ?: IllegalStateException("Failed to fetch artwork after $maxRetries attempts")
     }
 
+    // FIX #17: Use artworksDir (the permanent store) for offline fallback, not cacheDir.
+    // Also look for processed_ prefixed files that ImageProcessor actually produces.
     private fun getRandomCachedArtwork(): Result<Pair<Path, ArtworkMetadata>> = runCatching {
-        val cachedFiles = cacheDir.listDirectoryEntries("*.jpg")
-        if (cachedFiles.isEmpty()) {
+        // Prefer the permanent artworks directory first.
+        val artworkFiles = artworksDir.listDirectoryEntries("*.jpg")
+            .ifEmpty { cacheDir.listDirectoryEntries("processed_*.jpg") }
+
+        if (artworkFiles.isEmpty()) {
             throw IllegalStateException("No cached artworks available")
         }
-        
-        val artworkPath = cachedFiles.random()
-        val metadataPath = cacheDir.resolve("${artworkPath.nameWithoutExtension}.json")
-        
-        if (!metadataPath.exists()) {
-            throw IllegalStateException("Metadata not found for cached artwork")
+
+        val artworkPath = artworkFiles.random()
+        val id = artworkPath.nameWithoutExtension
+
+        // Look for metadata next to the artwork file, then in cacheDir.
+        val metadataPath = artworksDir.parent.resolve("metadata").resolve("$id.json")
+            .takeIf { it.exists() }
+            ?: cacheDir.resolve("processed_artwork-$id.json")
+                .takeIf { it.exists() }
+
+        if (metadataPath == null) {
+            throw IllegalStateException("Metadata not found for cached artwork: $id")
         }
-        
-        val metadata = Json.decodeFromString<ArtworkMetadata>(metadataPath.readText())
+
+        val metadata = Json { ignoreUnknownKeys = true }
+            .decodeFromString<ArtworkMetadata>(metadataPath.readText())
         artworkPath to metadata
     }
 
@@ -66,7 +80,6 @@ class ArtworkProvider(
             logger.info("Starting cache cleanup")
             cacheDir.listDirectoryEntries().forEach { file ->
                 try {
-                    // Extract artwork ID from the processed filename
                     val artworkId = when {
                         file.name.startsWith("processed_artwork-") -> {
                             file.name.substringAfter("processed_artwork-")
@@ -75,7 +88,6 @@ class ArtworkProvider(
                         else -> file.nameWithoutExtension.substringBefore('.')
                     }
 
-                    // Skip if this is the current artwork being processed
                     if (exceptId != null && artworkId == exceptId) {
                         logger.debug("Skipping cleanup of current artwork: ${file.name}")
                         return@forEach
@@ -85,7 +97,6 @@ class ArtworkProvider(
 
                     if (isStoredInArtworks || exceptId == null) {
                         file.deleteIfExists()
-                        // Also delete any associated metadata files
                         cacheDir.resolve("processed_artwork-$artworkId.json").deleteIfExists()
                         logger.info("Cleaned up cache file: ${file.name}")
                     }
@@ -98,4 +109,4 @@ class ArtworkProvider(
             logger.error("Failed to cleanup cache files", e)
         }
     }
-} 
+}

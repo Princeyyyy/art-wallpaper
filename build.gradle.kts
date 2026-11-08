@@ -38,9 +38,19 @@ dependencies {
     implementation("org.slf4j:slf4j-api:2.0.9")
     implementation("ch.qos.logback:logback-classic:1.4.12")
     
-    // JNA for Windows API access
+        // JNA for Windows API access
     implementation("net.java.dev.jna:jna:5.13.0")
     implementation("net.java.dev.jna:jna-platform:5.13.0")
+
+    // Testing
+    testImplementation(kotlin("test"))
+    testImplementation(kotlin("test-junit"))
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
+    testImplementation("io.mockk:mockk:1.13.10")
+}
+
+tasks.test {
+    useJUnit()
 }
 
 compose.desktop {
@@ -48,7 +58,7 @@ compose.desktop {
         mainClass = "MainKt"
         
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat.Msi)
             packageName = "Art Wallpaper"
             packageVersion = "3.3.0"
             

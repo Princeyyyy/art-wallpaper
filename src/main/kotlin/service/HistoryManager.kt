@@ -16,6 +16,8 @@ class HistoryManager(
     private val logger = LoggerFactory.getLogger(HistoryManager::class.java)
     private val historyFile = baseDir.resolve("history.json")
     private val maxHistoryItems = 100
+    // FIX #1: Store IDs (Strings), not full ArtworkMetadata objects.
+    // This is consistent with isInHistory(), clearHistory(), and saveHistory().
     private val history = mutableSetOf<String>()
 
     init {
@@ -26,12 +28,30 @@ class HistoryManager(
         loadHistory()
     }
 
+    // FIX #1: Actually populate the in-memory Set from disk.
+    // Previously the decoded list was silently discarded.
     private fun loadHistory() {
         try {
             if (historyFile.exists()) {
                 val content = historyFile.readText()
-                if (content.isNotEmpty()) {
-                    Json.decodeFromString<List<ArtworkMetadata>>(content)
+                if (content.isNotEmpty() && content != "[]") {
+                    val ids = try {
+                        // Preferred format: plain list of ID strings
+                        Json.decodeFromString(ListSerializer(String.serializer()), content)
+                    } catch (_: Exception) {
+                        // Legacy migration: file may contain ArtworkMetadata objects —
+                        // extract just the IDs so we don't lose history after upgrade.
+                        try {
+                            Json { ignoreUnknownKeys = true }
+                                .decodeFromString(ListSerializer(ArtworkMetadata.serializer()), content)
+                                .map { it.id }
+                        } catch (e: Exception) {
+                            logger.error("Failed to migrate legacy history format", e)
+                            emptyList()
+                        }
+                    }
+                    history.addAll(ids)
+                    logger.info("Loaded ${history.size} items from history")
                 }
             }
         } catch (e: Exception) {
@@ -42,54 +62,31 @@ class HistoryManager(
 
     suspend fun addToHistory(metadata: ArtworkMetadata) = withContext(Dispatchers.IO) {
         try {
-            val history = getHistory().toMutableList()
-            history.add(0, metadata)
-            
-            // Keep only last N items
-            val trimmedHistory = history.take(maxHistoryItems)
-            
-            historyFile.writeText(Json.encodeToString(
-                ListSerializer(ArtworkMetadata.serializer()),
-                trimmedHistory
-            ))
+            history.add(metadata.id)
+            // Keep only the most recent N items — trim oldest if needed
+            if (history.size > maxHistoryItems) {
+                val trimmed = history.toMutableList()
+                    .takeLast(maxHistoryItems)
+                history.clear()
+                history.addAll(trimmed)
+            }
+            saveHistory()
         } catch (e: Exception) {
             logger.error("Failed to add to history", e)
         }
     }
 
-    private suspend fun getHistory(): List<ArtworkMetadata> = withContext(Dispatchers.IO) {
-        try {
-            val content = historyFile.readText()
-            if (content.isBlank()) return@withContext emptyList()
-            Json.decodeFromString(ListSerializer(ArtworkMetadata.serializer()), content)
-        } catch (e: Exception) {
-            logger.error("Failed to read history", e)
-            emptyList()
-        }
-    }
-
-    suspend fun cleanupHistory(maxEntries: Int) {
-        val history = getHistory()
+    suspend fun cleanupHistory(maxEntries: Int) = withContext(Dispatchers.IO) {
         if (history.size > maxEntries) {
-            saveHistory(history.take(maxEntries))
+            val trimmed = history.toMutableList().takeLast(maxEntries)
+            history.clear()
+            history.addAll(trimmed)
+            saveHistory()
             logger.info("Cleaned up history, keeping last $maxEntries entries")
         }
     }
 
-    private suspend fun saveHistory(history: List<ArtworkMetadata>) = withContext(Dispatchers.IO) {
-        try {
-            historyFile.writeText(Json.encodeToString(
-                ListSerializer(ArtworkMetadata.serializer()),
-                history
-            ))
-        } catch (e: Exception) {
-            logger.error("Failed to save history", e)
-        }
-    }
-
-    fun isInHistory(id: String): Boolean {
-        return history.contains(id)
-    }
+    fun isInHistory(id: String): Boolean = history.contains(id)
 
     fun clearHistory() {
         logger.info("Clearing artwork history")
@@ -100,10 +97,9 @@ class HistoryManager(
     private fun saveHistory() {
         try {
             historyFile.parent.createDirectories()
-            historyFile.writeText(Json.encodeToString(
-                ListSerializer(String.serializer()),
-                history.toList()
-            ))
+            historyFile.writeText(
+                Json.encodeToString(ListSerializer(String.serializer()), history.toList())
+            )
             logger.info("Saved ${history.size} items to history")
         } catch (e: Exception) {
             logger.error("Failed to save history", e)
