@@ -47,6 +47,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Download & Verify Gradle Distribution (with retry)
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && break || (echo "Gradle download attempt $i failed, retrying in 5s..." && sleep 5)
+          done
+
       - name: Run tests
         run: ./gradlew test -PappVersion=${{ inputs.version }}
 
@@ -80,6 +87,13 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Download & Verify Gradle Distribution (with retry)
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && break || (echo "Gradle download attempt $i failed, retrying in 5s..." && sleep 5)
+          done
 
       - name: Update gradle.properties & version.properties
         shell: pwsh
@@ -136,6 +150,13 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Download & Verify Gradle Distribution (with retry)
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && break || (echo "Gradle download attempt $i failed, retrying in 5s..." && sleep 5)
+          done
 
       - name: Update gradle.properties & version.properties
         run: |
