@@ -50,7 +50,7 @@ class ServiceControllerTest {
     @Test
     fun `stopService does not crash when service is not running`() {
         val ctrl = makeController()
-        ctrl.stopService() // isServiceRunning is false — should be a no-op
+        ctrl.stopService() // isServiceRunning is false â€” should be a no-op
     }
 
     @Test
@@ -58,17 +58,18 @@ class ServiceControllerTest {
         // We can't easily drive isServiceRunning to true without full flow,
         // so verify the path where service IS running by stubbing the state
         val ctrl = makeController()
-        // isServiceRunning.value is false here — nextWallpaper takes the else path
+        // isServiceRunning.value is false here â€” nextWallpaper takes the else path
         // which launches a coroutine; we verify artworkProvider is called
         coEvery { artworkProvider.fetchArtwork() } returns Result.failure(RuntimeException("offline"))
-        // No crash expected even when fetch fails (error is logged)
-        ctrl.nextWallpaper()
+        assertFailsWith<RuntimeException> {
+            ctrl.nextWallpaper()
+        }
     }
 
     @Test
     fun `restartService does nothing when already restarting`() {
         val ctrl = makeController()
-        // Call twice quickly — second should be ignored due to compareAndSet guard
+        // Call twice quickly â€” second should be ignored due to compareAndSet guard
         ctrl.restartService()
         ctrl.restartService()
         // No crash = pass; debounce will handle the rest

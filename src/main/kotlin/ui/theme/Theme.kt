@@ -10,32 +10,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// ── System font family — platform-native typeface ─────────────────────────────
-// Windows 11: Segoe UI Variable (falls back gracefully on older builds)
-// macOS:      San Francisco (.AppleSystemUIFont — resolved by the OS font server)
-// Other:      Compose/JVM default
+// ── System font family — platform-native sans-serif typeface ──────────────────
+// Automatically maps to Segoe UI on Windows, San Francisco on macOS.
 
-private val _os = System.getProperty("os.name", "").lowercase()
-
-internal val SystemFontFamily: FontFamily = when {
-    _os.contains("windows") -> try {
-        FontFamily(
-            Font("Segoe UI Variable", weight = FontWeight.Light),
-            Font("Segoe UI Variable", weight = FontWeight.Normal),
-            Font("Segoe UI Variable", weight = FontWeight.Medium),
-            Font("Segoe UI Variable", weight = FontWeight.SemiBold),
-            Font("Segoe UI Variable", weight = FontWeight.Bold)
-        )
-    } catch (_: Exception) {
-        FontFamily.Default
-    }
-    _os.contains("mac") -> try {
-        FontFamily(Font(".AppleSystemUIFont", weight = FontWeight.Normal))
-    } catch (_: Exception) {
-        FontFamily.Default
-    }
-    else -> FontFamily.Default
-}
+internal val SystemFontFamily: FontFamily = FontFamily.SansSerif
 
 // ── Palette ─────────────────────────────────────────────────────────────────
 // Gallery-dark: near-black canvas, warm gold accent, clean off-white text.

@@ -31,6 +31,7 @@ import service.ServiceController
 import kotlinx.coroutines.*
 import kotlin.io.path.exists
 
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun MainScreen(
     currentArtwork: Pair<Path, ArtworkMetadata>?,
@@ -207,16 +208,12 @@ fun MainScreen(
                             }
                         }
 
-                        // Loading Overlay with Smooth Fade
-                        AnimatedVisibility(
-                            visible = isLoading,
-                            enter = fadeIn(animationSpec = tween(250)),
-                            exit = fadeOut(animationSpec = tween(300)),
-                            modifier = Modifier.fillMaxSize().zIndex(2f)
-                        ) {
+                        // Loading Overlay with Clean Contrast
+                        if (isLoading) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    .zIndex(2f)
                                     .background(Color.Black.copy(alpha = 0.7f)),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -361,6 +358,7 @@ fun MainScreen(
 
 // ── Complete 4-Step Guided Onboarding Experience ─────────────────────────────
 
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun GuidedOnboarding(
     settings: Settings,

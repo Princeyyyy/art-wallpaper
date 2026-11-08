@@ -39,7 +39,7 @@ class HistoryManager(
                         // Preferred format: plain list of ID strings
                         Json.decodeFromString(ListSerializer(String.serializer()), content)
                     } catch (_: Exception) {
-                        // Legacy migration: file may contain ArtworkMetadata objects —
+                        // Legacy migration: file may contain ArtworkMetadata objects â€”
                         // extract just the IDs so we don't lose history after upgrade.
                         try {
                             Json { ignoreUnknownKeys = true }
@@ -61,9 +61,10 @@ class HistoryManager(
     }
 
     suspend fun addToHistory(metadata: ArtworkMetadata) = withContext(Dispatchers.IO) {
+        synchronized(this@HistoryManager) {
         try {
             history.add(metadata.id)
-            // Keep only the most recent N items — trim oldest if needed
+            // Keep only the most recent N items â€” trim oldest if needed
             if (history.size > maxHistoryItems) {
                 val trimmed = history.toMutableList()
                     .takeLast(maxHistoryItems)
@@ -73,6 +74,7 @@ class HistoryManager(
             saveHistory()
         } catch (e: Exception) {
             logger.error("Failed to add to history", e)
+            }
         }
     }
 
@@ -86,7 +88,7 @@ class HistoryManager(
         }
     }
 
-    fun isInHistory(id: String): Boolean = history.contains(id)
+    fun isInHistory(id: String): Boolean = synchronized(this) { history.contains(id) }
 
     fun clearHistory() {
         logger.info("Clearing artwork history")

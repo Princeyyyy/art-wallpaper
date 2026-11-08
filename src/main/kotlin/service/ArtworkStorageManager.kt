@@ -44,8 +44,13 @@ class ArtworkStorageManager(
             val metadataPath = metadataDir.resolve("$id.json")
             
             if (metadataPath.exists()) {
-                val metadata = Json.decodeFromString<ArtworkMetadata>(metadataPath.readText())
-                artworkPath to metadata
+                try {
+                    val metadata = Json.decodeFromString<ArtworkMetadata>(metadataPath.readText())
+                    artworkPath to metadata
+                } catch (e: Exception) {
+                    logger.warn("Skipping corrupt metadata at $metadataPath: ${e.message}")
+                    null
+                }
             } else null
         }
     }

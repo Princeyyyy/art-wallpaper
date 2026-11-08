@@ -41,9 +41,8 @@ object WindowsPlatform {
         if (!isWindows) return
         val api = dwmApi ?: return
         try {
-            val ptr = Native.getComponentPointer(window)
-            if (ptr == 0L) return
-            val hwnd = HWND(Pointer(ptr))
+            val ptr = Native.getComponentPointer(window) ?: return
+            val hwnd = HWND(ptr)
             val value = Memory(4).also { it.setInt(0, if (dark) 1 else 0) }
             // DWMWA_USE_IMMERSIVE_DARK_MODE = 20
             api.DwmSetWindowAttribute(hwnd, 20, value, 4)
@@ -60,9 +59,8 @@ object WindowsPlatform {
         if (!isWindows) return
         val api = dwmApi ?: return
         try {
-            val ptr = Native.getComponentPointer(window)
-            if (ptr == 0L) return
-            val hwnd = HWND(Pointer(ptr))
+            val ptr = Native.getComponentPointer(window) ?: return
+            val hwnd = HWND(ptr)
             val value = Memory(4).also { it.setInt(0, 2) } // DWMWCP_ROUND
             api.DwmSetWindowAttribute(hwnd, 33, value, 4)
         } catch (_: Exception) {}

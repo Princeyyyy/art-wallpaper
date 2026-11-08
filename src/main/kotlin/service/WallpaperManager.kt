@@ -5,6 +5,7 @@ import ArtworkProvider
 import ArtworkStorageManager
 import Settings
 import WindowsWallpaperService
+import WallpaperService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
