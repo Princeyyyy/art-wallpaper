@@ -14,10 +14,19 @@ class SystemTrayMenu(
 
     /**
      * Shows a desktop notification only if enabled in user preferences.
+     *
+     * Platform routing:
+     *   macOS  → Notification Center via osascript (supports Do Not Disturb natively).
+     *   Windows → AWT TrayIcon balloon (classic; works on all Windows versions).
      */
     fun displayNotification(title: String, message: String) {
         if (!Settings.currentSettings.value.notificationsEnabled) return
-        trayIcon?.displayMessage(title, message, TrayIcon.MessageType.NONE)
+        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+        if (isMac) {
+            MacPlatform.showNotification(title, message)
+        } else {
+            trayIcon?.displayMessage(title, message, TrayIcon.MessageType.NONE)
+        }
     }
 
     fun show() {

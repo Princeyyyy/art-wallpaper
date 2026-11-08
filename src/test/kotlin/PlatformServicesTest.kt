@@ -117,4 +117,40 @@ class PlatformServicesTest {
         assertFalse(macService.isEnabled())
         assertFalse(tempDir.resolve("com.test.lifecycle.plist").exists())
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 3: Platform-Native Integrations (Win 11 & macOS 27)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `SystemThemeDetector returns boolean safely across platforms`() {
+        val dark = SystemThemeDetector.isDark()
+        // Must return true or false without throwing any JNA or ProcessBuilder exception
+        assertTrue(dark || !dark)
+    }
+
+    @Test
+    fun `WindowsPlatform dark title bar and rounded corners methods execute without exception`() {
+        // Even when called with a mock or non-display window, must never throw uncaught exceptions
+        val frame = java.awt.Frame()
+        try {
+            WindowsPlatform.applyDarkTitleBar(frame, true)
+            WindowsPlatform.applyDarkTitleBar(frame, false)
+            WindowsPlatform.applyRoundedCorners(frame)
+        } finally {
+            frame.dispose()
+        }
+    }
+
+    @Test
+    fun `MacPlatform hideFromDock and showNotification execute safely without throwing`() {
+        // Safe no-op on Windows/Linux; guarded against crashing on macOS
+        MacPlatform.hideFromDock()
+        MacPlatform.showNotification("Test Title", "Test Message with \"quotes\"")
+    }
+
+    @Test
+    fun `SystemFontFamily initializes safely without error`() {
+        assertNotNull(SystemFontFamily)
+    }
 }

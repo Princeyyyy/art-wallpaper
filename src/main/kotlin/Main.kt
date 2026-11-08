@@ -22,7 +22,12 @@ val logger = LoggerFactory.getLogger("MainKt")
 
 fun main(args: Array<String>) {
     setupGlobalExceptionHandler()
-    
+
+    // ── macOS: hide from Dock BEFORE AWT toolkit initialises ──────────────────
+    // This is the runtime complement to LSUIElement=1 in Info.plist (DMG builds).
+    // Must run here, before any Swing/AWT call, or the Dock icon will flash.
+    MacPlatform.hideFromDock()
+
     // Add command line argument handling
     if (args.contains("--clear-data")) {
         DataCleanup.clearAllData()
@@ -30,7 +35,7 @@ fun main(args: Array<String>) {
         System.exit(0)
         return
     }
-    
+
     val lockFile = Path(System.getProperty("user.home"), ".artwallpaper", "app.lock")
     if (!ensureSingleInstance(lockFile)) {
         println("Application already running")
@@ -42,10 +47,10 @@ fun main(args: Array<String>) {
         val settings = Settings.loadSavedSettings()
         val startMinimized = args.contains("--minimized") && !settings.isFirstRun
         val isAutoStart = args.contains("--autostart")
-        
+
         // Don't start the service if it's first run or if we're not auto-starting
         val shouldStartService = !settings.isFirstRun && (isAutoStart || !startMinimized)
-        
+
         // Initialize components
         val wallpaperService = WallpaperService.create()
         val historyManager = HistoryManager()
@@ -62,7 +67,7 @@ fun main(args: Array<String>) {
             historyManager = historyManager,
             settings = settings
         )
-        
+
         val controller = ServiceController(
             wallpaperManager = wallpaperManager,
             artworkStorage = artworkStorage,
@@ -143,11 +148,11 @@ private fun setupApplication(
     wallpaperManager: WallpaperManager
 ) {
     var windowVisibilityCallback: ((Boolean) -> Unit)? = null
-    
+
     // Initialize system tray
     val systemTray = SystemTrayMenu(
         serviceController = controller,
-        onShowWindow = { 
+        onShowWindow = {
             windowVisibilityCallback?.invoke(true)
             true
         }
@@ -172,11 +177,15 @@ private fun setupApplication(
 
     application {
         var isWindowVisible by remember { mutableStateOf(!startMinimized) }
-        
+
         // Set the callback to control window visibility
-        windowVisibilityCallback = { visible -> 
-            isWindowVisible = visible 
+        windowVisibilityCallback = { visible ->
+            isWindowVisible = visible
         }
+
+        // ── Live system theme tracking ─────────────────────────────────────
+        // Polls OS every 3 seconds; recomposes only when the value changes.
+        val isDark = rememberSystemIsDark()
 
         // Start service if not already running
         LaunchedEffect(Unit) {
@@ -207,10 +216,18 @@ private fun setupApplication(
             visible = isWindowVisible,
             icon = painterResource("icons/icon.png")
         ) {
+            // ── Windows 11: sync native title bar to our dark/light state ─────
+            // DWMWA_USE_IMMERSIVE_DARK_MODE flips the Win32 caption colour to match.
+            LaunchedEffect(isDark) {
+                WindowsPlatform.applyDarkTitleBar(window, isDark)
+                WindowsPlatform.applyRoundedCorners(window)
+            }
+
             App(
                 wallpaperManager = wallpaperManager,
                 serviceController = controller,
                 settings = settings,
+                isDark = isDark,
                 onSettingsChange = { newSettings ->
                     newSettings.save()
                     controller.restartService()
@@ -225,12 +242,14 @@ fun App(
     wallpaperManager: WallpaperManager,
     serviceController: ServiceController,
     settings: Settings,
+    isDark: Boolean = true,
     onSettingsChange: (Settings) -> Unit
 ) {
-    ArtWallpaperTheme {
+    // ArtWallpaperTheme now receives the live OS dark/light state
+    ArtWallpaperTheme(darkTheme = isDark) {
         val scope = rememberCoroutineScope()
         val currentArtwork by wallpaperManager.currentArtwork.collectAsState()
-        
+
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colors.background

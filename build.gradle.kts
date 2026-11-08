@@ -81,6 +81,18 @@ compose.desktop {
                 bundleID = appGroup
                 iconFile.set(project.file("src/main/resources/icons/icon.icns"))
                 packageVersion = appVersion
+
+                // Hide app from macOS Dock and Cmd+Tab — it lives in the menu bar only.
+                // LSUIElement=1 is the standard Info.plist key for status-bar / helper apps
+                // (like Bartender, Lungo, Hand Mirror, etc.).
+                infoPlist {
+                    extraKeysRawXml = """
+                        <key>LSUIElement</key>
+                        <true/>
+                        <key>NSSupportsAutomaticGraphicsSwitching</key>
+                        <true/>
+                    """.trimIndent()
+                }
             }
 
             windows {

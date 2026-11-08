@@ -5,8 +5,37 @@ import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+
+// ── System font family — platform-native typeface ─────────────────────────────
+// Windows 11: Segoe UI Variable (falls back gracefully on older builds)
+// macOS:      San Francisco (.AppleSystemUIFont — resolved by the OS font server)
+// Other:      Compose/JVM default
+
+private val _os = System.getProperty("os.name", "").lowercase()
+
+internal val SystemFontFamily: FontFamily = when {
+    _os.contains("windows") -> try {
+        FontFamily(
+            Font("Segoe UI Variable", weight = FontWeight.Light),
+            Font("Segoe UI Variable", weight = FontWeight.Normal),
+            Font("Segoe UI Variable", weight = FontWeight.Medium),
+            Font("Segoe UI Variable", weight = FontWeight.SemiBold),
+            Font("Segoe UI Variable", weight = FontWeight.Bold)
+        )
+    } catch (_: Exception) {
+        FontFamily.Default
+    }
+    _os.contains("mac") -> try {
+        FontFamily(Font(".AppleSystemUIFont", weight = FontWeight.Normal))
+    } catch (_: Exception) {
+        FontFamily.Default
+    }
+    else -> FontFamily.Default
+}
 
 // ── Palette ─────────────────────────────────────────────────────────────────
 // Gallery-dark: near-black canvas, warm gold accent, clean off-white text.
@@ -53,52 +82,63 @@ private val GalleryLightColors = lightColors(
 )
 
 // ── Typography ───────────────────────────────────────────────────────────────
-// Clean, editorial scale. No display font dependency — uses system default.
+// Editorial scale using the platform-native font family:
+//   Windows 11 → Segoe UI Variable   macOS → SF Pro   Other → JVM default
 
 private val GalleryTypography = Typography(
+    defaultFontFamily = SystemFontFamily,
     h4 = TextStyle(
+        fontFamily = SystemFontFamily,
         fontWeight = FontWeight.Light,
         fontSize = 32.sp,
         letterSpacing = (-0.5).sp
     ),
     h5 = TextStyle(
+        fontFamily = SystemFontFamily,
         fontWeight = FontWeight.Light,
         fontSize = 24.sp,
         letterSpacing = 0.sp
     ),
     h6 = TextStyle(
+        fontFamily = SystemFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 18.sp,
         letterSpacing = 0.15.sp
     ),
     subtitle1 = TextStyle(
+        fontFamily = SystemFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
         letterSpacing = 0.15.sp
     ),
     subtitle2 = TextStyle(
+        fontFamily = SystemFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 13.sp,
         letterSpacing = 0.1.sp
     ),
     body1 = TextStyle(
+        fontFamily = SystemFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
         letterSpacing = 0.5.sp,
         lineHeight = 24.sp
     ),
     body2 = TextStyle(
+        fontFamily = SystemFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 13.sp,
         letterSpacing = 0.25.sp,
         lineHeight = 20.sp
     ),
     button = TextStyle(
+        fontFamily = SystemFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 13.sp,
         letterSpacing = 1.25.sp
     ),
     caption = TextStyle(
+        fontFamily = SystemFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 11.sp,
         letterSpacing = 0.4.sp

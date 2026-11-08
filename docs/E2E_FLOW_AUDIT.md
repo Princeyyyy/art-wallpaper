@@ -16,6 +16,10 @@ This document maps and audits every user-facing interaction, state transition, b
    ├── AutoStartService (Cross-Platform Interface)
    │     ├── WindowsAutoStartService (HKCU Run Key Registry)
    │     └── MacAutoStartService (~/Library/LaunchAgents/ .plist)
+   ├── Platform Integrations
+   │     ├── WindowsPlatform (DWM Immersive Dark Titlebar + Round Corners via JNA)
+   │     ├── MacPlatform (Accessory policy / Dock hiding + osascript Notification Center)
+   │     └── SystemThemeDetector (Windows Registry / macOS defaults live theme sync)
    ├── HistoryManager (.artwallpaper/history.json)
    ├── ArtworkStorageManager (.artwallpaper/artworks/ + metadata/)
    ├── ArtworkProvider (MetMuseumSource + Cache + Offline fallback)

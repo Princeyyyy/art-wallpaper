@@ -65,6 +65,8 @@ ArtWallpaper includes a complete professional multi-platform asset pack:
 - ⚡ **Native System Tray & Menu Bar**: Runs discreetly in the Windows taskbar or macOS menu bar with dynamic pause/resume, instant refresh, and notification support.
 - 💾 **Smart Offline Fallback**: High-resolution artworks and JSON metadata stay saved locally in your personal gallery; if the internet is down, ArtWallpaper rotates through saved gems.
 - 🧹 **Automatic Storage Pruning**: Keeps up to 100 recent artworks, automatically cleaning up orphaned files and cache artifacts.
+- 🪟 **Windows 11 Native Integration**: Immersive DWM dark mode title bar (`DWMWA_USE_IMMERSIVE_DARK_MODE`), native rounded window corners, live registry system theme detection (`AppsUseLightTheme`), and native Segoe UI Variable typography.
+- 🍏 **macOS Native Integration**: Clean menu bar accessory (`LSUIElement=1` / `NSApplicationActivationPolicyAccessory` hiding Dock icon), live `AppleInterfaceStyle` detection, native Notification Center integration via `osascript`, and San Francisco typography.
 - 🚀 **Cross-Platform Auto-Start**:
   - *Windows*: Configured directly in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
   - *macOS*: Configured in `~/Library/LaunchAgents/com.prince.artwallpaper.plist`.
