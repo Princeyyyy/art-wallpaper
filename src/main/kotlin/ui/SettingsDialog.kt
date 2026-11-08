@@ -151,7 +151,7 @@ fun SettingsDialog(
                     )
                     Column {
                         Text(
-                            "ArtWallpaper Manager v3.3.0",
+                            "ArtWallpaper Manager v4.0.0",
                             style = MaterialTheme.typography.subtitle2,
                             color = ArtColors.PaperWhite
                         )

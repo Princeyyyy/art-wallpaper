@@ -5,13 +5,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 3.4.0) — must be a valid MSI version (3 numbers)'
+        description: 'Release version (e.g. 4.0.0) — must be valid 3-part semver'
         required: true
         type: string
+        default: '4.0.0'
       release_notes:
         description: 'Release notes (supports markdown)'
         required: false
-        default: 'Bug fixes and improvements.'
+        default: 'ArtWallpaper v4.0.0 — Cross-platform Windows & macOS release with complete guided onboarding and performance overhaul.'
         type: string
       prerelease:
         description: 'Mark as pre-release?'
@@ -20,10 +21,14 @@ on:
         type: boolean
 
 jobs:
-  # ─── 1. Run tests first — never ship broken code ───────────────────────────
+  # ─── 1. Run tests across both Windows and macOS ────────────────────────────
   test:
-    name: Test
-    runs-on: windows-latest
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-latest, macos-latest ]
 
     steps:
       - name: Checkout
@@ -39,30 +44,25 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run tests
-        run: .\gradlew test
+        run: ./gradlew test
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-release
+          name: test-results-${{ matrix.os }}
           path: build/reports/tests/
-          retention-days: 30
+          retention-days: 14
 
-  # ─── 2. Build MSI and publish GitHub Release ───────────────────────────────
-  build-and-release:
-    name: Build MSI & Publish Release
+  # ─── 2. Build Windows MSI Installer ─────────────────────────────────────────
+  build-windows:
+    name: Build Windows MSI
     needs: test
     runs-on: windows-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # Fetch full history so we can push the version-bump commit
-          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -78,46 +78,145 @@ jobs:
         run: |
           $v = "${{ inputs.version }}"
           $content = Get-Content build.gradle.kts -Raw
-          # Top-level version
-          $content = $content -replace '(?<=^version = ")[^"]*', $v
-          # nativeDistributions versions
+          $content = $content -replace '(?<=version = ")[^"]*', $v
           $content = $content -replace '(?<=packageVersion = ")[^"]*', $v
           $content = $content -replace '(?<=msiPackageVersion = ")[^"]*', $v
           $content = $content -replace '(?<=exePackageVersion = ")[^"]*', $v
           [System.IO.File]::WriteAllText("$PWD\build.gradle.kts", $content)
-          Write-Output "Bumped to $v"
+          Write-Output "Bumped version to $v"
 
-      - name: Build MSI installer
+      - name: Package Windows MSI
         run: .\gradlew packageMsi
 
       - name: Locate MSI artifact
-        id: msi
+        id: find_msi
         shell: pwsh
         run: |
           $f = Get-ChildItem -Path build -Filter "*.msi" -Recurse | Select-Object -First 1
-          if (-not $f) { throw "MSI not found — packageMsi step may have failed" }
-          "path=$($f.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "name=$($f.Name)"    | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Output "MSI: $($f.FullName)"
+          if (-not $f) { throw "MSI artifact not found" }
+          New-Item -ItemType Directory -Force "dist-windows" | Out-Null
+          Copy-Item $f.FullName "dist-windows\ArtWallpaper-${{ inputs.version }}-Windows.msi"
+          Write-Output "MSI copied: dist-windows\ArtWallpaper-${{ inputs.version }}-Windows.msi"
 
-      - name: Commit version bump and create tag
-        shell: pwsh
+      - name: Upload Windows MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-msi
+          path: dist-windows/
+          retention-days: 7
+
+  # ─── 3. Build macOS DMG Installer ───────────────────────────────────────────
+  build-macos:
+    name: Build macOS DMG
+    needs: test
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Bump version in build.gradle.kts
         run: |
-          git config user.name  "github-actions[bot]"
+          python3 -c "
+          import re
+          v = '${{ inputs.version }}'
+          with open('build.gradle.kts', 'r') as f:
+              c = f.read()
+          c = re.sub(r'(?<=version = \")[^\"]*', v, c)
+          c = re.sub(r'(?<=packageVersion = \")[^\"]*', v, c)
+          with open('build.gradle.kts', 'w') as f:
+              f.write(c)
+          "
+          echo "Bumped version in build.gradle.kts to ${{ inputs.version }}"
+
+      - name: Package macOS DMG
+        run: ./gradlew packageDmg
+
+      - name: Locate DMG artifact
+        run: |
+          mkdir -p dist-macos
+          DMG=$(find build -name "*.dmg" | head -n 1)
+          if [ -z "$DMG" ]; then
+            echo "DMG artifact not found!"
+            exit 1
+          fi
+          cp "$DMG" "dist-macos/ArtWallpaper-${{ inputs.version }}-macOS.dmg"
+          echo "DMG copied to dist-macos/ArtWallpaper-${{ inputs.version }}-macOS.dmg"
+
+      - name: Upload macOS DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dmg
+          path: dist-macos/
+          retention-days: 7
+
+  # ─── 4. Publish GitHub Release with both MSI and DMG ────────────────────────
+  publish-release:
+    name: Publish Multi-Platform Release
+    needs: [ build-windows, build-macos ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows MSI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-msi
+          path: release-artifacts/
+
+      - name: Download macOS DMG artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-dmg
+          path: release-artifacts/
+
+      - name: List downloaded release binaries
+        run: |
+          ls -lh release-artifacts/
+
+      - name: Bump version in repository & tag
+        run: |
+          python3 -c "
+          import re
+          v = '${{ inputs.version }}'
+          with open('build.gradle.kts', 'r') as f:
+              c = f.read()
+          c = re.sub(r'(?<=version = \")[^\"]*', v, c)
+          c = re.sub(r'(?<=packageVersion = \")[^\"]*', v, c)
+          c = re.sub(r'(?<=msiPackageVersion = \")[^\"]*', v, c)
+          c = re.sub(r'(?<=exePackageVersion = \")[^\"]*', v, c)
+          with open('build.gradle.kts', 'w') as f:
+              f.write(c)
+          "
+          git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add build.gradle.kts
-          git commit -m "chore: bump version to ${{ inputs.version }}"
-          git tag "v${{ inputs.version }}"
-          git push origin master
-          git push origin "v${{ inputs.version }}"
+          git commit -m "chore: release version ${{ inputs.version }}" || echo "No changes to commit"
+          git tag -f "v${{ inputs.version }}"
+          git push origin master --tags
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release with Windows MSI and macOS DMG
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
           name: ArtWallpaper v${{ inputs.version }}
           body: ${{ inputs.release_notes }}
-          files: ${{ steps.msi.outputs.path }}
+          files: release-artifacts/*
           prerelease: ${{ inputs.prerelease }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
