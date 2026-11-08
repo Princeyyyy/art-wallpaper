@@ -17,6 +17,8 @@ out/
 *.log
 *.ctxt
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
+!gradle-wrapper.jar
 *.war
 *.nar
 *.ear
