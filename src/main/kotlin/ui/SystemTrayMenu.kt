@@ -2,7 +2,6 @@ import kotlinx.coroutines.*
 import service.ServiceController
 import java.awt.*
 import javax.swing.SwingUtilities
-import javax.imageio.ImageIO
 
 class SystemTrayMenu(
     private val serviceController: ServiceController,
@@ -10,8 +9,14 @@ class SystemTrayMenu(
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var trayIcon: TrayIcon? = null
+    private var pauseResumeItem: MenuItem? = null
+    private var currentArtItem: MenuItem? = null
 
+    /**
+     * Shows a desktop notification only if enabled in user preferences.
+     */
     fun displayNotification(title: String, message: String) {
+        if (!Settings.currentSettings.value.notificationsEnabled) return
         trayIcon?.displayMessage(title, message, TrayIcon.MessageType.NONE)
     }
 
@@ -22,7 +27,7 @@ class SystemTrayMenu(
             val tray = SystemTray.getSystemTray()
             val trayIconSize = tray.trayIconSize
 
-            // Pick the pixel-perfect tray asset matching current Windows DPI scale
+            // Select matching pixel-perfect tray asset for the active display DPI
             val iconPath = when {
                 trayIconSize.width <= 16 -> "/tray/tray-16.png"
                 trayIconSize.width <= 20 -> "/tray/tray-20.png"
@@ -45,10 +50,19 @@ class SystemTrayMenu(
                     }
                     img.getScaledInstance(trayIconSize.width, trayIconSize.height, Image.SCALE_SMOOTH)
                 }
-            } ?: throw IllegalStateException("Could not load tray icon from $iconPath or /tray_icon.png")
+            } ?: throw IllegalStateException("Could not load tray icon from $iconPath")
 
             val popup = PopupMenu().apply {
+                // Header showing current artwork title
+                currentArtItem = MenuItem("Art Wallpaper").apply {
+                    isEnabled = false
+                }
+                add(currentArtItem)
+                addSeparator()
+
+                // Open Window
                 add(MenuItem("Open Art Wallpaper").apply {
+                    font = font?.deriveFont(Font.BOLD) ?: Font("Dialog", Font.BOLD, 12)
                     addActionListener {
                         try {
                             SwingUtilities.invokeLater { onShowWindow() }
@@ -57,37 +71,47 @@ class SystemTrayMenu(
                         }
                     }
                 })
-                addSeparator()
 
-                add(MenuItem("Pause Auto-Update").apply {
+                // Instant Wallpaper Refresh from Tray
+                add(MenuItem("Next Wallpaper").apply {
                     addActionListener {
-                        try {
-                            scope.launch {
-                                serviceController.stopService()
-                                displayNotification("Art Wallpaper", "Auto-update paused")
+                        scope.launch {
+                            try {
+                                serviceController.nextWallpaper()
+                                displayNotification("Art Wallpaper", "Changing wallpaper...")
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                displayNotification("Art Wallpaper", "Failed to change wallpaper: ${e.message}")
                             }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                            displayNotification("Art Wallpaper", "Failed to pause auto-update")
-                        }
-                    }
-                })
-                add(MenuItem("Resume Auto-Update").apply {
-                    addActionListener {
-                        try {
-                            scope.launch {
-                                serviceController.startService()
-                                displayNotification("Art Wallpaper", "Auto-update resumed")
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                            displayNotification("Art Wallpaper", "Failed to resume auto-update")
                         }
                     }
                 })
 
                 addSeparator()
 
+                // Dynamic Pause / Resume item synchronized with ServiceController state
+                pauseResumeItem = MenuItem("Pause Auto-Update").apply {
+                    addActionListener {
+                        scope.launch {
+                            try {
+                                if (serviceController.isServiceRunning.value) {
+                                    serviceController.stopService()
+                                    displayNotification("Art Wallpaper", "Auto-update paused")
+                                } else {
+                                    serviceController.startService()
+                                    displayNotification("Art Wallpaper", "Auto-update resumed")
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
+                }
+                add(pauseResumeItem)
+
+                addSeparator()
+
+                // Exit
                 add(MenuItem("Exit").apply {
                     addActionListener {
                         try {
@@ -97,7 +121,6 @@ class SystemTrayMenu(
                                 System.exit(0)
                             }
                         } catch (e: Exception) {
-                            e.printStackTrace()
                             System.exit(1)
                         }
                     }
@@ -119,6 +142,34 @@ class SystemTrayMenu(
                 trayIcon?.let { tray.add(it) }
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+
+            // Sync tray state with background service and artwork changes
+            observeState()
+        }
+    }
+
+    private fun observeState() {
+        // Observe running state to dynamically toggle Pause/Resume label
+        scope.launch {
+            serviceController.isServiceRunning.collect { isRunning ->
+                SwingUtilities.invokeLater {
+                    pauseResumeItem?.label = if (isRunning) "Pause Auto-Update" else "Resume Auto-Update"
+                }
+            }
+        }
+
+        // Observe current artwork to update tooltip and header label
+        scope.launch {
+            serviceController.wallpaperManager.currentArtwork.collect { art ->
+                val title = art?.second?.title ?: "Art Wallpaper"
+                val artist = art?.second?.artist?.let { " - $it" } ?: ""
+                val fullText = "$title$artist"
+
+                SwingUtilities.invokeLater {
+                    currentArtItem?.label = if (art != null) "Current: ${title.take(30)}" else "Art Wallpaper"
+                    trayIcon?.toolTip = "Art Wallpaper: ${fullText.take(120)}"
+                }
             }
         }
     }

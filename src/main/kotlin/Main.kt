@@ -47,7 +47,7 @@ fun main(args: Array<String>) {
         val shouldStartService = !settings.isFirstRun && (isAutoStart || !startMinimized)
         
         // Initialize components
-        val wallpaperService = WindowsWallpaperService()
+        val wallpaperService = WallpaperService.create()
         val historyManager = HistoryManager()
         val artworkStorage = ArtworkStorageManager()
         val artworkProvider = ArtworkProvider(

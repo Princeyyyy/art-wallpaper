@@ -27,7 +27,7 @@ import kotlin.io.path.writeText
 import exception.NetworkUnavailableException
 
 class WallpaperManager(
-    private val wallpaperService: WindowsWallpaperService,
+    private val wallpaperService: WallpaperService = WindowsWallpaperService(),
     private val artworkProvider: ArtworkProvider,
     private val artworkStorage: ArtworkStorageManager,
     private val historyManager: HistoryManager,
@@ -80,7 +80,7 @@ class WallpaperManager(
         } catch (e: Exception) {
             logger.error("Failed to load wallpaper state", e)
         }
-        // FIX #4: Removed duplicate loadSavedState() — logic is fully inlined above.
+        // FIX #4: Removed duplicate loadSavedState() â€” logic is fully inlined above.
     }
 
     suspend fun checkAndUpdateIfNeeded() {

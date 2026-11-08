@@ -58,7 +58,7 @@ compose.desktop {
         mainClass = "MainKt"
         
         nativeDistributions {
-            targetFormats(TargetFormat.Msi)
+            targetFormats(TargetFormat.Msi, TargetFormat.Dmg)
             packageName = "Art Wallpaper"
             packageVersion = "3.3.0"
             
@@ -72,6 +72,12 @@ compose.desktop {
             )
             
             modules("java.instrument", "java.management", "java.naming", "java.sql")
+            
+            macOS {
+                bundleID = "com.example.artwallpaper"
+                iconFile.set(project.file("src/main/resources/icons/icon.icns"))
+                packageVersion = "3.3.0"
+            }
             
             windows {
                 menuGroup = "Art Wallpaper"

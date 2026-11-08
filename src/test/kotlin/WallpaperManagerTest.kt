@@ -11,7 +11,7 @@ import kotlin.test.*
 class WallpaperManagerTest {
 
     private lateinit var tempDir: Path
-    private lateinit var wallpaperService: WindowsWallpaperService
+    private lateinit var wallpaperService: WallpaperService
     private lateinit var artworkProvider: ArtworkProvider
     private lateinit var artworkStorage: ArtworkStorageManager
     private lateinit var historyManager: HistoryManager
@@ -40,7 +40,7 @@ class WallpaperManagerTest {
     )
 
     private fun makeManager(settings: Settings = Settings(isFirstRun = false)): service.WallpaperManager {
-        // We need a stateFile path in tempDir — WallpaperManager always reads from user.home/.artwallpaper
+        // We need a stateFile path in tempDir â€” WallpaperManager always reads from user.home/.artwallpaper
         // We pass the dir as a system property override isn't possible without refactoring,
         // so we test with defaults and mock all file I/O collaborators.
         return service.WallpaperManager(
@@ -54,7 +54,7 @@ class WallpaperManagerTest {
     }
 
     @Test
-    fun `start is idempotent — second call does nothing`() = runTest {
+    fun `start is idempotent â€” second call does nothing`() = runTest {
         val manager = makeManager()
         manager.start()
         manager.start() // Should log "already running" and return
@@ -72,7 +72,7 @@ class WallpaperManagerTest {
     @Test
     fun `stop without start is safe`() {
         val manager = makeManager()
-        manager.stop() // No job to cancel — should not throw
+        manager.stop() // No job to cancel â€” should not throw
     }
 
     @Test
