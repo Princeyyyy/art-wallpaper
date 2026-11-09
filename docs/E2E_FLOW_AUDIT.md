@@ -1,4 +1,4 @@
-# ArtWallpaper v4.0.0 End-to-End Flow Audit & Verification Guide
+﻿# ArtWallpaper v4.0.0 End-to-End Flow Audit & Verification Guide
 
 This document maps and audits every user-facing interaction, state transition, background process, and failure recovery path across ArtWallpaper on Windows and macOS.
 
