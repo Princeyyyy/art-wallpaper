@@ -228,6 +228,7 @@ private fun setupApplication(
             LaunchedEffect(isDark) {
                 WindowsPlatform.applyDarkTitleBar(window, isDark)
                 WindowsPlatform.applyRoundedCorners(window)
+                systemTray.updateIconTheme(isDark)
             }
 
             App(

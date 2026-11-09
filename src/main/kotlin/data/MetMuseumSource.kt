@@ -1,6 +1,7 @@
 import data.ArtworkSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -95,9 +96,11 @@ class MetMuseumSource(
                 try {
                     val result = tryFetchArtwork(candidateId)
                     if (result != null) return@withContext result
+                    delay(120)
                 } catch (e: Exception) {
                     logger.warn("Candidate $candidateId failed: ${e.message}")
                     lastError = e
+                    delay(200)
                 }
             }
 

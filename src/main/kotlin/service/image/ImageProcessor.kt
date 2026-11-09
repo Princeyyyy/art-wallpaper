@@ -23,6 +23,12 @@ object DisplayHelper {
         return try {
             val ge = GraphicsEnvironment.getLocalGraphicsEnvironment()
             if (!GraphicsEnvironment.isHeadless()) {
+                val screens = ge.screenDevices
+                val maxW = screens?.mapNotNull { it.displayMode?.width }?.filter { it > 0 }?.maxOrNull()
+                val maxH = screens?.mapNotNull { it.displayMode?.height }?.filter { it > 0 }?.maxOrNull()
+                if (maxW != null && maxH != null && maxW > 0 && maxH > 0) {
+                    return maxW to maxH
+                }
                 val dm = ge.defaultScreenDevice?.displayMode
                 if (dm != null && dm.width > 0 && dm.height > 0) {
                     return dm.width to dm.height

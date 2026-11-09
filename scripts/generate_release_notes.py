@@ -107,6 +107,7 @@ Generate the complete GitHub release notes in markdown following this exact stru
 
 * **Windows**: Download [`ArtWallpaper-{version}-Windows.msi`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-Windows.msi) and run the installer.
 * **macOS**: Download [`ArtWallpaper-{version}-macOS.dmg`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-macOS.dmg), open it, and drag ArtWallpaper into Applications.
+  > 💡 **First-Time Mac Launch**: If macOS Gatekeeper prompts that the app cannot be opened because the developer cannot be verified, right-click `Art Wallpaper.app` in Applications and choose **Open**, or run: `xattr -cr "/Applications/Art Wallpaper.app"`.
 
 ## 💻 System Requirements
 
@@ -235,6 +236,7 @@ def generate_fallback_notes(version, prev_tag, commits):
 
 * **Windows**: Download [`ArtWallpaper-{version}-Windows.msi`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-Windows.msi) and run the installer.
 * **macOS**: Download [`ArtWallpaper-{version}-macOS.dmg`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-macOS.dmg), open it, and drag ArtWallpaper into Applications.
+  > 💡 **First-Time Mac Launch**: If macOS Gatekeeper prompts that the app cannot be opened because the developer cannot be verified, right-click `Art Wallpaper.app` in Applications and choose **Open**, or run: `xattr -cr "/Applications/Art Wallpaper.app"`.
 
 ## 💻 System Requirements
 
@@ -299,6 +301,7 @@ def main():
 
 * **Windows**: Download [`ArtWallpaper-{version}-Windows.msi`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-Windows.msi) and run the installer.
 * **macOS**: Download [`ArtWallpaper-{version}-macOS.dmg`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-macOS.dmg), open it, and drag ArtWallpaper into Applications.
+  > 💡 **First-Time Mac Launch**: If macOS Gatekeeper prompts that the app cannot be opened because the developer cannot be verified, right-click `Art Wallpaper.app` in Applications and choose **Open**, or run: `xattr -cr "/Applications/Art Wallpaper.app"`.
 
 ---
 

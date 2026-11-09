@@ -225,6 +225,22 @@ jobs:
           cp "$DMG" "dist-macos/ArtWallpaper-$V-macOS.dmg"
           echo "DMG staged: dist-macos/ArtWallpaper-$V-macOS.dmg"
 
+      - name: Optional Apple Developer Notarization & Stapling
+        if: env.MACOS_CERTIFICATE_P12_BASE64 != '' && env.APPLE_ID != ''
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          echo "Apple Developer signing secrets detected. Submitting DMG for notarization..."
+          DMG_FILE=$(ls dist-macos/*.dmg | head -n 1)
+          xcrun notarytool submit "$DMG_FILE" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          echo "Stapling notarization ticket to $DMG_FILE..."
+          xcrun stapler staple "$DMG_FILE"
+          echo "Notarization and stapling completed successfully!"
+
       - name: Upload macOS DMG artifact
         uses: actions/upload-artifact@v4
         with:

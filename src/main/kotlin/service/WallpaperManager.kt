@@ -30,7 +30,7 @@ import kotlin.io.path.writeText
 import exception.NetworkUnavailableException
 
 class WallpaperManager(
-    private val wallpaperService: WallpaperService = WindowsWallpaperService(),
+    private val wallpaperService: WallpaperService = WallpaperService.create(),
     private val artworkProvider: ArtworkProvider,
     private val artworkStorage: ArtworkStorageManager,
     private val historyManager: HistoryManager,

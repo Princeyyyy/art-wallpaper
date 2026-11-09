@@ -12,6 +12,59 @@ class SystemTrayMenu(
     private var pauseResumeItem: MenuItem? = null
     private var currentArtItem: MenuItem? = null
 
+    companion object {
+        fun resolveTrayIconPath(isMac: Boolean, isDark: Boolean, size: Int): String {
+            return if (isMac) {
+                val color = if (isDark) "white" else "black"
+                when {
+                    size <= 16 -> "/tray/tray-mono-$color-16.png"
+                    size <= 24 -> "/tray/tray-mono-$color-24.png"
+                    else -> "/tray/tray-mono-$color-32.png"
+                }
+            } else {
+                when {
+                    size <= 16 -> "/tray/tray-16.png"
+                    size <= 20 -> "/tray/tray-20.png"
+                    size <= 24 -> "/tray/tray-24.png"
+                    size <= 32 -> "/tray/tray-32.png"
+                    size <= 48 -> "/tray/tray-48.png"
+                    else -> "/tray/tray-64.png"
+                }
+            }
+        }
+
+        fun loadTrayImage(size: Dimension, isMac: Boolean, isDark: Boolean): Image? {
+            val iconPath = resolveTrayIconPath(isMac, isDark, size.width)
+            val resourceUrl = SystemTrayMenu::class.java.getResource(iconPath)
+                ?: SystemTrayMenu::class.java.getResource("/tray_icon.png")
+            return resourceUrl?.let { url ->
+                Toolkit.getDefaultToolkit().createImage(url)?.let { img ->
+                    val tracker = MediaTracker(Canvas())
+                    tracker.addImage(img, 0)
+                    try {
+                        tracker.waitForAll()
+                    } catch (_: InterruptedException) {}
+                    img.getScaledInstance(size.width, size.height, Image.SCALE_SMOOTH)
+                }
+            }
+        }
+    }
+
+    /**
+     * Dynamically updates the macOS menu bar icon to match OS Dark/Light appearance.
+     */
+    fun updateIconTheme(isDark: Boolean) {
+        val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+        if (!isMac || !SystemTray.isSupported()) return
+        SwingUtilities.invokeLater {
+            val tray = SystemTray.getSystemTray()
+            val newImage = loadTrayImage(tray.trayIconSize, isMac, isDark)
+            if (newImage != null) {
+                trayIcon?.image = newImage
+            }
+        }
+    }
+
     /**
      * Shows a desktop notification only if enabled in user preferences.
      *
@@ -35,31 +88,11 @@ class SystemTrayMenu(
         SwingUtilities.invokeLater {
             val tray = SystemTray.getSystemTray()
             val trayIconSize = tray.trayIconSize
+            val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+            val isDark = SystemThemeDetector.isDark()
 
-            // Select matching pixel-perfect tray asset for the active display DPI
-            val iconPath = when {
-                trayIconSize.width <= 16 -> "/tray/tray-16.png"
-                trayIconSize.width <= 20 -> "/tray/tray-20.png"
-                trayIconSize.width <= 24 -> "/tray/tray-24.png"
-                trayIconSize.width <= 32 -> "/tray/tray-32.png"
-                trayIconSize.width <= 48 -> "/tray/tray-48.png"
-                else -> "/tray/tray-64.png"
-            }
-            val resourceUrl = SystemTrayMenu::class.java.getResource(iconPath)
-                ?: SystemTrayMenu::class.java.getResource("/tray_icon.png")
-
-            val image = resourceUrl?.let { url ->
-                Toolkit.getDefaultToolkit().createImage(url)?.let { img ->
-                    val tracker = MediaTracker(Canvas())
-                    tracker.addImage(img, 0)
-                    try {
-                        tracker.waitForAll()
-                    } catch (e: InterruptedException) {
-                        e.printStackTrace()
-                    }
-                    img.getScaledInstance(trayIconSize.width, trayIconSize.height, Image.SCALE_SMOOTH)
-                }
-            } ?: throw IllegalStateException("Could not load tray icon from $iconPath")
+            val image = loadTrayImage(trayIconSize, isMac, isDark)
+                ?: throw IllegalStateException("Could not load tray icon for size $trayIconSize")
 
             val popup = PopupMenu().apply {
                 // Header showing current artwork title

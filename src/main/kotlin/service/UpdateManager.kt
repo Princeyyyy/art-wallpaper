@@ -200,6 +200,8 @@ class UpdateManager(
             } else if (os.contains("mac")) {
                 logger.info("Mounting macOS DMG installer: $installerPath")
                 ProcessBuilder("open", installerPath.toAbsolutePath().toString()).start()
+                Thread.sleep(1000)
+                System.exit(0)
             }
         } catch (e: Exception) {
             logger.error("Failed to launch installer", e)

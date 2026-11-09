@@ -88,6 +88,10 @@ ArtWallpaper includes a complete professional multi-platform asset pack:
 1. Download `ArtWallpaper-4.0.0-macOS.dmg` from [Releases](https://github.com/Princeyyyy/art-wallpaper/releases).
 2. Open the `.dmg` and drag **Art Wallpaper** into your `/Applications` folder.
 3. Launch the app from Spotlight or Applications.
+   > 💡 **macOS Gatekeeper Note**: On macOS 14+ (Sonoma/Sequoia), if macOS prompts that the app cannot be opened because the developer cannot be verified, right-click `Art Wallpaper.app` in `/Applications` and choose **Open**, or run in Terminal:
+   > ```bash
+   > xattr -cr "/Applications/Art Wallpaper.app"
+   > ```
 
 ### Command-Line Arguments
 ArtWallpaper supports several flags for automated environments and troubleshooting:

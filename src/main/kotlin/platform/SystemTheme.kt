@@ -45,14 +45,14 @@ object SystemThemeDetector {
 
 /**
  * Composable that tracks OS theme changes live.
- * Polls every 3 seconds — sufficient responsiveness without busy-looping.
+ * Polls every 5 seconds — sufficient responsiveness without busy-looping.
  */
 @Composable
 fun rememberSystemIsDark(): Boolean {
     var isDark by remember { mutableStateOf(SystemThemeDetector.isDark()) }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(3_000L)
+            delay(5_000L)
             val current = SystemThemeDetector.isDark()
             if (current != isDark) isDark = current
         }
