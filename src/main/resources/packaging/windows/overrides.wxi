@@ -7,4 +7,7 @@
 <Include>
   <?define JpAllowUpgrades = "yes" ?>
   <?define JpAllowDowngrades = "yes" ?>
+  <?define JpHelpURL = "https://github.com/Princeyyyy/art-wallpaper/issues" ?>
+  <?define JpAboutURL = "https://github.com/Princeyyyy/art-wallpaper" ?>
+  <?define JpUpdateURL = "https://github.com/Princeyyyy/art-wallpaper/releases" ?>
 </Include>

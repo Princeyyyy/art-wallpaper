@@ -147,6 +147,32 @@ jobs:
           Copy-Item $f.FullName "dist-windows\ArtWallpaper-$v-Windows.msi"
           Write-Output "MSI staged: dist-windows\ArtWallpaper-$v-Windows.msi"
 
+      - name: Optional Windows Code Signing
+        if: env.WINDOWS_CERTIFICATE_PFX_BASE64 != ''
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        shell: pwsh
+        run: |
+          Write-Output "Windows Code Signing certificate detected. Signing MSI installer..."
+          $certPath = "$env:RUNNER_TEMP\certificate.pfx"
+          $certBytes = [System.Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX_BASE64)
+          [System.IO.File]::WriteAllBytes($certPath, $certBytes)
+
+          $msi = Get-ChildItem -Path dist-windows -Filter "*.msi" | Select-Object -First 1
+          if (-not $msi) { throw "MSI for signing not found!" }
+
+          # Locate signtool.exe from Windows SDK
+          $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits\10\bin" -Filter "signtool.exe" -Recurse |
+                      Where-Object { $_.FullName -match 'x64' } |
+                      Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found on runner!" }
+
+          Write-Output "Signing $($msi.FullName) with $($signtool.FullName)..."
+          & $signtool.FullName sign /f $certPath /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 $msi.FullName
+          Remove-Item $certPath -Force
+          Write-Output "Windows MSI successfully signed with timestamp!"
+
       - name: Upload Windows MSI artifact
         uses: actions/upload-artifact@v4
         with:

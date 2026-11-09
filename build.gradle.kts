@@ -77,6 +77,10 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg)
             packageName = "Art Wallpaper"
             packageVersion = appVersion
+            description = "Daily curated fine art museum wallpapers for your desktop"
+            vendor = "Prince"
+            copyright = "Copyright © 2026 Prince. All rights reserved."
+            licenseFile.set(project.file("LICENSE"))
             appResourcesRootDir.set(project.file("src/main/resources/packaging"))
 
             // Optimized JRE bundling: only bundle required modules to shrink distribution size
