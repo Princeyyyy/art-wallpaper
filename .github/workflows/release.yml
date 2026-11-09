@@ -261,8 +261,11 @@ jobs:
       - name: List release binaries
         run: ls -lh release-artifacts/
 
-      - name: Generate Changelog & Release Description
+      - name: Generate AI or Fallback Release Notes
         id: release_notes
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CUSTOM_NOTES: ${{ inputs.release_notes }}
         run: |
           RAW="${{ inputs.version }}"
           RAW="${RAW#v}"
@@ -274,38 +277,7 @@ jobs:
           V="$MAJOR.$MINOR.$PATCH"
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
-          PREV_TAG=$(git describe --tags --abbrev=0 "HEAD^" 2>/dev/null || echo "")
-
-          cat << EOF > release_body.md
-          ## What's New in ArtWallpaper v$V
-
-          EOF
-
-          CUSTOM_NOTES="${{ inputs.release_notes }}"
-          if [ -n "$CUSTOM_NOTES" ] && [ "$CUSTOM_NOTES" != "ArtWallpaper — Cross-platform Windows & macOS release." ]; then
-            echo "$CUSTOM_NOTES" >> release_body.md
-            echo "" >> release_body.md
-          else
-            cat << 'EOF' >> release_body.md
-          * **True Screen Fit Engine**: Laptop wallpaper generation with ambient blur matting and bottom taskbar clearance. Eliminates stretching on all 16:9, 16:10, and 3:2 displays.
-          * **In-App Auto Updater**: Silent background updates and one-click upgrades without manual web downloads.
-          * **Dynamic Windows Theming**: Full synchronization with Windows light and dark themes (Daytime Museum & Evening Obsidian).
-          * **Lean Storage Optimization**: Lean 20-slot offline cache and stripped JDK packaging.
-          EOF
-            echo "" >> release_body.md
-          fi
-
-          if [ -n "$PREV_TAG" ]; then
-            echo "### Commits since $PREV_TAG" >> release_body.md
-            git log "$PREV_TAG..HEAD" --pretty=format:"* %s (%h)" --no-merges >> release_body.md
-            echo "" >> release_body.md
-          fi
-
-          cat << EOF >> release_body.md
-          ### Installation
-          * **Windows**: Download \`ArtWallpaper-$V-Windows.msi\` and run the installer.
-          * **macOS**: Download \`ArtWallpaper-$V-macOS.dmg\`, open it, and drag to Applications.
-          EOF
+          python3 scripts/generate_release_notes.py "$V" "release_body.md"
 
       - name: Commit version bump & tag
         run: |
@@ -325,7 +297,7 @@ jobs:
           tag_name: v${{ steps.release_notes.outputs.version }}
           name: ArtWallpaper v${{ steps.release_notes.outputs.version }}
           body_path: release_body.md
-          generate_release_notes: true
+          generate_release_notes: false
           files: release-artifacts/*
           prerelease: ${{ inputs.prerelease }}
         env:
