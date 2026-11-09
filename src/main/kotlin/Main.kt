@@ -22,6 +22,7 @@ val logger = LoggerFactory.getLogger("MainKt")
 
 fun main(args: Array<String>) {
     setupGlobalExceptionHandler()
+    WindowsPlatform.registerAppUserModelId("com.prince.artwallpaper")
 
     // ── macOS: hide from Dock BEFORE AWT toolkit initialises ──────────────────
     // This is the runtime complement to LSUIElement=1 in Info.plist (DMG builds).
@@ -36,9 +37,11 @@ fun main(args: Array<String>) {
         return
     }
 
-    val lockFile = Path(System.getProperty("user.home"), ".artwallpaper", "app.lock")
-    if (!ensureSingleInstance(lockFile)) {
-        println("Application already running")
+    val singleInstanceManager = service.SingleInstanceManager()
+    var wakeCallback: (() -> Unit)? = null
+
+    if (!singleInstanceManager.acquireOrWake { wakeCallback?.invoke() }) {
+        println("Art Wallpaper is already running. Signaled existing instance.")
         System.exit(0)
         return
     }
@@ -81,8 +84,9 @@ fun main(args: Array<String>) {
             settings,
             startMinimized,
             shouldStartService,
-            lockFile,
-            wallpaperManager
+            singleInstanceManager,
+            wallpaperManager,
+            onSetWakeCallback = { cb -> wakeCallback = cb }
         )
 
     } catch (e: Exception) {
@@ -97,57 +101,31 @@ private fun setupGlobalExceptionHandler() {
     }
 }
 
-private fun ensureSingleInstance(lockFile: Path): Boolean {
-    try {
-        if (lockFile.exists()) {
-            try {
-                val pid = lockFile.readText().trim().toLong()
-                if (ProcessHandle.of(pid).isPresent) {
-                    return false
-                }
-            } catch (e: Exception) {
-                // Invalid or stale lock file
-            }
-        }
-        lockFile.parent.createDirectories()
-        lockFile.writeText(ProcessHandle.current().pid().toString())
-        Runtime.getRuntime().addShutdownHook(Thread {
-            try {
-                lockFile.deleteIfExists()
-            } catch (e: Exception) {
-                // Ignore cleanup errors
-            }
-        })
-        return true
-    } catch (e: Exception) {
-        return false
-    }
-}
 
-// Create a single shutdown hook handler
-private fun setupShutdownHook(controller: ServiceController, lockFile: Path) {
-    Runtime.getRuntime().addShutdownHook(Thread {
-        runBlocking {
-            try {
-                controller.cleanup()
-                lockFile.deleteIfExists()
-                logger.info("Application shutdown completed")
-            } catch (e: Exception) {
-                logger.error("Error during shutdown", e)
-            }
-        }
-    })
-}
 
 private fun setupApplication(
     controller: ServiceController,
     settings: Settings,
     startMinimized: Boolean,
     shouldStartService: Boolean,
-    lockFile: Path,
-    wallpaperManager: WallpaperManager
+    singleInstanceManager: service.SingleInstanceManager,
+    wallpaperManager: WallpaperManager,
+    onSetWakeCallback: (() -> Unit) -> Unit
 ) {
     var windowVisibilityCallback: ((Boolean) -> Unit)? = null
+    var activeAwtWindow: java.awt.Window? = null
+
+    onSetWakeCallback {
+        javax.swing.SwingUtilities.invokeLater {
+            windowVisibilityCallback?.invoke(true)
+            activeAwtWindow?.let { win ->
+                WindowsPlatform.bringToFront(win)
+            }
+            if (MacPlatform.isMac) {
+                MacPlatform.activateApp()
+            }
+        }
+    }
 
     // Initialize system tray
     val systemTray = SystemTrayMenu(
@@ -160,7 +138,17 @@ private fun setupApplication(
     systemTray.show()
 
     // Setup shutdown hook
-    setupShutdownHook(controller, lockFile)
+    Runtime.getRuntime().addShutdownHook(Thread {
+        kotlinx.coroutines.runBlocking {
+            try {
+                controller.cleanup()
+                singleInstanceManager.cleanup()
+                logger.info("Application shutdown completed")
+            } catch (e: Exception) {
+                logger.error("Error during shutdown", e)
+            }
+        }
+    })
 
     // Configure auto-start if not already enabled
     if (!settings.hasEnabledAutoStart && !settings.isFirstRun) {
@@ -227,6 +215,16 @@ private fun setupApplication(
 
             // ── Windows 11: sync native title bar to our dark/light state ─────
             // DWMWA_USE_IMMERSIVE_DARK_MODE flips the Win32 caption colour to match.
+            LaunchedEffect(window) {
+                activeAwtWindow = window
+                if (isWindowVisible) {
+                    WindowsPlatform.bringToFront(window)
+                    if (MacPlatform.isMac) {
+                        MacPlatform.activateApp()
+                    }
+                }
+            }
+
             LaunchedEffect(isDark) {
                 WindowsPlatform.applyDarkTitleBar(window, isDark)
                 WindowsPlatform.applyRoundedCorners(window)

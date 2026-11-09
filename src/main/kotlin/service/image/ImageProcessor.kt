@@ -25,15 +25,14 @@ object DisplayHelper {
             if (!GraphicsEnvironment.isHeadless()) {
                 val dm = ge.defaultScreenDevice?.displayMode
                 if (dm != null && dm.width > 0 && dm.height > 0) {
-                    val w = maxOf(dm.width, 1920)
-                    val h = maxOf(dm.height, 1080)
-                    return w to h
+                    return dm.width to dm.height
                 }
             }
             val tk = Toolkit.getDefaultToolkit().screenSize
-            val w = maxOf(tk?.width ?: 1920, 1920)
-            val h = maxOf(tk?.height ?: 1080, 1080)
-            w to h
+            if (tk != null && tk.width > 0 && tk.height > 0) {
+                return tk.width to tk.height
+            }
+            1920 to 1080
         } catch (e: Exception) {
             logger.warn("Could not query display mode, falling back to 1920x1080: ${e.message}")
             1920 to 1080

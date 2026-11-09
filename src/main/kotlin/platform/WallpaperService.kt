@@ -79,7 +79,7 @@ class WindowsWallpaperService : WallpaperService {
     }
 }
 
-// ── macOS Implementation (Native AppleScript / System Events) ────────────────
+// ── macOS Implementation (Cocoa NSWorkspace + AppleScript Fallback) ─────────
 
 class MacWallpaperService : WallpaperService {
     private val logger = LoggerFactory.getLogger(MacWallpaperService::class.java)
@@ -88,7 +88,15 @@ class MacWallpaperService : WallpaperService {
         val posixPath = imagePath.toAbsolutePath().toString()
         logger.info("Setting macOS desktop wallpaper: $posixPath")
 
-        // Sets the wallpaper across all active Spaces and connected displays
+        // Primary: AppKit Cocoa NSWorkspace (Zero TCC permissions needed, instantaneous)
+        val cocoaSuccess = setWallpaperViaCocoa(posixPath)
+        if (cocoaSuccess) {
+            logger.info("macOS wallpaper set successfully via Cocoa NSWorkspace")
+            return@runCatching
+        }
+
+        // Secondary Fallback: AppleScript / System Events
+        logger.info("Falling back to AppleScript for macOS wallpaper setting")
         val script = "tell application \"System Events\" to tell every desktop to set picture to \"$posixPath\""
         val process = ProcessBuilder("osascript", "-e", script)
             .redirectErrorStream(true)
@@ -101,6 +109,47 @@ class MacWallpaperService : WallpaperService {
             throw RuntimeException("osascript failed (code $exitCode): $output")
         }
 
-        logger.info("macOS wallpaper set successfully")
+        logger.info("macOS wallpaper set successfully via AppleScript")
+    }
+
+    private fun setWallpaperViaCocoa(posixPath: String): Boolean {
+        val lib = MacPlatform.objc ?: return false
+        return try {
+            val nsWorkspaceClass = lib.objc_getClass("NSWorkspace")
+            val sharedWorkspaceSel = lib.sel_registerName("sharedWorkspace")
+            val workspace = lib.objc_msgSend(nsWorkspaceClass, sharedWorkspaceSel)
+            if (workspace == 0L) return false
+
+            val nsStringClass = lib.objc_getClass("NSString")
+            val strWithUtf8Sel = lib.sel_registerName("stringWithUTF8String:")
+            val pathNs = lib.objc_msgSend(nsStringClass, strWithUtf8Sel, posixPath)
+            if (pathNs == 0L) return false
+
+            val nsUrlClass = lib.objc_getClass("NSURL")
+            val fileURLWithPathSel = lib.sel_registerName("fileURLWithPath:")
+            val urlNs = lib.objc_msgSend(nsUrlClass, fileURLWithPathSel, pathNs)
+            if (urlNs == 0L) return false
+
+            val nsScreenClass = lib.objc_getClass("NSScreen")
+            val screensSel = lib.sel_registerName("screens")
+            val screens = lib.objc_msgSend(nsScreenClass, screensSel)
+
+            val countSel = lib.sel_registerName("count")
+            val objectAtIndexSel = lib.sel_registerName("objectAtIndex:")
+            val count = lib.objc_msgSend(screens, countSel)
+
+            val setDesktopSel = lib.sel_registerName("setDesktopImageURL:forScreen:options:error:")
+
+            var anySuccess = false
+            for (i in 0 until count) {
+                val screen = lib.objc_msgSend(screens, objectAtIndexSel, i)
+                val ok = lib.objc_msgSend(workspace, setDesktopSel, urlNs, screen, 0L, 0L)
+                if (ok != 0L) anySuccess = true
+            }
+            anySuccess
+        } catch (e: Exception) {
+            logger.debug("Cocoa wallpaper setting failed: ${e.message}")
+            false
+        }
     }
 }

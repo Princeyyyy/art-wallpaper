@@ -112,7 +112,7 @@ class ImageProcessorTest {
     @Test
     fun `display helper provides positive non-zero fallback dimensions`() {
         val (w, h) = DisplayHelper.getScreenDimensions()
-        assertTrue(w >= 1920, "Screen width must be at least 1920")
-        assertTrue(h >= 1080, "Screen height must be at least 1080")
+        assertTrue(w > 0, "Screen width must be positive")
+        assertTrue(h > 0, "Screen height must be positive")
     }
 }

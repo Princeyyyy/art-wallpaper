@@ -143,9 +143,21 @@ class PlatformServicesTest {
     }
 
     @Test
-    fun `MacPlatform hideFromDock and showNotification execute safely without throwing`() {
+    fun `WindowsPlatform registerAppUserModelId and bringToFront execute safely`() {
+        WindowsPlatform.registerAppUserModelId("com.prince.artwallpaper")
+        val frame = java.awt.Frame()
+        try {
+            WindowsPlatform.bringToFront(frame)
+        } finally {
+            frame.dispose()
+        }
+    }
+
+    @Test
+    fun `MacPlatform hideFromDock, activateApp and showNotification execute safely without throwing`() {
         // Safe no-op on Windows/Linux; guarded against crashing on macOS
         MacPlatform.hideFromDock()
+        MacPlatform.activateApp()
         MacPlatform.showNotification("Test Title", "Test Message with \"quotes\"")
     }
 

@@ -25,7 +25,7 @@ class SystemTrayMenu(
         if (isMac) {
             MacPlatform.showNotification(title, message)
         } else {
-            trayIcon?.displayMessage(title, message, TrayIcon.MessageType.NONE)
+            trayIcon?.displayMessage(title, message, TrayIcon.MessageType.INFO)
         }
     }
 

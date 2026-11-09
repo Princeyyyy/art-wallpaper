@@ -108,10 +108,21 @@ class WindowsAutoStartService : AutoStartService {
 class MacAutoStartService(
     private val launchAgentsDir: Path = Path.of(System.getProperty("user.home"), "Library", "LaunchAgents"),
     private val bundleId: String = AppInfo.BUNDLE_ID,
-    private val appExecutablePath: String = "/Applications/Art Wallpaper.app/Contents/MacOS/Art Wallpaper"
+    appExecutablePath: String? = null
 ) : AutoStartService {
     private val logger = LoggerFactory.getLogger(MacAutoStartService::class.java)
     private val plistFile: Path = launchAgentsDir.resolve("$bundleId.plist")
+    val appExecutablePath: String = appExecutablePath ?: resolveRunningExecutablePath()
+
+    companion object {
+        fun resolveRunningExecutablePath(): String {
+            val cmd = ProcessHandle.current().info().command().orElse("")
+            if (cmd.contains(".app/Contents/MacOS/")) {
+                return cmd
+            }
+            return "/Applications/Art Wallpaper.app/Contents/MacOS/Art Wallpaper"
+        }
+    }
 
     override fun enable() {
         try {
