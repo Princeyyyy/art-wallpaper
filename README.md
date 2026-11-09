@@ -19,6 +19,7 @@
   <a href="#-features"><img src="https://img.shields.io/badge/Language-Kotlin%201.9-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin" /></a>
   <a href="https://github.com/Princeyyyy/art-wallpaper/releases"><img src="https://img.shields.io/badge/Release-v4.0.0-C8A97E" alt="Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey" alt="License" /></a>
+  <a href="https://signpath.org"><img src="https://img.shields.io/badge/Code_Signing-SignPath.io-blue?logo=windows" alt="SignPath Code Signing" /></a>
 </p>
 
 ---
@@ -144,6 +145,21 @@ The project features a comprehensive multi-platform test suite:
 - **GitHub Actions Workflows**:
   - `ci.yml`: Runs `compileKotlin` and `test` matrix across `windows-latest` and `macos-latest`.
   - `release.yml`: Manually triggered workflow (`workflow_dispatch`) that runs tests, builds both Windows MSI and macOS DMG installers, and publishes a GitHub Release with both binaries attached.
+
+---
+
+## 🔏 Code Signing
+
+Free code signing for Windows releases is generously provided by [SignPath.io](https://signpath.io), with certificates provided by the [SignPath Foundation](https://signpath.org).
+
+---
+
+## 🔒 Privacy Policy
+
+Art Wallpaper is committed to user privacy. The application:
+- Does **not** collect, store, track, or transmit any personal user data or telemetry.
+- Communicates exclusively with the public [Metropolitan Museum of Art Open Access API](https://metmuseum.github.io/) to download public-domain masterpieces and artwork metadata.
+- Stores user settings, history, and offline artwork caches strictly locally on the device (`%USERPROFILE%\.artwallpaper` on Windows, `~/.artwallpaper` on macOS).
 
 ---
 
