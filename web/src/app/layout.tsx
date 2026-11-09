@@ -2,15 +2,18 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://princeyyyy.github.io/art-wallpaper"
+  ),
   title: "Art Wallpaper — An Art Museum for Your Desktop",
   description: "Walk into an art gallery every morning. Curated masterpieces from The Metropolitan Museum of Art delivered directly to your desktop.",
   icons: {
-    icon: "/assets/icon-128.png",
+    icon: "assets/icon-128.png",
   },
   openGraph: {
     title: "Art Wallpaper — Walk Into an Art Gallery",
     description: "Curated fine art from The Met delivered directly to your Windows & Mac desktop. Free and open source.",
-    images: ["/assets/social-preview-1280x640.png"],
+    images: ["assets/social-preview-1280x640.png"],
   },
 };
 

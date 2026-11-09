@@ -1,14 +1,14 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Art Wallpaper — An Art Museum for Your Desktop</title>
+  <title>Art Wallpaper � An Art Museum for Your Desktop</title>
   <meta name="description" content="Transform your Windows and macOS desktop into a daily museum gallery with curated masterpieces from The Metropolitan Museum of Art.">
   <link rel="icon" type="image/png" href="assets/icon-128.png">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="Art Wallpaper — Daily Curated Fine Art on Your Desktop">
+  <meta property="og:title" content="Art Wallpaper � Daily Curated Fine Art on Your Desktop">
   <meta property="og:description" content="Why stare at a generic wallpaper when your desktop can be a wing of The Met? Free, open source, and pixel-perfect for Windows & macOS.">
   <meta property="og:image" content="assets/social-preview-1280x640.png">
   <meta property="og:type" content="website">
@@ -150,7 +150,7 @@
   <div class="spotlight-overlay" id="spotlight"></div>
   <div class="fixed inset-0 noise-layer pointer-events-none z-0"></div>
 
-  <!-- ── 1. Top Museum Header ─────────────────────────────────────────────── -->
+  <!-- -- 1. Top Museum Header ----------------------------------------------- -->
   <header class="relative z-20 border-b border-gallery-border/40 backdrop-blur-md bg-gallery-obsidian/80 sticky top-0 transition-all">
     <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
       
@@ -175,7 +175,7 @@
       <div class="flex items-center gap-4">
         <!-- Audio Ambiance -->
         <button id="audioToggle" title="Toggle Museum Ambiance" class="w-9 h-9 rounded-full border border-gallery-border/60 flex items-center justify-center text-gallery-dim hover:text-gallery-gold hover:border-gallery-gold transition-all text-sm">
-          <span id="audioIcon">🔇</span>
+          <span id="audioIcon">??</span>
         </button>
 
         <a href="#download" class="px-5 py-2.5 rounded border border-gallery-gold/80 bg-gallery-gold/10 hover:bg-gallery-gold hover:text-gallery-obsidian text-gallery-gold font-semibold text-xs tracking-widest uppercase transition-all shadow-[0_0_15px_rgba(200,169,126,0.15)] hover:shadow-[0_0_25px_rgba(200,169,126,0.4)]">
@@ -186,7 +186,7 @@
     </div>
   </header>
 
-  <!-- ── 2. Hero: Entering the Grand Museum Hall ────────────────────────────── -->
+  <!-- -- 2. Hero: Entering the Grand Museum Hall ------------------------------ -->
   <section class="relative z-10 pt-20 pb-28 px-6 overflow-hidden">
     <div class="max-w-5xl mx-auto text-center">
       
@@ -203,7 +203,7 @@
       </h1>
 
       <p class="max-w-2xl mx-auto text-base sm:text-lg text-gallery-dim font-light leading-relaxed mb-12">
-        Why stare at the same corporate desktop wallpaper for months? Art Wallpaper transforms your Windows and macOS screen into a quiet museum gallery wing — rotating authenticated fine art every morning with 0% distortion.
+        Why stare at the same corporate desktop wallpaper for months? Art Wallpaper transforms your Windows and macOS screen into a quiet museum gallery wing � rotating authenticated fine art every morning with 0% distortion.
       </p>
 
       <!-- Action Buttons -->
@@ -228,7 +228,7 @@
     </div>
   </section>
 
-  <!-- ── 3. The Exhibition: Gallery Walkthrough ────────────────────────────── -->
+  <!-- -- 3. The Exhibition: Gallery Walkthrough ------------------------------ -->
   <section id="exhibition" class="relative z-10 py-24 border-t border-gallery-border/50 bg-gradient-to-b from-gallery-obsidian via-gallery-stone/30 to-gallery-obsidian">
     <div class="max-w-7xl mx-auto px-6">
       
@@ -250,7 +250,7 @@
           <div class="museum-frame group cursor-pointer transition-transform duration-500 hover:scale-[1.01]" onclick="switchGalleryArt(1)">
             <div class="museum-canvas aspect-[16/10] relative">
               <img id="mainExhibitionImage" 
-                   src="https://images.metmuseum.org/CRDImages/ep/original/DP-14286-079.jpg" 
+                   src="artworks/wheat-field.jpg" 
                    alt="Main Gallery Artwork" 
                    class="w-full h-full object-cover transition-opacity duration-700">
               
@@ -263,20 +263,20 @@
         <!-- Museum Wall Placard -->
         <div class="lg:col-span-4">
           <div class="museum-placard p-8 rounded">
-            <span class="text-[10px] uppercase font-mono tracking-widest text-gallery-gold/80 block mb-4">Gallery Plaque · Wing 825</span>
+            <span class="text-[10px] uppercase font-mono tracking-widest text-gallery-gold/80 block mb-4">Gallery Plaque � Wing 825</span>
             <h3 id="plaqueArtist" class="font-display text-xl text-gallery-vellum font-semibold">Vincent van Gogh</h3>
-            <p id="plaqueBio" class="text-xs text-gallery-dim mb-3">Dutch, Zundert 1853–1890 Auvers-sur-Oise</p>
+            <p id="plaqueBio" class="text-xs text-gallery-dim mb-3">Dutch, Zundert 1853�1890 Auvers-sur-Oise</p>
             
             <h4 id="plaqueTitle" class="font-serif italic text-2xl text-gallery-gold mb-2">Wheat Field with Cypresses</h4>
-            <p id="plaqueDate" class="text-xs font-mono text-gallery-vellum/80 mb-6">1889 · Oil on canvas</p>
+            <p id="plaqueDate" class="text-xs font-mono text-gallery-vellum/80 mb-6">1889 � Oil on canvas</p>
 
             <p id="plaqueDesc" class="text-xs text-gallery-dim/90 font-light leading-relaxed border-t border-gallery-border/60 pt-4 mb-6">
-              "Cypresses are always occupying my thoughts... It is a splash of black in a sunny landscape." Painted while at Saint-Paul asylum in Saint-Rémy.
+              "Cypresses are always occupying my thoughts... It is a splash of black in a sunny landscape." Painted while at Saint-Paul asylum in Saint-R�my.
             </p>
 
             <div class="text-[10px] font-mono text-gallery-dim/60 space-y-1 border-t border-gallery-border/40 pt-4">
               <div>Collection: The Metropolitan Museum of Art</div>
-              <div>Accession: 1993.400.1 · Open Access</div>
+              <div>Accession: 1993.400.1 � Open Access</div>
             </div>
           </div>
 
@@ -294,7 +294,7 @@
     </div>
   </section>
 
-  <!-- ── 4. The Reveal ("BAM"): From Museum Wall to Your Desktop ──────────── -->
+  <!-- -- 4. The Reveal ("BAM"): From Museum Wall to Your Desktop ------------ -->
   <section id="reveal" class="relative z-10 py-28 border-t border-gallery-border/60 bg-gallery-stone/40">
     <div class="max-w-6xl mx-auto px-6">
       
@@ -304,7 +304,7 @@
           From the museum wall directly to your workspace.
         </h2>
         <p class="text-base text-gallery-dim font-light mt-4">
-          Paintings were painted for stone walls, not 16:9 widescreen laptop monitors. Art Wallpaper’s smart <strong>Ambient Blur Matting</strong> ensures zero stretching, zero cropping, and perfect desktop taskbar clearance.
+          Paintings were painted for stone walls, not 16:9 widescreen laptop monitors. Art Wallpaper�s smart <strong>Ambient Blur Matting</strong> ensures zero stretching, zero cropping, and perfect desktop taskbar clearance.
         </p>
       </div>
 
@@ -325,14 +325,14 @@
               <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
               Art Wallpaper Active (Ambient Blur Engine)
             </div>
-            <div class="text-[10px]">100% Fidelity · 0% Stretch</div>
+            <div class="text-[10px]">100% Fidelity � 0% Stretch</div>
           </div>
 
           <!-- Virtual Desktop Screen Surface -->
           <div class="ambient-blur-container aspect-[16/10] relative rounded-b flex flex-col justify-between overflow-hidden">
             
             <!-- Dynamic Blurred Background -->
-            <div id="simBlurBg" class="ambient-blur-bg" style="background-image: url('https://images.metmuseum.org/CRDImages/ep/original/DP-14286-079.jpg');"></div>
+            <div id="simBlurBg" class="ambient-blur-bg" style="background-image: url('artworks/wheat-field.jpg');"></div>
             
             <!-- Top macOS / Windows Status Indicator -->
             <div class="relative z-10 flex items-center justify-between px-4 py-2 text-[10px] text-white/70 font-sans backdrop-blur-sm bg-black/20">
@@ -353,7 +353,7 @@
             <div class="relative z-10 flex items-center justify-center p-6 flex-1">
               <div id="simArtFrame" class="relative max-h-[82%] max-w-[80%] shadow-[0_20px_50px_rgba(0,0,0,0.85)] border border-white/20 rounded-sm overflow-hidden transition-all duration-500">
                 <img id="simArtImg" 
-                     src="https://images.metmuseum.org/CRDImages/ep/original/DP-14286-079.jpg" 
+                     src="artworks/wheat-field.jpg" 
                      class="max-h-[280px] sm:max-h-[380px] w-auto object-contain">
               </div>
             </div>
@@ -361,7 +361,7 @@
             <!-- Simulated Taskbar Clearance at Bottom -->
             <div class="relative z-10 h-10 backdrop-blur-md bg-black/40 border-t border-white/10 flex items-center justify-between px-4 text-[11px] text-white/60">
               <div class="flex items-center gap-3">
-                <span class="text-white/80">⊞ Start</span>
+                <span class="text-white/80">? Start</span>
                 <span class="text-xs">Edge</span>
                 <span class="text-xs">Code</span>
                 <span class="text-xs">Terminal</span>
@@ -388,7 +388,7 @@
     </div>
   </section>
 
-  <!-- ── 5. Live Interactive Curator Sandbox ──────────────────────────────── -->
+  <!-- -- 5. Live Interactive Curator Sandbox -------------------------------- -->
   <section id="curator" class="relative z-10 py-24 border-t border-gallery-border/60 bg-gradient-to-b from-gallery-stone/20 to-gallery-obsidian">
     <div class="max-w-5xl mx-auto px-6">
       
@@ -409,23 +409,23 @@
               Met Museum Public API: Online
             </div>
             <div id="liveArtMeta" class="text-sm font-medium text-gallery-vellum">
-              Claude Monet — <span class="italic text-gallery-gold">The Water Lily Pond (1899)</span>
+              Claude Monet � <span class="italic text-gallery-gold">The Water Lily Pond (1899)</span>
             </div>
           </div>
 
           <!-- Trigger Button -->
           <button id="btnFetchLive" onclick="fetchLiveMetArtwork()" class="px-6 py-3 rounded bg-gallery-gold hover:bg-gallery-goldHover text-gallery-obsidian font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(200,169,126,0.2)]">
-            <span id="fetchBtnSpinner" class="hidden animate-spin">⟳</span>
+            <span id="fetchBtnSpinner" class="hidden animate-spin">?</span>
             <span id="fetchBtnText">Curate Next Artwork</span>
           </button>
         </div>
 
         <!-- Live Curated Display Box -->
         <div class="mt-8 rounded border border-gallery-border/80 bg-black aspect-[16/9] relative overflow-hidden flex items-center justify-center">
-          <div id="liveBlurBg" class="ambient-blur-bg" style="background-image: url('https://images.metmuseum.org/CRDImages/ep/original/DP358045.jpg');"></div>
+          <div id="liveBlurBg" class="ambient-blur-bg" style="background-image: url('artworks/vermeer-water-pitcher.jpg');"></div>
           
           <div class="relative z-10 max-h-[85%] max-w-[85%] shadow-2xl rounded overflow-hidden">
-            <img id="liveArtworkImg" src="https://images.metmuseum.org/CRDImages/ep/original/DP358045.jpg" alt="Curated Artwork" class="max-h-[340px] w-auto object-contain transition-opacity duration-500">
+            <img id="liveArtworkImg" src="artworks/vermeer-water-pitcher.jpg" alt="Curated Artwork" class="max-h-[340px] w-auto object-contain transition-opacity duration-500">
           </div>
 
           <div id="liveLoadingOverlay" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-3 opacity-0 pointer-events-none transition-opacity duration-300 z-20">
@@ -439,7 +439,7 @@
     </div>
   </section>
 
-  <!-- ── 6. Features Matrix ────────────────────────────────────────────────── -->
+  <!-- -- 6. Features Matrix -------------------------------------------------- -->
   <section id="features" class="relative z-10 py-24 border-t border-gallery-border/60 bg-gallery-obsidian">
     <div class="max-w-6xl mx-auto px-6">
       
@@ -454,7 +454,7 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         
         <div class="p-8 rounded border border-gallery-border/70 bg-gallery-stone/30 hover:border-gallery-gold/40 transition-colors">
-          <div class="text-2xl mb-4">🖼️</div>
+          <div class="text-2xl mb-4">???</div>
           <h3 class="font-display text-lg text-gallery-vellum font-semibold mb-2">Zero Distortion Engine</h3>
           <p class="text-xs text-gallery-dim leading-relaxed font-light">
             Paintings are never stretched, squashed, or forced into arbitrary screen rations. Seamless ambient blur and museum matting fit any screen automatically.
@@ -462,7 +462,7 @@
         </div>
 
         <div class="p-8 rounded border border-gallery-border/70 bg-gallery-stone/30 hover:border-gallery-gold/40 transition-colors">
-          <div class="text-2xl mb-4">⏰</div>
+          <div class="text-2xl mb-4">?</div>
           <h3 class="font-display text-lg text-gallery-vellum font-semibold mb-2">Battery-Conscious Timer</h3>
           <p class="text-xs text-gallery-dim leading-relaxed font-light">
             Sleeps precisely until your chosen rotation hour without constant polling or CPU wakeups. Zero impact on laptop battery life during flights and meetings.
@@ -470,7 +470,7 @@
         </div>
 
         <div class="p-8 rounded border border-gallery-border/70 bg-gallery-stone/30 hover:border-gallery-gold/40 transition-colors">
-          <div class="text-2xl mb-4">💾</div>
+          <div class="text-2xl mb-4">??</div>
           <h3 class="font-display text-lg text-gallery-vellum font-semibold mb-2">20-Slot Offline Cache</h3>
           <p class="text-xs text-gallery-dim leading-relaxed font-light">
             Airplane mode? Spotty coffee shop Wi-Fi? Art Wallpaper retains your 20 favorite recent masterpieces locally with curatorial JSON metadata.
@@ -478,7 +478,7 @@
         </div>
 
         <div class="p-8 rounded border border-gallery-border/70 bg-gallery-stone/30 hover:border-gallery-gold/40 transition-colors">
-          <div class="text-2xl mb-4">🌓</div>
+          <div class="text-2xl mb-4">??</div>
           <h3 class="font-display text-lg text-gallery-vellum font-semibold mb-2">Dynamic Theme Harmony</h3>
           <p class="text-xs text-gallery-dim leading-relaxed font-light">
             Adapts automatically to Windows 11 DWM dark title bars and macOS Dark/Light menu bar appearances with pixel-perfect adaptive monochrome icons.
@@ -486,7 +486,7 @@
         </div>
 
         <div class="p-8 rounded border border-gallery-border/70 bg-gallery-stone/30 hover:border-gallery-gold/40 transition-colors">
-          <div class="text-2xl mb-4">🎯</div>
+          <div class="text-2xl mb-4">??</div>
           <h3 class="font-display text-lg text-gallery-vellum font-semibold mb-2">Discrete System Tray</h3>
           <p class="text-xs text-gallery-dim leading-relaxed font-light">
             Lives in your Windows taskbar notification area or macOS status bar. Single-click instant "Next Wallpaper", Pause, or exhibition gallery review.
@@ -494,7 +494,7 @@
         </div>
 
         <div class="p-8 rounded border border-gallery-border/70 bg-gallery-stone/30 hover:border-gallery-gold/40 transition-colors">
-          <div class="text-2xl mb-4">🛡️</div>
+          <div class="text-2xl mb-4">???</div>
           <h3 class="font-display text-lg text-gallery-vellum font-semibold mb-2">100% Private & Open</h3>
           <p class="text-xs text-gallery-dim leading-relaxed font-light">
             Zero accounts. Zero tracking. Zero telemetry. Verified and sponsored by the SignPath Foundation for open-source software integrity.
@@ -506,7 +506,7 @@
     </div>
   </section>
 
-  <!-- ── 7. Download CTA (The Big Moment) ──────────────────────────────────── -->
+  <!-- -- 7. Download CTA (The Big Moment) ------------------------------------ -->
   <section id="download" class="relative z-10 py-28 border-t border-gallery-border/60 bg-gradient-to-b from-gallery-stone/40 via-gallery-obsidian to-gallery-obsidian">
     <div class="max-w-4xl mx-auto px-6 text-center">
       
@@ -525,14 +525,14 @@
         <a href="https://github.com/Princeyyyy/art-wallpaper/releases/latest" 
            class="group p-6 rounded-lg border border-gallery-border bg-gallery-stone/50 hover:border-gallery-gold/80 hover:bg-gallery-stone transition-all shadow-xl block">
           <div class="flex items-center justify-between mb-4">
-            <span class="text-3xl">🪟</span>
+            <span class="text-3xl">??</span>
             <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-gallery-gold/10 text-gallery-gold border border-gallery-gold/30">MSI Installer</span>
           </div>
           <h3 class="font-display text-lg font-bold text-gallery-vellum group-hover:text-gallery-gold transition-colors">Windows 10 / 11</h3>
-          <p class="text-xs text-gallery-dim mt-1 font-light">64-bit MSI · Per-user install · Auto-start</p>
+          <p class="text-xs text-gallery-dim mt-1 font-light">64-bit MSI � Per-user install � Auto-start</p>
           <div class="mt-6 flex items-center gap-2 text-xs font-semibold text-gallery-gold">
             <span>Download for Windows</span>
-            <span class="group-hover:translate-x-1 transition-transform">→</span>
+            <span class="group-hover:translate-x-1 transition-transform">?</span>
           </div>
         </a>
 
@@ -540,14 +540,14 @@
         <a href="https://github.com/Princeyyyy/art-wallpaper/releases/latest" 
            class="group p-6 rounded-lg border border-gallery-border bg-gallery-stone/50 hover:border-gallery-gold/80 hover:bg-gallery-stone transition-all shadow-xl block">
           <div class="flex items-center justify-between mb-4">
-            <span class="text-3xl">🍏</span>
+            <span class="text-3xl">??</span>
             <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-gallery-gold/10 text-gallery-gold border border-gallery-gold/30">Universal DMG</span>
           </div>
           <h3 class="font-display text-lg font-bold text-gallery-vellum group-hover:text-gallery-gold transition-colors">macOS 12+</h3>
-          <p class="text-xs text-gallery-dim mt-1 font-light">Apple Silicon & Intel · Menu bar accessory</p>
+          <p class="text-xs text-gallery-dim mt-1 font-light">Apple Silicon & Intel � Menu bar accessory</p>
           <div class="mt-6 flex items-center gap-2 text-xs font-semibold text-gallery-gold">
             <span>Download for macOS</span>
-            <span class="group-hover:translate-x-1 transition-transform">→</span>
+            <span class="group-hover:translate-x-1 transition-transform">?</span>
           </div>
         </a>
 
@@ -555,22 +555,22 @@
 
       <div class="text-xs text-gallery-dim/70 flex flex-wrap items-center justify-center gap-6">
         <span>Latest Release: <strong class="text-gallery-vellum">v4.0.3</strong></span>
-        <span>•</span>
+        <span>�</span>
         <a href="https://github.com/Princeyyyy/art-wallpaper" class="hover:text-gallery-gold transition-colors underline">GitHub Repository</a>
-        <span>•</span>
+        <span>�</span>
         <a href="https://github.com/Princeyyyy/art-wallpaper/blob/master/README.md#-privacy-policy" class="hover:text-gallery-gold transition-colors underline">Zero Telemetry Privacy Policy</a>
       </div>
 
     </div>
   </section>
 
-  <!-- ── 8. Footer ────────────────────────────────────────────────────────── -->
+  <!-- -- 8. Footer ---------------------------------------------------------- -->
   <footer class="border-t border-gallery-border/40 py-12 px-6 bg-[#050608] text-xs text-gallery-dim font-light">
     <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
       
       <div class="flex items-center gap-3">
         <img src="assets/logo.svg" alt="Logo" class="w-6 h-6 opacity-75">
-        <span>Art Wallpaper · Maintained by Prince</span>
+        <span>Art Wallpaper � Maintained by Prince</span>
       </div>
 
       <div class="text-center md:text-right space-y-1">
@@ -581,7 +581,7 @@
     </div>
   </footer>
 
-  <!-- ── Interactive Scripts ──────────────────────────────────────────────── -->
+  <!-- -- Interactive Scripts ------------------------------------------------ -->
   <script>
     // 1. Mouse Spotlight tracking
     const spotlight = document.getElementById('spotlight');
@@ -596,35 +596,35 @@
     const exhibitionPieces = [
       {
         artist: "Vincent van Gogh",
-        bio: "Dutch, Zundert 1853–1890 Auvers-sur-Oise",
+        bio: "Dutch, Zundert 1853�1890 Auvers-sur-Oise",
         title: "Wheat Field with Cypresses",
-        date: "1889 · Oil on canvas",
-        desc: '"Cypresses are always occupying my thoughts... It is a splash of black in a sunny landscape." Painted while at Saint-Paul asylum in Saint-Rémy.',
-        img: "https://images.metmuseum.org/CRDImages/ep/original/DP-14286-079.jpg"
+        date: "1889 � Oil on canvas",
+        desc: '"Cypresses are always occupying my thoughts... It is a splash of black in a sunny landscape." Painted while at Saint-Paul asylum in Saint-R�my.',
+        img: "artworks/wheat-field.jpg"
       },
       {
         artist: "Claude Monet",
-        bio: "French, Paris 1840–1926 Giverny",
+        bio: "French, Paris 1840�1926 Giverny",
         title: "The Water Lily Pond",
-        date: "1899 · Oil on canvas",
+        date: "1899 � Oil on canvas",
         desc: "In 1893, Monet bought water-rich land next to his Giverny estate. There he designed the water-garden and Japanese footbridge that inspired this iconic series.",
-        img: "https://images.metmuseum.org/CRDImages/ep/original/DP358045.jpg"
+        img: "artworks/vermeer-water-pitcher.jpg"
       },
       {
         artist: "Rembrandt van Rijn",
-        bio: "Dutch, Leiden 1606–1669 Amsterdam",
+        bio: "Dutch, Leiden 1606�1669 Amsterdam",
         title: "Aristotle with a Bust of Homer",
-        date: "1653 · Oil on canvas",
+        date: "1653 � Oil on canvas",
         desc: "The philosopher Aristotle contemplates a sculpted bust of the blind poet Homer, wearing an opulent gold chain commissioned by Sicilian nobleman Antonio Ruffo.",
-        img: "https://images.metmuseum.org/CRDImages/ep/original/DP145914.jpg"
+        img: "artworks/rembrandt-self-portrait.jpg"
       },
       {
         artist: "Katsushika Hokusai",
-        bio: "Japanese, Tokyo 1760–1849 Tokyo",
+        bio: "Japanese, Tokyo 1760�1849 Tokyo",
         title: "Under the Wave off Kanagawa (The Great Wave)",
-        date: "ca. 1830–32 · Polychrome woodblock print",
+        date: "ca. 1830�32 � Polychrome woodblock print",
         desc: "A towering cresting wave frames Mount Fuji in the background while fishermen in skiffs brace against the colossal force of the sea.",
-        img: "https://images.metmuseum.org/CRDImages/as/original/DP130155.jpg"
+        img: "artworks/cypresses.jpg"
       }
     ];
 
@@ -710,14 +710,14 @@
           const imgUrl = data.primaryImageSmall || data.primaryImage;
           document.getElementById('liveArtworkImg').src = imgUrl;
           document.getElementById('liveBlurBg').style.backgroundImage = `url('${imgUrl}')`;
-          document.getElementById('liveArtMeta').innerHTML = `${data.artistDisplayName || 'Unknown Artist'} — <span class="italic text-gallery-gold">${data.title || 'Untitled'} (${data.objectDate || 'Unknown Date'})</span>`;
+          document.getElementById('liveArtMeta').innerHTML = `${data.artistDisplayName || 'Unknown Artist'} � <span class="italic text-gallery-gold">${data.title || 'Untitled'} (${data.objectDate || 'Unknown Date'})</span>`;
         }
       } catch (err) {
         console.warn("Could not query live API, rotating local gem", err);
         const fallback = exhibitionPieces[poolIndex % exhibitionPieces.length];
         document.getElementById('liveArtworkImg').src = fallback.img;
         document.getElementById('liveBlurBg').style.backgroundImage = `url('${fallback.img}')`;
-        document.getElementById('liveArtMeta').innerHTML = `${fallback.artist} — <span class="italic text-gallery-gold">${fallback.title}</span>`;
+        document.getElementById('liveArtMeta').innerHTML = `${fallback.artist} � <span class="italic text-gallery-gold">${fallback.title}</span>`;
       } finally {
         spinner.classList.add('hidden');
         btnText.innerText = "Curate Next Artwork";
@@ -740,12 +740,12 @@
         audioCtx.resume();
         startAmbientDrone(audioCtx);
         isPlaying = true;
-        audioIcon.innerText = "🔊";
+        audioIcon.innerText = "??";
         audioToggle.classList.add('border-gallery-gold', 'text-gallery-gold');
       } else {
         audioCtx.suspend();
         isPlaying = false;
-        audioIcon.innerText = "🔇";
+        audioIcon.innerText = "??";
         audioToggle.classList.remove('border-gallery-gold', 'text-gallery-gold');
       }
     });

@@ -16,7 +16,7 @@
 <p align="center">
   <a href="#-features"><img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011%20%7C%20macOS-0078D6?logo=windows&logoColor=white" alt="Platform" /></a>
   <a href="#-features"><img src="https://img.shields.io/badge/UI-Compose%20Desktop-4285F4?logo=jetpackcompose&logoColor=white" alt="Compose Desktop" /></a>
-  <a href="#-features"><img src="https://img.shields.io/badge/Language-Kotlin%201.9-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin" /></a>
+  <a href="#-features"><img src="https://img.shields.io/badge/Language-Kotlin%202.1-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin" /></a>
   <a href="https://github.com/Princeyyyy/art-wallpaper/releases"><img src="https://img.shields.io/badge/Release-v4.0.0-C8A97E" alt="Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey" alt="License" /></a>
   <a href="https://signpath.org"><img src="https://img.shields.io/badge/Code_Signing-SignPath.io-blue?logo=windows" alt="SignPath Code Signing" /></a>

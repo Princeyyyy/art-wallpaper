@@ -5,97 +5,136 @@
 @layer base {
   body {
     background-color: #060709;
-    color: #F5EFE6;
+    color: #EFE9DF;
     overflow-x: hidden;
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    letter-spacing: -0.01em;
   }
 
   ::selection {
-    background-color: #C8A97E;
+    background-color: #C29F6C;
     color: #060709;
   }
 }
 
-/* Atmospheric Museum Spotlight that tracks the visitor */
+/* ── Velvet Drapery Folds ───────────────────────────────────────────────── */
+.velvet-curtain {
+  background: 
+    linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 15%, rgba(0,0,0,0.6) 100%),
+    repeating-linear-gradient(
+      90deg,
+      #120c0e 0px,
+      #2b1216 12px,
+      #421a20 25px,
+      #1a0c0e 38px,
+      #0a0506 50px
+    );
+  box-shadow: 
+    inset 0 10px 30px rgba(0,0,0,0.9),
+    0 15px 40px rgba(0,0,0,0.85);
+  position: relative;
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.curtain-rod {
+  height: 14px;
+  background: linear-gradient(to bottom, #d4af37 0%, #aa820a 50%, #4a3600 100%);
+  border-radius: 7px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.8);
+  position: relative;
+  z-index: 30;
+}
+
+.curtain-tassel {
+  background: linear-gradient(135deg, #d4af37 0%, #8c6d1f 100%);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+}
+
+/* ── Classical Architectural Mantlepiece ────────────────────────────────── */
+.mantlepiece-shelf {
+  background: linear-gradient(to bottom, #242220 0%, #151413 60%, #0e0d0c 100%);
+  border-top: 2px solid rgba(212, 175, 55, 0.25);
+  box-shadow: 
+    0 -5px 15px rgba(0,0,0,0.5),
+    0 25px 50px -10px rgba(0,0,0,0.95),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  position: relative;
+}
+
+.mantlepiece-corbel {
+  background: linear-gradient(135deg, #1d1b19 0%, #0d0c0b 100%);
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+}
+
+/* ── Gilded Baroque Picture Frame ───────────────────────────────────────── */
+.gilded-frame {
+  position: relative;
+  background: linear-gradient(135deg, #221c16 0%, #110e0b 100%);
+  padding: 24px;
+  box-shadow: 
+    0 45px 110px -20px rgba(0, 0, 0, 0.98),
+    0 20px 45px -10px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(212, 175, 55, 0.5),
+    inset 0 0 0 6px #0c0a08,
+    inset 0 0 0 8px rgba(180, 140, 70, 0.4),
+    inset 0 0 0 16px #161310,
+    inset 0 0 0 17px rgba(212, 175, 55, 0.25);
+  border-radius: 2px;
+}
+
+.canvas-recess {
+  position: relative;
+  box-shadow: 
+    inset 0 4px 25px rgba(0, 0, 0, 0.85),
+    inset 0 0 50px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Ceiling Track Light Cone ───────────────────────────────────────────── */
+.gallery-spotlight-cone {
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 950px;
+  height: 650px;
+  background: radial-gradient(
+    ellipse 550px 320px at 50% 0%,
+    rgba(255, 230, 180, 0.16) 0%,
+    rgba(255, 210, 150, 0.05) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  filter: blur(24px);
+}
+
+/* ── Subtle Ambient Cursor Spotlight ────────────────────────────────────── */
 .gallery-spotlight {
   pointer-events: none;
   position: fixed;
   inset: 0;
   background: radial-gradient(
-    circle 700px at var(--mouse-x, 50%) var(--mouse-y, 35%),
-    rgba(200, 169, 126, 0.07) 0%,
-    transparent 80%
+    circle 800px at var(--mouse-x, 50%) var(--mouse-y, 35%),
+    rgba(218, 178, 126, 0.07) 0%,
+    rgba(218, 178, 126, 0.02) 40%,
+    transparent 75%
   );
-  z-index: 1;
-  transition: background 0.15s ease-out;
+  z-index: 2;
+  transition: background 0.1s ease-out;
 }
 
-/* Ornate Gilded Museum Picture Frame */
-.museum-frame {
-  position: relative;
-  background: #101217;
-  padding: 18px;
-  box-shadow: 
-    0 35px 80px -15px rgba(0, 0, 0, 0.95),
-    0 15px 35px rgba(0, 0, 0, 0.85),
-    inset 0 0 0 1px rgba(200, 169, 126, 0.45),
-    inset 0 0 0 5px #0a0b0f,
-    inset 0 0 0 7px rgba(200, 169, 126, 0.25);
-  border-radius: 4px;
-}
-
-.museum-canvas {
-  position: relative;
-  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.6);
-  overflow: hidden;
-}
-
-/* Authentic Brass Museum Placard */
-.museum-placard {
-  background: #0D0F14;
-  border: 1px solid rgba(200, 169, 126, 0.3);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  position: relative;
-}
-.museum-placard::before {
-  content: '';
-  position: absolute;
-  top: 7px;
-  left: 7px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #C8A97E;
-  opacity: 0.6;
-}
-.museum-placard::after {
-  content: '';
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #C8A97E;
-  opacity: 0.6;
-}
-
-/* Ambient Blur Matting Effect */
-.ambient-blur-container {
-  position: relative;
-  overflow: hidden;
-  background: #000;
-}
+/* ── Ambient Blur Matting Effect ─────────────────────────────────────────── */
 .ambient-blur-bg {
   position: absolute;
   inset: -25%;
-  filter: blur(50px) brightness(0.6) saturate(1.25);
+  filter: blur(55px) brightness(0.65) saturate(1.3);
   transform: scale(1.15);
   background-size: cover;
   background-position: center;
 }
 
-/* Subtle Film Grain */
+/* ── Subtle Film Grain Texture ───────────────────────────────────────────── */
 .film-grain {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
 }
