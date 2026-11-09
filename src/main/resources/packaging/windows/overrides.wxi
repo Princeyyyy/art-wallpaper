@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ArtWallpaper WiX Overrides for jpackage MSI generation.
+  Enables seamless in-place upgrades and re-installations, preventing
+  the Windows Installer error: "Another version of this product is already installed."
+-->
+<Include>
+  <?define JpAllowUpgrades = "yes" ?>
+  <?define JpAllowDowngrades = "yes" ?>
+</Include>

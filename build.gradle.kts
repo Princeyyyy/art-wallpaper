@@ -18,7 +18,7 @@ fun normalizeVersion(raw: String): String {
 }
 
 // Single source of truth for build versioning (from gradle.properties or -PappVersion)
-val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.0.2"
+val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.0.3"
 val appVersion: String = normalizeVersion(rawVersion)
 val appGroup: String = project.findProperty("appGroup")?.toString() ?: "com.prince.artwallpaper"
 
@@ -77,6 +77,7 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg)
             packageName = "Art Wallpaper"
             packageVersion = appVersion
+            appResourcesRootDir.set(project.file("src/main/resources/packaging"))
 
             // Optimized JRE bundling: only bundle required modules to shrink distribution size
             modules(
@@ -128,8 +129,6 @@ compose.desktop {
                 perUserInstall = true
                 shortcut = true
 
-                // Set specific installation path
-                installationPath = "C:\\Users\\%USERNAME%\\AppData\\Local\\Art Wallpaper"
 
                 // Add startup parameters
                 jvmArgs += listOf("-Dfile.encoding=UTF-8")

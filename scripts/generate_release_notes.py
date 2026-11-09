@@ -61,7 +61,7 @@ def get_version():
                     return line.strip().split("=")[1].strip()
     except Exception:
         pass
-    return "4.0.2"
+    return "4.0.3"
 
 def generate_with_gemini(api_key, version, prev_tag, commits):
     models = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-flash-latest"]
