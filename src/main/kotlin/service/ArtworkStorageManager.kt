@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory
 
 class ArtworkStorageManager(
     baseDir: Path = Path.of(System.getProperty("user.home"), ".artwallpaper"),
-    private val maxStoredArtworks: Int = 100  // Keep last 100 artworks
+    private val maxStoredArtworks: Int = 20  // Lean cache: keep last 20 artworks to save disk space
 ) {
     private val artworksDir = baseDir.resolve("artworks")
     private val metadataDir = baseDir.resolve("metadata")
@@ -30,7 +30,8 @@ class ArtworkStorageManager(
         metadataDir.resolve("${metadata.id}.json")
             .writeText(Json.encodeToString(metadata))
         
-        cachedArtworks = null // Invalidate cache
+        cachedArtworks = null
+        cleanup()
         return targetPath
     }
 

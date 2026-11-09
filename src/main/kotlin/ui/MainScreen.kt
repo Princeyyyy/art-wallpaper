@@ -30,6 +30,7 @@ import java.nio.file.Path
 import org.slf4j.LoggerFactory
 import service.ServiceController
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import kotlin.io.path.exists
 
 @OptIn(ExperimentalAnimationApi::class)
@@ -47,6 +48,13 @@ fun MainScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+
+    val updateManager = remember { service.UpdateManager() }
+    val updateStatus by updateManager.status.collectAsState()
+
+    LaunchedEffect(Unit) {
+        updateManager.checkForUpdates(silent = true)
+    }
 
     AnimatedContent(
         targetState = isFirstRun,
@@ -106,11 +114,37 @@ fun MainScreen(
                             }
                         }
 
-                        // Right Action Controls: Quick Theme Toggle, Fit Mode Badge, Settings
+                        // Right Action Controls: Update Badge, Quick Theme Toggle, Fit Mode Badge, Settings
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            // Update Available Pill
+                            if (updateStatus is service.UpdateStatus.Available) {
+                                val latestVer = (updateStatus as service.UpdateStatus.Available).latestVersion
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = ArtColors.GalleryGold.copy(alpha = 0.18f),
+                                    border = BorderStroke(1.dp, ArtColors.GalleryGold),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .clickable { showSettings = true }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text("★", color = ArtColors.GalleryGold, fontSize = 10.sp)
+                                        Text(
+                                            "v$latestVer Ready",
+                                            style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Bold),
+                                            color = ArtColors.GalleryGold
+                                        )
+                                    }
+                                }
+                            }
+
                             // Quick Theme Switcher
                             val nextTheme = when (currentSettings.themeMode) {
                                 AppTheme.SYSTEM -> AppTheme.LIGHT
@@ -459,20 +493,20 @@ fun MainScreen(
                                             try {
                                                 serviceController.nextWallpaper()
 
-                                                withTimeout(35_000L) {
-                                                    serviceController.wallpaperManager.currentArtwork.collect { next ->
-                                                        if (next != null && next.second.title != previousTitle && next.first.exists()) {
-                                                            cancel()
-                                                        }
+                                                withTimeout(45_000L) {
+                                                    serviceController.wallpaperManager.currentArtwork.first { next ->
+                                                        next != null && next.second.title != previousTitle && next.first.exists()
                                                     }
                                                 }
+                                            } catch (e: TimeoutCancellationException) {
+                                                withContext(Dispatchers.Main) {
+                                                    errorMessage = "Network timed out. Please retry."
+                                                }
+                                            } catch (e: CancellationException) {
+                                                // Normal coroutine cancellation
                                             } catch (e: Exception) {
                                                 withContext(Dispatchers.Main) {
-                                                    errorMessage = when (e) {
-                                                        is TimeoutCancellationException -> "Network timed out. Please retry."
-                                                        is CancellationException -> null
-                                                        else -> "Failed to curate artwork: ${e.message}"
-                                                    }
+                                                    errorMessage = "Failed to curate artwork: ${e.message}"
                                                 }
                                             } finally {
                                                 withContext(Dispatchers.Main) {
@@ -522,6 +556,7 @@ fun MainScreen(
                 SettingsDialog(
                     settings = currentSettings,
                     serviceController = serviceController,
+                    updateManager = updateManager,
                     onSettingsChange = { newSettings ->
                         Settings.updateCurrentSettings(newSettings)
                         onSettingsChange(newSettings)
@@ -660,36 +695,37 @@ fun GuidedOnboarding(
                                         serviceController.nextWallpaper()
 
                                         curationStage = "Enhancing and applying to desktop..."
-                                        withTimeout(30_000L) {
-                                            serviceController.wallpaperManager.currentArtwork.collect { art ->
-                                                if (art != null && art.first.exists()) {
-                                                    curationStage = "Masterpiece applied successfully!"
-                                                    val finalSettings = settings.copy(
-                                                        isFirstRun = false,
-                                                        updateTimeHour = selectedHour,
-                                                        updateTimeMinute = selectedMinute,
-                                                        hasSetUpdateTime = true,
-                                                        startWithSystem = autoStartEnabled,
-                                                        hasEnabledAutoStart = autoStartEnabled,
-                                                        notificationsEnabled = notificationsEnabled
-                                                    )
-                                                    withContext(Dispatchers.Main) {
-                                                        Settings.updateCurrentSettings(finalSettings)
-                                                        onSettingsChange(finalSettings)
-                                                    }
-                                                    serviceController.startService()
-                                                    cancel()
-                                                }
+                                        withTimeout(45_000L) {
+                                            serviceController.wallpaperManager.currentArtwork.first { art ->
+                                                art != null && art.first.exists()
                                             }
                                         }
+
+                                        curationStage = "Masterpiece applied successfully!"
+                                        val finalSettings = settings.copy(
+                                            isFirstRun = false,
+                                            updateTimeHour = selectedHour,
+                                            updateTimeMinute = selectedMinute,
+                                            hasSetUpdateTime = true,
+                                            startWithSystem = autoStartEnabled,
+                                            hasEnabledAutoStart = autoStartEnabled,
+                                            notificationsEnabled = notificationsEnabled
+                                        )
+                                        withContext(Dispatchers.Main) {
+                                            Settings.updateCurrentSettings(finalSettings)
+                                            onSettingsChange(finalSettings)
+                                        }
+                                        serviceController.startService()
+                                    } catch (e: TimeoutCancellationException) {
+                                        withContext(Dispatchers.Main) {
+                                            onError("Network took longer than usual. Please retry.")
+                                            isCurating = false
+                                        }
+                                    } catch (e: CancellationException) {
+                                        // Normal coroutine completion
                                     } catch (e: Exception) {
                                         withContext(Dispatchers.Main) {
-                                            onError(
-                                                when (e) {
-                                                    is TimeoutCancellationException -> "Network timed out while fetching artwork."
-                                                    else -> "Setup note: ${e.message}"
-                                                }
-                                            )
+                                            onError("Setup note: ${e.message}")
                                             isCurating = false
                                         }
                                     }

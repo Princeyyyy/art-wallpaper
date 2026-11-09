@@ -5,10 +5,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 4.1.0) — must be valid 3-part semver'
+        description: 'Release version (e.g. 4.0.2) — must be valid 3-part semver'
         required: true
         type: string
-        default: '4.0.0'
+        default: '4.0.2'
       release_notes:
         description: 'Release notes (supports markdown)'
         required: false
@@ -261,7 +261,8 @@ jobs:
       - name: List release binaries
         run: ls -lh release-artifacts/
 
-      - name: Commit version bump & tag
+      - name: Generate Changelog & Release Description
+        id: release_notes
         run: |
           RAW="${{ inputs.version }}"
           RAW="${RAW#v}"
@@ -271,6 +272,44 @@ jobs:
           MINOR="${PARTS[1]:-0}"
           PATCH="${PARTS[2]:-0}"
           V="$MAJOR.$MINOR.$PATCH"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+          PREV_TAG=$(git describe --tags --abbrev=0 "HEAD^" 2>/dev/null || echo "")
+
+          cat << EOF > release_body.md
+          ## What's New in ArtWallpaper v$V
+
+          EOF
+
+          CUSTOM_NOTES="${{ inputs.release_notes }}"
+          if [ -n "$CUSTOM_NOTES" ] && [ "$CUSTOM_NOTES" != "ArtWallpaper — Cross-platform Windows & macOS release." ]; then
+            echo "$CUSTOM_NOTES" >> release_body.md
+            echo "" >> release_body.md
+          else
+            cat << 'EOF' >> release_body.md
+          * **True Screen Fit Engine**: Laptop wallpaper generation with ambient blur matting and bottom taskbar clearance. Eliminates stretching on all 16:9, 16:10, and 3:2 displays.
+          * **In-App Auto Updater**: Silent background updates and one-click upgrades without manual web downloads.
+          * **Dynamic Windows Theming**: Full synchronization with Windows light and dark themes (Daytime Museum & Evening Obsidian).
+          * **Lean Storage Optimization**: Lean 20-slot offline cache and stripped JDK packaging.
+          EOF
+            echo "" >> release_body.md
+          fi
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "### Commits since $PREV_TAG" >> release_body.md
+            git log "$PREV_TAG..HEAD" --pretty=format:"* %s (%h)" --no-merges >> release_body.md
+            echo "" >> release_body.md
+          fi
+
+          cat << EOF >> release_body.md
+          ### Installation
+          * **Windows**: Download \`ArtWallpaper-$V-Windows.msi\` and run the installer.
+          * **macOS**: Download \`ArtWallpaper-$V-macOS.dmg\`, open it, and drag to Applications.
+          EOF
+
+      - name: Commit version bump & tag
+        run: |
+          V="${{ steps.release_notes.outputs.version }}"
           sed -i "s/^appVersion=.*/appVersion=$V/" gradle.properties
           sed -i "s/^version=.*/version=$V/" src/main/resources/version.properties
           git config user.name "github-actions[bot]"
@@ -283,9 +322,10 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.version }}
-          name: ArtWallpaper v${{ inputs.version }}
-          body: ${{ inputs.release_notes }}
+          tag_name: v${{ steps.release_notes.outputs.version }}
+          name: ArtWallpaper v${{ steps.release_notes.outputs.version }}
+          body_path: release_body.md
+          generate_release_notes: true
           files: release-artifacts/*
           prerelease: ${{ inputs.prerelease }}
         env:

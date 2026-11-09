@@ -131,18 +131,18 @@ class ImageProcessor(
             g2d.drawImage(blurredThumb, 0, 0, targetW, targetH, null)
             blurredThumb.flush()
 
-            // Dim background (38% darkening) for icon contrast and visual depth
-            g2d.color = Color(0, 0, 0, 95)
+            // Dim background for icon contrast and visual depth without muddying pastel colors
+            g2d.color = Color(0, 0, 0, 55)
             g2d.fillRect(0, 0, targetW, targetH)
 
-            // Soft radial vignette
+            // Soft radial vignette around perimeter
             val maxDim = maxOf(targetW, targetH).toFloat()
             val vignette = RadialGradientPaint(
                 targetW / 2f,
                 targetH / 2f,
-                maxDim * 0.72f,
-                floatArrayOf(0.0f, 0.65f, 1.0f),
-                arrayOf(Color(0, 0, 0, 0), Color(0, 0, 0, 30), Color(0, 0, 0, 110))
+                maxDim * 0.75f,
+                floatArrayOf(0.0f, 0.60f, 1.0f),
+                arrayOf(Color(0, 0, 0, 0), Color(0, 0, 0, 25), Color(0, 0, 0, 95))
             )
             g2d.paint = vignette
             g2d.fillRect(0, 0, targetW, targetH)
@@ -161,14 +161,17 @@ class ImageProcessor(
                 val dy = (targetH - dh) / 2
                 g2d.drawImage(original, dx, dy, dw, dh, null)
             } else {
-                // Portrait, square, or vertical painting: fit within generous margins
-                val maxArtW = (targetW * 0.88).toInt()
-                val maxArtH = (targetH * 0.90).toInt()
+                // Taskbar / Dock clearance: account for bottom taskbar so art is centered in the visible workspace
+                val taskbarReserve = (targetH * 0.058).toInt().coerceIn(52, 90)
+                val usableH = targetH - taskbarReserve
+
+                val maxArtW = (targetW * 0.86).toInt()
+                val maxArtH = (usableH * 0.86).toInt()
                 val scale = minOf(maxArtW.toDouble() / original.width, maxArtH.toDouble() / original.height)
                 val artW = maxOf((original.width * scale).toInt(), 100)
                 val artH = maxOf((original.height * scale).toInt(), 100)
                 val artX = (targetW - artW) / 2
-                val artY = (targetH - artH) / 2
+                val artY = (usableH - artH) / 2 // Centered visually above taskbar
 
                 // Refined multi-layer gallery drop shadow
                 for (i in 5 downTo 1) {
@@ -230,13 +233,16 @@ class ImageProcessor(
             g2d.color = Color(0x13, 0x13, 0x16)
             g2d.fillRect(0, 0, targetW, targetH)
 
-            val maxArtW = (targetW * 0.86).toInt()
-            val maxArtH = (targetH * 0.88).toInt()
+            val taskbarReserve = (targetH * 0.058).toInt().coerceIn(52, 90)
+            val usableH = targetH - taskbarReserve
+
+            val maxArtW = (targetW * 0.84).toInt()
+            val maxArtH = (usableH * 0.86).toInt()
             val scale = minOf(maxArtW.toDouble() / original.width, maxArtH.toDouble() / original.height)
             val artW = maxOf((original.width * scale).toInt(), 100)
             val artH = maxOf((original.height * scale).toInt(), 100)
             val artX = (targetW - artW) / 2
-            val artY = (targetH - artH) / 2
+            val artY = (usableH - artH) / 2
 
             // Gallery drop shadow
             for (i in 5 downTo 1) {
@@ -268,11 +274,13 @@ class ImageProcessor(
             g2d.color = Color(0x0A, 0x0A, 0x0C)
             g2d.fillRect(0, 0, targetW, targetH)
 
-            val scale = minOf(targetW.toDouble() / original.width, targetH.toDouble() / original.height)
+            val taskbarReserve = (targetH * 0.058).toInt().coerceIn(52, 90)
+            val usableH = targetH - taskbarReserve
+            val scale = minOf(targetW.toDouble() / original.width, usableH.toDouble() / original.height)
             val artW = maxOf((original.width * scale).toInt(), 100)
             val artH = maxOf((original.height * scale).toInt(), 100)
             val artX = (targetW - artW) / 2
-            val artY = (targetH - artH) / 2
+            val artY = (usableH - artH) / 2
             g2d.drawImage(original, artX, artY, artW, artH, null)
         } finally {
             g2d.dispose()

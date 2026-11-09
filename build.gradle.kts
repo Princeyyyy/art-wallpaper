@@ -18,7 +18,7 @@ fun normalizeVersion(raw: String): String {
 }
 
 // Single source of truth for build versioning (from gradle.properties or -PappVersion)
-val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.0.0"
+val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.0.2"
 val appVersion: String = normalizeVersion(rawVersion)
 val appGroup: String = project.findProperty("appGroup")?.toString() ?: "com.prince.artwallpaper"
 
@@ -78,16 +78,24 @@ compose.desktop {
             packageName = "Art Wallpaper"
             packageVersion = appVersion
 
-            // Bundle JDK with the application
-            includeAllModules = true
+            // Optimized JRE bundling: only bundle required modules to shrink distribution size
+            modules(
+                "java.base",
+                "java.desktop",
+                "java.net.http",
+                "java.prefs",
+                "java.naming",
+                "java.sql",
+                "java.instrument",
+                "java.management",
+                "jdk.unsupported"
+            )
 
             // Add JDK bundling configuration
             jvmArgs += listOf(
                 "--add-opens", "java.desktop/sun.awt=ALL-UNNAMED",
                 "--add-opens", "java.desktop/java.awt.event=ALL-UNNAMED"
             )
-
-            modules("java.instrument", "java.management", "java.naming", "java.sql")
 
             macOS {
                 bundleID = appGroup

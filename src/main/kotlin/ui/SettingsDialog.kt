@@ -29,6 +29,7 @@ fun SettingsDialog(
     settings: Settings,
     onSettingsChange: (Settings) -> Unit,
     serviceController: ServiceController? = null,
+    updateManager: service.UpdateManager = remember { service.UpdateManager() },
     onDismiss: () -> Unit
 ) {
     var isAutoStartEnabled by remember { mutableStateOf(WindowsAutoStart.isEnabled()) }
@@ -264,6 +265,112 @@ fun SettingsDialog(
                                 isNotificationsEnabled = enabled
                             }
                         )
+                    }
+
+                    Divider(color = ArtColors.DividerLine)
+
+                    // ── Section 5: In-App Updates ─────────────────────────────────
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SettingsSectionLabel("SOFTWARE UPDATES")
+
+                        val updateStatus by updateManager.status.collectAsState()
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            backgroundColor = ArtColors.SurfaceVariant,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, ArtColors.CardBorder)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(
+                                            "Version: v${AppInfo.version}",
+                                            style = MaterialTheme.typography.subtitle2,
+                                            color = ArtColors.PaperWhite
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            when (val s = updateStatus) {
+                                                is service.UpdateStatus.Idle -> "Silent in-app updater active"
+                                                is service.UpdateStatus.Checking -> "Checking GitHub releases..."
+                                                is service.UpdateStatus.UpToDate -> "You are on the latest release"
+                                                is service.UpdateStatus.Available -> "New version v${s.latestVersion} is ready to install!"
+                                                is service.UpdateStatus.Downloading -> "Downloading installer (${(s.progress * 100).toInt()}%)..."
+                                                is service.UpdateStatus.ReadyToInstall -> "Launching installer..."
+                                                is service.UpdateStatus.Error -> "Status: ${s.message}"
+                                            },
+                                            style = MaterialTheme.typography.caption,
+                                            color = if (updateStatus is service.UpdateStatus.Available) ArtColors.GalleryGold else ArtColors.PaperMuted
+                                        )
+                                    }
+
+                                    when (val s = updateStatus) {
+                                        is service.UpdateStatus.Available -> {
+                                            PulsingButton(
+                                                onClick = {
+                                                    s.asset?.let { asset ->
+                                                        coroutineScope.launch {
+                                                            updateManager.downloadAndInstall(asset)
+                                                        }
+                                                    }
+                                                }
+                                            ) {
+                                                Text("INSTALL", style = MaterialTheme.typography.button)
+                                            }
+                                        }
+                                        is service.UpdateStatus.Downloading -> {
+                                            CircularProgressIndicator(
+                                                color = ArtColors.GalleryGold,
+                                                modifier = Modifier.size(24.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
+                                        is service.UpdateStatus.Checking -> {
+                                            CircularProgressIndicator(
+                                                color = ArtColors.GalleryGold,
+                                                modifier = Modifier.size(24.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
+                                        else -> {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        updateManager.checkForUpdates(silent = false)
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    backgroundColor = Color.Transparent,
+                                                    contentColor = ArtColors.GalleryGold
+                                                ),
+                                                border = BorderStroke(1.dp, ArtColors.GalleryGold.copy(alpha = 0.5f)),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text("CHECK", style = MaterialTheme.typography.button)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (updateStatus is service.UpdateStatus.Downloading) {
+                                    val progress = (updateStatus as service.UpdateStatus.Downloading).progress
+                                    LinearProgressIndicator(
+                                        progress = progress,
+                                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                                        color = ArtColors.GalleryGold,
+                                        backgroundColor = ArtColors.DividerLine
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     Divider(color = ArtColors.DividerLine)
