@@ -35,7 +35,7 @@ class WallpaperManager(
     private val artworkStorage: ArtworkStorageManager,
     private val historyManager: HistoryManager,
     private val connectivityChecker: ConnectivityChecker = ConnectivityChecker(),
-    private val settings: Settings
+    private var settings: Settings
 ) {
     private val logger = LoggerFactory.getLogger(WallpaperManager::class.java)
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -46,6 +46,13 @@ class WallpaperManager(
     private var lastScheduledUpdateTime: Long = 0
     private val _currentArtwork = MutableStateFlow<Pair<Path, ArtworkMetadata>?>(null)
     val currentArtwork: StateFlow<Pair<Path, ArtworkMetadata>?> = _currentArtwork.asStateFlow()
+
+    private val currentActiveSettings: Settings
+        get() = Settings.currentSettings.value.takeIf { !it.isFirstRun || settings.isFirstRun } ?: settings
+
+    fun updateSettings(newSettings: Settings) {
+        this.settings = newSettings
+    }
 
     // FIX #2: Replace raw Java Object monitor + boolean flag with a coroutine Mutex.
     // Using synchronized() inside a suspend function blocks a dispatcher thread and
@@ -76,22 +83,67 @@ class WallpaperManager(
 
                 val storedPath = artworkStorage.getArtworkPath(savedState.metadata.id)
                 if (storedPath != null && storedPath.exists()) {
-                    setCurrentArtwork(storedPath, savedState.metadata)
+                    _currentArtwork.value = storedPath to savedState.metadata
                     lastSuccessfulArtwork = storedPath to savedState.metadata
                 }
             }
         } catch (e: Exception) {
             logger.error("Failed to load wallpaper state", e)
         }
-        // FIX #4: Removed duplicate loadSavedState() â€” logic is fully inlined above.
+        // FIX #4: Removed duplicate loadSavedState() — logic is fully inlined above.
     }
 
     suspend fun checkAndUpdateIfNeeded() {
-        val state = loadState()
         val now = System.currentTimeMillis()
 
-        if (state == null || shouldUpdate(state.lastUpdateTime)) {
-            logger.info("Update needed - last update was too long ago or no state found")
+        // Guard 1: If current artwork is already active and was updated in the last hour, preserve it
+        if (_currentArtwork.value != null && lastUpdateTime > 0 && (now - lastUpdateTime) < Duration.ofHours(1).toMillis()) {
+            logger.info("No update needed - current artwork was updated recently (${(now - lastUpdateTime) / 1000}s ago)")
+            return
+        }
+
+        val state = loadState()
+
+        if (state == null) {
+            // If we already have an artwork in memory, save it rather than replacing it
+            val active = _currentArtwork.value
+            if (active != null) {
+                val stamp = if (lastUpdateTime > 0) lastUpdateTime else now
+                val schedStamp = if (lastScheduledUpdateTime > 0) lastScheduledUpdateTime else now
+                saveState(active.second, stamp, schedStamp)
+                logger.info("Persisted active artwork state; skipping update")
+                return
+            }
+
+            // Truly no state and no active artwork
+            val activeSettings = currentActiveSettings
+            if (!activeSettings.isFirstRun) {
+                logger.info("Update needed - last update was too long ago or no state found")
+                updateWallpaper()
+            } else {
+                logger.info("First run active - awaiting onboarding curation")
+            }
+            return
+        }
+
+        // State exists — restore if memory is empty
+        if (_currentArtwork.value == null) {
+            val storedPath = artworkStorage.getArtworkPath(state.metadata.id)
+            if (storedPath != null && storedPath.exists()) {
+                _currentArtwork.value = storedPath to state.metadata
+                lastSuccessfulArtwork = storedPath to state.metadata
+                lastUpdateTime = state.lastUpdateTime
+                lastScheduledUpdateTime = state.lastScheduledUpdateTime
+            }
+        }
+
+        if (shouldUpdate(state.lastUpdateTime)) {
+            // Guard: Never overwrite a wallpaper updated within the last hour
+            if (lastUpdateTime > 0 && (now - lastUpdateTime) < Duration.ofHours(1).toMillis()) {
+                logger.info("Skipping update - wallpaper was updated within the last hour")
+                return
+            }
+            logger.info("Update needed - last update was too long ago")
             updateWallpaper()
         } else {
             logger.info(
@@ -102,16 +154,18 @@ class WallpaperManager(
     }
 
     private fun shouldUpdate(lastUpdateTime: Long): Boolean {
+        if (lastUpdateTime <= 0) return true
         val now = System.currentTimeMillis()
         val hoursSinceLastUpdate = Duration.ofMillis(now - lastUpdateTime).toHours()
-        return hoursSinceLastUpdate >= settings.updateInterval.toHours()
+        return hoursSinceLastUpdate >= currentActiveSettings.updateInterval.toHours()
     }
 
     private fun calculateNextUpdateTime(): LocalDateTime {
         val now = LocalDateTime.now()
-        val nextUpdate = now.plus(settings.updateInterval)
+        val activeSettings = currentActiveSettings
+        val nextUpdate = now.plus(activeSettings.updateInterval)
 
-        return settings.preferredHours.let { hours ->
+        return activeSettings.preferredHours.let { hours ->
             val todayPreferred = LocalDateTime.of(now.toLocalDate(), LocalTime.of(hours, 0))
             if (now.isBefore(todayPreferred)) {
                 todayPreferred
@@ -140,19 +194,18 @@ class WallpaperManager(
                     val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
 
                     // FIX #3: Call setWallpaper once and handle success in one place.
-                    // Previously setWallpaper() was called here AND inside setScheduledWallpaper(),
-                    // resulting in two WinAPI calls and two state saves per update.
                     wallpaperService.setWallpaper(storedPath).getOrThrow()
 
+                    val now = System.currentTimeMillis()
                     lastSuccessfulArtwork = storedPath to artwork.second
                     _currentArtwork.value = storedPath to artwork.second
-                    lastScheduledUpdateTime = System.currentTimeMillis()
-                    lastUpdateTime = System.currentTimeMillis()
+                    lastScheduledUpdateTime = now
+                    lastUpdateTime = now
 
                     // Add to history so it isn't repeated
                     historyManager.addToHistory(artwork.second)
 
-                    saveState(artwork.second)
+                    saveState(artwork.second, now, now)
                     artworkProvider.cleanupCacheFiles(artwork.second.id)
                     logger.info("Wallpaper updated: ${artwork.second.title}")
                 }
@@ -174,13 +227,13 @@ class WallpaperManager(
         }
     }
 
-    private fun saveState(metadata: ArtworkMetadata) {
+    private fun saveState(metadata: ArtworkMetadata, updateTime: Long, scheduledUpdateTime: Long) {
         try {
             stateFile.parent.createDirectories()
             val state = SavedState(
                 metadata = metadata,
-                lastUpdateTime = lastUpdateTime,
-                lastScheduledUpdateTime = lastScheduledUpdateTime
+                lastUpdateTime = updateTime,
+                lastScheduledUpdateTime = scheduledUpdateTime
             )
             stateFile.writeText(Json.encodeToString(state))
             logger.info("Saved state for artwork: ${metadata.title}")
@@ -198,7 +251,7 @@ class WallpaperManager(
         logger.info("Starting wallpaper manager")
         job = scope.launch {
             try {
-                if (!settings.isFirstRun) {
+                if (!currentActiveSettings.isFirstRun) {
                     checkAndUpdateIfNeeded()
                 }
             } catch (e: Exception) {
@@ -213,30 +266,33 @@ class WallpaperManager(
         job = null
     }
 
-    private fun setCurrentArtwork(path: Path, metadata: ArtworkMetadata) {
-        _currentArtwork.value = path to metadata
-        lastSuccessfulArtwork = path to metadata
-        scope.launch {
-            saveState(metadata)
-        }
-        logger.info("Set current artwork: ${metadata.title}")
-    }
-
     fun checkAndUpdate() {
         val now = LocalDateTime.now()
         val today = now.toLocalDate()
+        val activeSettings = currentActiveSettings
         val scheduledTime = LocalDateTime.of(
             today,
-            LocalTime.of(settings.updateTimeHour, settings.updateTimeMinute)
+            LocalTime.of(activeSettings.updateTimeHour, activeSettings.updateTimeMinute)
         )
 
-        val lastUpdateDate = LocalDateTime.ofInstant(
-            java.time.Instant.ofEpochMilli(lastScheduledUpdateTime),
-            ZoneId.systemDefault()
-        ).toLocalDate()
+        // Safety guard: if a wallpaper was set in the last 15 minutes, never auto-update!
+        val nowMs = System.currentTimeMillis()
+        if (lastUpdateTime > 0 && (nowMs - lastUpdateTime) < Duration.ofMinutes(15).toMillis()) {
+            logger.info("Skipping periodic check: wallpaper was updated recently (${(nowMs - lastUpdateTime) / 1000}s ago)")
+            return
+        }
+
+        val lastUpdateDate = if (lastScheduledUpdateTime > 0) {
+            LocalDateTime.ofInstant(
+                java.time.Instant.ofEpochMilli(lastScheduledUpdateTime),
+                ZoneId.systemDefault()
+            ).toLocalDate()
+        } else {
+            null
+        }
 
         if ((now.isAfter(scheduledTime) || now.isEqual(scheduledTime)) &&
-            !today.isEqual(lastUpdateDate)
+            (lastUpdateDate == null || !today.isEqual(lastUpdateDate))
         ) {
             logger.info("Update needed - haven't updated today and we're at/past scheduled time $scheduledTime")
             scope.launch {
@@ -254,8 +310,12 @@ class WallpaperManager(
 
     fun setWallpaperManually(path: Path, metadata: ArtworkMetadata) {
         wallpaperService.setWallpaper(path).onSuccess {
-            setCurrentArtwork(path, metadata)
-            lastUpdateTime = System.currentTimeMillis()
+            val now = System.currentTimeMillis()
+            lastUpdateTime = now
+            lastScheduledUpdateTime = now
+            _currentArtwork.value = path to metadata
+            lastSuccessfulArtwork = path to metadata
+            saveState(metadata, now, now)
             artworkProvider.cleanupCacheFiles()
             logger.info("Wallpaper set manually: ${metadata.title}")
         }
@@ -281,6 +341,9 @@ class WallpaperManager(
         val storedPath = artworkStorage.saveArtwork(reprocessed, metadata)
         wallpaperService.setWallpaper(storedPath).getOrThrow()
         _currentArtwork.value = storedPath to metadata
+        val now = System.currentTimeMillis()
+        lastUpdateTime = now
+        saveState(metadata, now, lastScheduledUpdateTime)
         logger.info("Wallpaper reprocessed with fit mode $fitMode: ${metadata.title}")
         storedPath
     }

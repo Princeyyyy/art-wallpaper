@@ -75,15 +75,9 @@ class ServiceController(
 
             wallpaperManager.start()
             _isServiceRunning.value = true
+            lastCheckTime.set(System.currentTimeMillis())
             logger.info("Service started successfully")
 
-            serviceScope.launch {
-                try {
-                    wallpaperManager.checkAndUpdateIfNeeded()
-                } catch (e: Exception) {
-                    logger.error("Error during initial wallpaper update check", e)
-                }
-            }
             startPeriodicCheck()
             startCleanupJob()
         }

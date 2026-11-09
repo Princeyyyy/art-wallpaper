@@ -69,7 +69,7 @@ fun MainScreen(
                 currentArtwork = currentArtwork,
                 onSettingsChange = onSettingsChange,
                 onComplete = {
-                    val updated = settings.copy(isFirstRun = false)
+                    val updated = Settings.currentSettings.value.copy(isFirstRun = false)
                     Settings.updateCurrentSettings(updated)
                     onSettingsChange(updated)
                     isFirstRun = false
@@ -702,7 +702,7 @@ fun GuidedOnboarding(
                                         }
 
                                         curationStage = "Masterpiece applied successfully!"
-                                        val finalSettings = settings.copy(
+                                        val finalSettings = Settings.currentSettings.value.copy(
                                             isFirstRun = false,
                                             updateTimeHour = selectedHour,
                                             updateTimeMinute = selectedMinute,

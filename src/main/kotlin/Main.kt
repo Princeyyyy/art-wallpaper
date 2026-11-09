@@ -202,12 +202,12 @@ private fun setupApplication(
 
         Window(
             onCloseRequest = {
+                isWindowVisible = false
                 if (currentSettings.isFirstRun) {
-                    isWindowVisible = false
                     val updated = currentSettings.copy(isFirstRun = false)
                     Settings.updateCurrentSettings(updated)
+                    wallpaperManager.updateSettings(updated)
                 } else {
-                    isWindowVisible = false
                     systemTray.displayNotification(
                         "Art Wallpaper is still running",
                         "The application has been minimized to the system tray. Right click the tray icon to reopen."
@@ -223,6 +223,8 @@ private fun setupApplication(
             visible = isWindowVisible,
             icon = painterResource("icons/icon.png")
         ) {
+            val appScope = rememberCoroutineScope()
+
             // ── Windows 11: sync native title bar to our dark/light state ─────
             // DWMWA_USE_IMMERSIVE_DARK_MODE flips the Win32 caption colour to match.
             LaunchedEffect(isDark) {
@@ -236,8 +238,19 @@ private fun setupApplication(
                 settings = currentSettings,
                 isDark = isDark,
                 onSettingsChange = { newSettings ->
+                    val oldSettings = currentSettings
                     Settings.updateCurrentSettings(newSettings)
-                    controller.restartService()
+                    wallpaperManager.updateSettings(newSettings)
+                    val scheduleChanged = oldSettings.updateTimeHour != newSettings.updateTimeHour ||
+                            oldSettings.updateTimeMinute != newSettings.updateTimeMinute ||
+                            oldSettings.changeIntervalHours != newSettings.changeIntervalHours
+                    if (scheduleChanged && controller.isServiceRunning.value) {
+                        controller.restartService()
+                    } else if (!controller.isServiceRunning.value && !newSettings.isFirstRun) {
+                        appScope.launch {
+                            controller.startService()
+                        }
+                    }
                 }
             )
         }

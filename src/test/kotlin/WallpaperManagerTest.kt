@@ -101,4 +101,42 @@ class WallpaperManagerTest {
         val manager = makeManager()
         assertNull(manager.currentArtwork.value)
     }
+
+    @Test
+    fun `manual wallpaper curation prevents unexpected auto update on service start`() = runTest {
+        val meta = makeMetadata("onboard-id")
+        val fakeImagePath = tempDir.resolve("onboard-id.jpg")
+        fakeImagePath.writeBytes(ByteArray(16))
+
+        every { wallpaperService.setWallpaper(fakeImagePath) } returns Result.success(Unit)
+        every { artworkStorage.getArtworkPath(any()) } returns fakeImagePath
+
+        val manager = makeManager(Settings(isFirstRun = false))
+        manager.setWallpaperManually(fakeImagePath, meta)
+
+        assertEquals("onboard-id", manager.currentArtwork.value?.second?.id)
+
+        // Now run checkAndUpdateIfNeeded (as ServiceController would when service starts)
+        manager.checkAndUpdateIfNeeded()
+
+        // Verify artworkProvider was NOT called to fetch/replace the wallpaper
+        coVerify(exactly = 0) { artworkProvider.fetchArtwork() }
+    }
+
+    @Test
+    fun `checkAndUpdate skips update if wallpaper was set today`() = runTest {
+        val meta = makeMetadata("today-id")
+        val fakeImagePath = tempDir.resolve("today-id.jpg")
+        fakeImagePath.writeBytes(ByteArray(16))
+
+        every { wallpaperService.setWallpaper(fakeImagePath) } returns Result.success(Unit)
+
+        val manager = makeManager(Settings(isFirstRun = false))
+        manager.setWallpaperManually(fakeImagePath, meta)
+
+        // checkAndUpdate should skip because lastScheduledUpdateTime was set today
+        manager.checkAndUpdate()
+
+        coVerify(exactly = 0) { artworkProvider.fetchArtwork() }
+    }
 }
