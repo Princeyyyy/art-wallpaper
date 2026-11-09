@@ -36,6 +36,8 @@ fun SettingsDialog(
     var isNotificationsEnabled by remember { mutableStateOf(settings.notificationsEnabled) }
     var currentThemeMode by remember { mutableStateOf(settings.themeMode) }
     var currentFitMode by remember { mutableStateOf(settings.wallpaperFitMode) }
+    var showUninstallConfirmation by remember { mutableStateOf(false) }
+    var deleteUserDataOnUninstall by remember { mutableStateOf(true) }
     val logger = LoggerFactory.getLogger("SettingsDialog")
     val coroutineScope = rememberCoroutineScope()
 
@@ -375,7 +377,137 @@ fun SettingsDialog(
 
                     Divider(color = ArtColors.DividerLine)
 
-                    // ── Section 5: About ──────────────────────────────────────────
+                    // ── Section 6: Maintenance & Uninstall ───────────────────
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SettingsSectionLabel("MAINTENANCE & UNINSTALL")
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            backgroundColor = ArtColors.SurfaceVariant,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, ArtColors.CardBorder)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(
+                                            "Uninstall Art Wallpaper",
+                                            style = MaterialTheme.typography.subtitle2,
+                                            color = ArtColors.PaperWhite
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "Cleanly remove app, startup services, and local wallpaper cache",
+                                            style = MaterialTheme.typography.caption,
+                                            color = ArtColors.PaperMuted
+                                        )
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { showUninstallConfirmation = !showUninstallConfirmation },
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            backgroundColor = Color.Transparent,
+                                            contentColor = Color(0xFFEF5350)
+                                        ),
+                                        border = BorderStroke(1.dp, Color(0xFFEF5350).copy(alpha = 0.5f)),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            if (showUninstallConfirmation) "CANCEL" else "UNINSTALL",
+                                            style = MaterialTheme.typography.button,
+                                            color = Color(0xFFEF5350)
+                                        )
+                                    }
+                                }
+
+                                if (showUninstallConfirmation) {
+                                    val dataSizeMb = remember { service.UninstallManager.getEstimatedUserDataSizeMb() }
+                                    Divider(color = ArtColors.DividerLine)
+
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text(
+                                            "Leaving the gallery? We're sad to see you go! 🎨",
+                                            style = MaterialTheme.typography.caption,
+                                            color = ArtColors.GalleryGold
+                                        )
+
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .clickable { deleteUserDataOnUninstall = !deleteUserDataOnUninstall }
+                                                .background(ArtColors.Surface)
+                                                .padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Checkbox(
+                                                checked = deleteUserDataOnUninstall,
+                                                onCheckedChange = { deleteUserDataOnUninstall = it },
+                                                colors = CheckboxDefaults.colors(
+                                                    checkedColor = ArtColors.GalleryGold,
+                                                    uncheckedColor = ArtColors.PaperMuted,
+                                                    checkmarkColor = ArtColors.Canvas
+                                                )
+                                            )
+                                            Column {
+                                                Text(
+                                                    "Delete cached artworks, database & history",
+                                                    style = MaterialTheme.typography.subtitle2,
+                                                    color = ArtColors.PaperWhite
+                                                )
+                                                val sizeText = if (dataSizeMb > 0) " (~$dataSizeMb MB)" else ""
+                                                Text(
+                                                    "Location: %USERPROFILE%\\.artwallpaper$sizeText",
+                                                    style = MaterialTheme.typography.caption,
+                                                    color = ArtColors.PaperMuted
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            TextButton(
+                                                onClick = { showUninstallConfirmation = false }
+                                            ) {
+                                                Text("KEEP APP", color = ArtColors.PaperMuted)
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Button(
+                                                onClick = {
+                                                    service.UninstallManager.performUninstall(deleteUserDataOnUninstall)
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    backgroundColor = Color(0xFFD32F2F),
+                                                    contentColor = Color.White
+                                                ),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text("CONFIRM UNINSTALL", style = MaterialTheme.typography.button)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Divider(color = ArtColors.DividerLine)
+
+                    // ── Section 7: About ──────────────────────────────────────────
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),

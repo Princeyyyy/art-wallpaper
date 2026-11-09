@@ -117,6 +117,7 @@ compose.desktop {
             }
 
             windows {
+                menu = true
                 menuGroup = "Art Wallpaper"
                 upgradeUuid = "89ABC678-DEF0-1234-5678-ABCDEF123457"
                 msiPackageVersion = appVersion
