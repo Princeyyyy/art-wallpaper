@@ -107,6 +107,14 @@ compose.desktop {
                 iconFile.set(project.file("src/main/resources/icons/icon.icns"))
                 packageVersion = appVersion
 
+                val signIdentity = project.findProperty("macSignIdentity")?.toString()
+                if (!signIdentity.isNullOrBlank()) {
+                    signing {
+                        sign.set(true)
+                        identity.set(signIdentity)
+                    }
+                }
+
                 // Hide app from macOS Dock and Cmd+Tab — it lives in the menu bar only.
                 // LSUIElement=1 is the standard Info.plist key for status-bar / helper apps
                 // (like Bartender, Lungo, Hand Mirror, etc.).

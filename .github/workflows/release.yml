@@ -226,6 +226,23 @@ jobs:
           sed -i.bak "s/^version=.*/version=$V/" src/main/resources/version.properties
           echo "Version normalized and bumped to $V"
 
+      - name: Import Apple Certificate (if configured)
+        if: env.MACOS_CERTIFICATE_P12_BASE64 != ''
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security unlock-keychain -u "$KEYCHAIN_PATH"
+          echo "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 -k "$KEYCHAIN_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN_PATH"
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | awk -F '"' '{print $2}')
+          echo "DETECTED_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "Apple Developer signing identity loaded: $IDENTITY"
+
       - name: Package macOS DMG
         run: |
           RAW="${{ inputs.version }}"
@@ -233,7 +250,13 @@ jobs:
           RAW="${RAW#V}"
           IFS='.' read -r -a PARTS <<< "$RAW"
           V="${PARTS[0]:-4}.${PARTS[1]:-0}.${PARTS[2]:-0}"
-          ./gradlew packageDmg -PappVersion=$V
+          if [ -n "$DETECTED_IDENTITY" ]; then
+            echo "Packaging DMG with Apple Code Signing ($DETECTED_IDENTITY)..."
+            ./gradlew packageDmg -PappVersion=$V -PmacSignIdentity="$DETECTED_IDENTITY"
+          else
+            echo "Packaging standard macOS DMG (unsigned)..."
+            ./gradlew packageDmg -PappVersion=$V
+          fi
 
       - name: Locate and stage DMG artifact
         run: |
@@ -273,6 +296,11 @@ jobs:
           name: release-dmg
           path: dist-macos/
           retention-days: 7
+
+      - name: Clean up Apple Keychain
+        if: always()
+        run: |
+          security delete-keychain $RUNNER_TEMP/build.keychain 2>/dev/null || true
 
   # ─── 4. Publish GitHub Release with both MSI and DMG ────────────────────────
   publish-release:
