@@ -46,3 +46,5 @@ Thumbs.db
 logs/
 temp/
 cache/ 
+*.cer
+*.pfx
