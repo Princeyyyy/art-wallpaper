@@ -4,6 +4,8 @@ import ArtworkMetadata
 import ArtworkProvider
 import ArtworkStorageManager
 import Settings
+import WallpaperFitMode
+import ImageProcessor
 import WindowsWallpaperService
 import WallpaperService
 import kotlinx.coroutines.*
@@ -269,6 +271,18 @@ class WallpaperManager(
             logger.error("Failed to set next wallpaper manually", e)
             throw e
         }
+    }
+
+    suspend fun reprocessCurrentWallpaper(fitMode: WallpaperFitMode): Result<Path> = runCatching {
+        val current = _currentArtwork.value ?: throw IllegalStateException("No active artwork")
+        val (path, metadata) = current
+        val processor = ImageProcessor()
+        val reprocessed = processor.processImage(path, fitMode)
+        val storedPath = artworkStorage.saveArtwork(reprocessed, metadata)
+        wallpaperService.setWallpaper(storedPath).getOrThrow()
+        _currentArtwork.value = storedPath to metadata
+        logger.info("Wallpaper reprocessed with fit mode $fitMode: ${metadata.title}")
+        storedPath
     }
 }
 

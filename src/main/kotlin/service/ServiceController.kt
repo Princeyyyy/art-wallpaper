@@ -2,6 +2,7 @@ package service
 
 import ArtworkProvider
 import ArtworkStorageManager
+import WallpaperFitMode
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.time.Duration
@@ -147,6 +148,10 @@ class ServiceController(
                 throw e
             }
         }
+    }
+
+    suspend fun reprocessWallpaper(fitMode: WallpaperFitMode) {
+        wallpaperManager.reprocessCurrentWallpaper(fitMode)
     }
 
     private fun startCleanupJob() {

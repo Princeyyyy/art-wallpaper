@@ -10,6 +10,21 @@ import java.time.Duration
 import kotlin.io.path.*
 
 @Serializable
+enum class AppTheme {
+    SYSTEM,
+    LIGHT,
+    DARK
+}
+
+@Serializable
+enum class WallpaperFitMode {
+    AMBIENT_BLUR,
+    FILL_CROP,
+    MUSEUM_MAT,
+    FIT
+}
+
+@Serializable
 data class Settings(
     val changeIntervalHours: Int = 24,
     val updateTimeHour: Int = 7,
@@ -21,7 +36,9 @@ data class Settings(
     val hasEnabledAutoStart: Boolean = true,
     val isFirstRun: Boolean = true,
     val notificationsEnabled: Boolean = true,
-    val hasSetUpdateTime: Boolean = true
+    val hasSetUpdateTime: Boolean = true,
+    val themeMode: AppTheme = AppTheme.SYSTEM,
+    val wallpaperFitMode: WallpaperFitMode = WallpaperFitMode.AMBIENT_BLUR
 ) {
     // FIX #20: Single logger definition — removed duplicate from companion object.
     @kotlinx.serialization.Transient

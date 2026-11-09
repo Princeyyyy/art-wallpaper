@@ -183,9 +183,15 @@ private fun setupApplication(
             isWindowVisible = visible
         }
 
-        // ── Live system theme tracking ─────────────────────────────────────
-        // Polls OS every 3 seconds; recomposes only when the value changes.
-        val isDark = rememberSystemIsDark()
+        val currentSettings by Settings.currentSettings.collectAsState()
+
+        // ── Live system theme tracking & user preference ───────────────────
+        val isSystemDark = rememberSystemIsDark()
+        val isDark = when (currentSettings.themeMode) {
+            AppTheme.SYSTEM -> isSystemDark
+            AppTheme.LIGHT  -> false
+            AppTheme.DARK   -> true
+        }
 
         // Start service if not already running
         LaunchedEffect(Unit) {
@@ -196,9 +202,10 @@ private fun setupApplication(
 
         Window(
             onCloseRequest = {
-                if (settings.isFirstRun) {
+                if (currentSettings.isFirstRun) {
                     isWindowVisible = false
-                    settings.copy(isFirstRun = false).save()
+                    val updated = currentSettings.copy(isFirstRun = false)
+                    Settings.updateCurrentSettings(updated)
                 } else {
                     isWindowVisible = false
                     systemTray.displayNotification(
@@ -226,10 +233,10 @@ private fun setupApplication(
             App(
                 wallpaperManager = wallpaperManager,
                 serviceController = controller,
-                settings = settings,
+                settings = currentSettings,
                 isDark = isDark,
                 onSettingsChange = { newSettings ->
-                    newSettings.save()
+                    Settings.updateCurrentSettings(newSettings)
                     controller.restartService()
                 }
             )

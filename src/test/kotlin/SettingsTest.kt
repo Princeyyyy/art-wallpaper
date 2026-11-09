@@ -19,6 +19,8 @@ class SettingsTest {
         assertTrue(s.isFirstRun)
         assertEquals(Settings.DisplayStyle.FILL, s.displayStyle)
         assertEquals(Settings.RotationStrategy.RANDOM, s.offlineRotationStrategy)
+        assertEquals(AppTheme.SYSTEM, s.themeMode)
+        assertEquals(WallpaperFitMode.AMBIENT_BLUR, s.wallpaperFitMode)
     }
 
     @Test

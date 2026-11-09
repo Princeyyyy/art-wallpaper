@@ -46,6 +46,24 @@ class WindowsWallpaperService : WallpaperService {
 
         val absolutePath = imagePath.toAbsolutePath().toString()
 
+        // Set registry wallpaper style to Fill (10) and Tile to 0 to prevent Windows from stretching or tiling
+        try {
+            com.sun.jna.platform.win32.Advapi32Util.registrySetStringValue(
+                com.sun.jna.platform.win32.WinReg.HKEY_CURRENT_USER,
+                "Control Panel\\Desktop",
+                "WallpaperStyle",
+                "10"
+            )
+            com.sun.jna.platform.win32.Advapi32Util.registrySetStringValue(
+                com.sun.jna.platform.win32.WinReg.HKEY_CURRENT_USER,
+                "Control Panel\\Desktop",
+                "TileWallpaper",
+                "0"
+            )
+        } catch (e: Exception) {
+            logger.warn("Could not set WallpaperStyle in Windows registry: ${e.message}")
+        }
+
         val result = User32.INSTANCE.SystemParametersInfoW(
             SPI_SETDESKWALLPAPER,
             0,

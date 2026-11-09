@@ -1,5 +1,6 @@
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,7 +62,7 @@ fun MainScreen(
                 onSettingsChange = onSettingsChange,
                 onComplete = {
                     val updated = settings.copy(isFirstRun = false)
-                    updated.save()
+                    Settings.updateCurrentSettings(updated)
                     onSettingsChange(updated)
                     isFirstRun = false
                 },
@@ -75,7 +76,7 @@ fun MainScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -87,39 +88,146 @@ fun MainScreen(
                                 painter = painterResource("icons/32x32.png"),
                                 contentDescription = "Art Wallpaper Logo",
                                 modifier = Modifier
-                                    .size(24.dp)
+                                    .size(26.dp)
                                     .clip(RoundedCornerShape(6.dp))
                             )
-                            Text(
-                                "Art Wallpaper",
-                                style = MaterialTheme.typography.h6,
-                                color = ArtColors.PaperWhite,
-                                letterSpacing = 0.5.sp
-                            )
+                            Column {
+                                Text(
+                                    "Art Wallpaper",
+                                    style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Medium),
+                                    color = ArtColors.PaperWhite,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Text(
+                                    "The Met Open Access",
+                                    style = MaterialTheme.typography.caption.copy(fontSize = 10.sp),
+                                    color = ArtColors.GalleryGold
+                                )
+                            }
                         }
-                        IconButton(
-                            onClick = { showSettings = true },
-                            modifier = Modifier.size(36.dp)
+
+                        // Right Action Controls: Quick Theme Toggle, Fit Mode Badge, Settings
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = ArtColors.PaperMuted
-                            )
+                            // Quick Theme Switcher
+                            val nextTheme = when (currentSettings.themeMode) {
+                                AppTheme.SYSTEM -> AppTheme.LIGHT
+                                AppTheme.LIGHT  -> AppTheme.DARK
+                                AppTheme.DARK   -> AppTheme.SYSTEM
+                            }
+                            val themeIcon = if (ArtColors.isDark) "☾" else "☀"
+                            val themeLabel = when (currentSettings.themeMode) {
+                                AppTheme.SYSTEM -> "System"
+                                AppTheme.LIGHT  -> "Light"
+                                AppTheme.DARK   -> "Dark"
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = ArtColors.SurfaceVariant,
+                                border = BorderStroke(1.dp, ArtColors.CardBorder),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        val updated = currentSettings.copy(themeMode = nextTheme)
+                                        Settings.updateCurrentSettings(updated)
+                                        onSettingsChange(updated)
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text(
+                                        themeIcon,
+                                        color = ArtColors.GalleryGold,
+                                        fontSize = 11.sp
+                                    )
+                                    Text(
+                                        themeLabel,
+                                        style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium),
+                                        color = ArtColors.PaperWhite
+                                    )
+                                }
+                            }
+
+                            // Quick Fit Mode Switcher
+                            val fitLabel = when (currentSettings.wallpaperFitMode) {
+                                WallpaperFitMode.AMBIENT_BLUR -> "Ambient Mat"
+                                WallpaperFitMode.FILL_CROP   -> "Full Bleed"
+                                WallpaperFitMode.MUSEUM_MAT  -> "Museum Mat"
+                                WallpaperFitMode.FIT         -> "Classic Fit"
+                            }
+                            val nextFit = when (currentSettings.wallpaperFitMode) {
+                                WallpaperFitMode.AMBIENT_BLUR -> WallpaperFitMode.FILL_CROP
+                                WallpaperFitMode.FILL_CROP   -> WallpaperFitMode.MUSEUM_MAT
+                                WallpaperFitMode.MUSEUM_MAT  -> WallpaperFitMode.FIT
+                                WallpaperFitMode.FIT         -> WallpaperFitMode.AMBIENT_BLUR
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = ArtColors.SurfaceVariant,
+                                border = BorderStroke(1.dp, ArtColors.CardBorder),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        val updated = currentSettings.copy(wallpaperFitMode = nextFit)
+                                        Settings.updateCurrentSettings(updated)
+                                        onSettingsChange(updated)
+                                        coroutineScope.launch {
+                                            serviceController.reprocessWallpaper(nextFit)
+                                        }
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text(
+                                        "◫",
+                                        color = ArtColors.GalleryGold,
+                                        fontSize = 11.sp
+                                    )
+                                    Text(
+                                        fitLabel,
+                                        style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium),
+                                        color = ArtColors.PaperWhite
+                                    )
+                                }
+                            }
+
+                            // Settings Button
+                            IconButton(
+                                onClick = { showSettings = true },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = "Preferences",
+                                    tint = ArtColors.PaperMuted
+                                )
+                            }
                         }
                     }
 
-                    // ── Main Full-Bleed Artwork Card ───────────────────────────────
+                    // ── Main Artwork Exhibition Card ───────────────────────────────
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(BorderStroke(1.dp, ArtColors.CardBorder), RoundedCornerShape(12.dp))
+                            .background(ArtColors.Surface)
                     ) {
                         Crossfade(
                             targetState = currentArtwork,
-                            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
+                            animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
                         ) { targetArtwork ->
                             if (targetArtwork != null) {
                                 val (path, metadata) = targetArtwork
@@ -131,58 +239,89 @@ fun MainScreen(
                                             bitmap = bitmap,
                                             contentDescription = metadata.title,
                                             modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
+                                            contentScale = ContentScale.Fit
                                         )
                                     } else {
-                                        // Subtle dark placeholder while decoding
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .background(ArtColors.Surface)
-                                        )
+                                                .background(ArtColors.Surface),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                color = ArtColors.GalleryGold,
+                                                modifier = Modifier.size(32.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
                                     }
 
-                                    // Gradient scrim at bottom for text contrast
+                                    // Gallery Exhibition Placard (Semi-transparent scrim overlay)
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(130.dp)
                                             .align(Alignment.BottomCenter)
                                             .background(
                                                 Brush.verticalGradient(
-                                                    colors = listOf(Color.Transparent, ArtColors.ScrimBlack)
+                                                    colors = listOf(
+                                                        Color.Transparent,
+                                                        Color(0x99000000),
+                                                        Color(0xEB0A0A0C)
+                                                    )
                                                 )
                                             )
-                                    )
-
-                                    // Title & Artist Info
-                                    Column(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomStart)
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                                            .padding(horizontal = 22.dp, vertical = 16.dp)
                                     ) {
-                                        Text(
-                                            metadata.title,
-                                            style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Medium),
-                                            color = Color.White,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Spacer(Modifier.height(3.dp))
-                                        Text(
-                                            buildString {
-                                                metadata.artist?.let { append(it) }
-                                                metadata.year?.let { append(" · $it") }
-                                                metadata.source?.let { append(" · $it") }
-                                            },
-                                            style = MaterialTheme.typography.subtitle2,
-                                            color = Color.White.copy(alpha = 0.8f)
-                                        )
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            Text(
+                                                metadata.title,
+                                                style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.SemiBold),
+                                                color = Color.White,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Spacer(Modifier.height(3.dp))
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                metadata.artist?.let { artist ->
+                                                    Text(
+                                                        artist,
+                                                        style = MaterialTheme.typography.subtitle2,
+                                                        color = Color.White.copy(alpha = 0.9f)
+                                                    )
+                                                }
+                                                metadata.year?.let { year ->
+                                                    Text(
+                                                        "· $year",
+                                                        style = MaterialTheme.typography.subtitle2,
+                                                        color = Color.White.copy(alpha = 0.7f)
+                                                    )
+                                                }
+                                            }
+
+                                            // Curatorial Chips
+                                            Spacer(Modifier.height(8.dp))
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                CuratorialChip("The Met Archive")
+                                                val desc = metadata.description
+                                                if (!desc.isNullOrBlank()) {
+                                                    val firstLine = desc.lines().firstOrNull()?.trim()
+                                                    if (!firstLine.isNullOrBlank()) {
+                                                        val shortMedium = if (firstLine.length > 32) firstLine.take(30) + "…" else firstLine
+                                                        CuratorialChip(shortMedium)
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             } else {
-                                // Empty state placeholder
+                                // Welcoming empty state
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -191,30 +330,35 @@ fun MainScreen(
                                 ) {
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        Text(
-                                            "No wallpaper set yet",
-                                            style = MaterialTheme.typography.subtitle1,
-                                            color = ArtColors.PaperMuted
+                                        Image(
+                                            painter = painterResource("icons/48x48.png"),
+                                            contentDescription = "Art Wallpaper",
+                                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp))
                                         )
                                         Text(
-                                            "Click NEXT ARTWORK to curate your screen",
+                                            "Your Gallery Awaits",
+                                            style = MaterialTheme.typography.h6,
+                                            color = ArtColors.PaperWhite
+                                        )
+                                        Text(
+                                            "Click NEXT ARTWORK to curate a masterpiece for your desktop",
                                             style = MaterialTheme.typography.caption,
-                                            color = ArtColors.PaperMuted.copy(alpha = 0.6f)
+                                            color = ArtColors.PaperMuted
                                         )
                                     }
                                 }
                             }
                         }
 
-                        // Loading Overlay with Clean Contrast
+                        // Curating / Downloading Progress Overlay
                         if (isLoading) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .zIndex(2f)
-                                    .background(Color.Black.copy(alpha = 0.7f)),
+                                    .background(Color.Black.copy(alpha = 0.75f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(
@@ -223,25 +367,25 @@ fun MainScreen(
                                 ) {
                                     CircularProgressIndicator(
                                         color = ArtColors.GalleryGold,
-                                        modifier = Modifier.size(44.dp),
-                                        strokeWidth = 2.5.dp
+                                        modifier = Modifier.size(46.dp),
+                                        strokeWidth = 3.dp
                                     )
                                     Text(
-                                        "Curating next artwork...",
+                                        "Curating next masterpiece...",
                                         style = MaterialTheme.typography.subtitle1,
-                                        color = ArtColors.PaperWhite
+                                        color = Color.White
                                     )
                                     Text(
-                                        "Searching public domain collections at The Met",
+                                        "Fetching high-res painting & rendering laptop screen fit",
                                         style = MaterialTheme.typography.caption,
-                                        color = ArtColors.PaperMuted
+                                        color = Color.White.copy(alpha = 0.7f)
                                     )
                                 }
                             }
                         }
                     }
 
-                    // ── Controls Bar ───────────────────────────────────────────────
+                    // ── Controls & Status Bar ──────────────────────────────────────────
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -249,71 +393,107 @@ fun MainScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .background(Color(0xFF4CAF50), CircleShape)
+                                )
+                                Text(
+                                    if (currentSettings.hasSetUpdateTime) {
+                                        String.format(
+                                            java.util.Locale.ROOT,
+                                            "Daily rotation at %02d:%02d",
+                                            currentSettings.updateTimeHour,
+                                            currentSettings.updateTimeMinute
+                                        )
+                                    } else {
+                                        "Daily rotation at 07:00"
+                                    },
+                                    style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Medium),
+                                    color = ArtColors.PaperWhite
+                                )
+                            }
                             Text(
-                                if (currentSettings.hasSetUpdateTime) {
-                                    String.format(java.util.Locale.ROOT, "Daily update at %02d:%02d",
-                                        currentSettings.updateTimeHour,
-                                        currentSettings.updateTimeMinute
-                                    )
-                                } else {
-                                    "Daily update at 07:00"
-                                },
-                                style = MaterialTheme.typography.body2,
-                                color = ArtColors.PaperWhite
-                            )
-                            Text(
-                                if (isLoading) "Downloading high-resolution painting..." else "Runs silently in Windows tray",
+                                if (isLoading) "Downloading high-resolution painting from The Met..."
+                                else "Running silently in Windows tray · Screen-fit active",
                                 style = MaterialTheme.typography.caption,
                                 color = if (isLoading) ArtColors.GalleryGold else ArtColors.PaperMuted
                             )
                         }
 
-                        PulsingButton(
-                            onClick = {
-                                if (!isLoading) {
-                                    isLoading = true
-                                    val previousTitle = currentArtwork?.second?.title
-                                    logger.info("Manual wallpaper fetch requested")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (currentArtwork != null && !isLoading) {
+                                OutlinedButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            serviceController.reprocessWallpaper(currentSettings.wallpaperFitMode)
+                                        }
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        backgroundColor = Color.Transparent,
+                                        contentColor = ArtColors.GalleryGold
+                                    ),
+                                    border = BorderStroke(1.dp, ArtColors.GalleryGold.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text("APPLY DESKTOP", style = MaterialTheme.typography.button)
+                                }
+                            }
 
-                                    coroutineScope.launch(Dispatchers.Default) {
-                                        try {
-                                            serviceController.nextWallpaper()
+                            PulsingButton(
+                                onClick = {
+                                    if (!isLoading) {
+                                        isLoading = true
+                                        val previousTitle = currentArtwork?.second?.title
+                                        logger.info("Manual wallpaper fetch requested")
 
-                                            withTimeout(30_000L) {
-                                                serviceController.wallpaperManager.currentArtwork.collect { next ->
-                                                    if (next != null && next.second.title != previousTitle && next.first.exists()) {
-                                                        cancel()
+                                        coroutineScope.launch(Dispatchers.Default) {
+                                            try {
+                                                serviceController.nextWallpaper()
+
+                                                withTimeout(35_000L) {
+                                                    serviceController.wallpaperManager.currentArtwork.collect { next ->
+                                                        if (next != null && next.second.title != previousTitle && next.first.exists()) {
+                                                            cancel()
+                                                        }
                                                     }
                                                 }
-                                            }
-                                        } catch (e: Exception) {
-                                            withContext(Dispatchers.Main) {
-                                                errorMessage = when (e) {
-                                                    is TimeoutCancellationException -> "Taking longer than usual. Please retry."
-                                                    is CancellationException -> null
-                                                    else -> "Failed to update wallpaper: ${e.message}"
+                                            } catch (e: Exception) {
+                                                withContext(Dispatchers.Main) {
+                                                    errorMessage = when (e) {
+                                                        is TimeoutCancellationException -> "Network timed out. Please retry."
+                                                        is CancellationException -> null
+                                                        else -> "Failed to curate artwork: ${e.message}"
+                                                    }
                                                 }
-                                            }
-                                        } finally {
-                                            withContext(Dispatchers.Main) {
-                                                isLoading = false
+                                            } finally {
+                                                withContext(Dispatchers.Main) {
+                                                    isLoading = false
+                                                }
                                             }
                                         }
                                     }
+                                },
+                                enabled = !isLoading
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        color = if (ArtColors.isDark) Color(0xFF0E0E10) else Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
                                 }
-                            },
-                            enabled = !isLoading
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(14.dp),
-                                    color = ArtColors.Canvas,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(Modifier.width(8.dp))
+                                Text("NEXT ARTWORK", style = MaterialTheme.typography.button)
                             }
-                            Text("NEXT ARTWORK", style = MaterialTheme.typography.button)
                         }
                     }
 
@@ -340,7 +520,8 @@ fun MainScreen(
             // ── Settings Dialog ────────────────────────────────────────────
             if (showSettings) {
                 SettingsDialog(
-                    settings = settings,
+                    settings = currentSettings,
+                    serviceController = serviceController,
                     onSettingsChange = { newSettings ->
                         Settings.updateCurrentSettings(newSettings)
                         onSettingsChange(newSettings)
@@ -353,6 +534,21 @@ fun MainScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CuratorialChip(text: String) {
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = Color.White.copy(alpha = 0.16f)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.caption.copy(fontSize = 10.sp, letterSpacing = 0.2.sp),
+            color = Color.White.copy(alpha = 0.95f),
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+        )
     }
 }
 
@@ -478,7 +674,7 @@ fun GuidedOnboarding(
                                                         notificationsEnabled = notificationsEnabled
                                                     )
                                                     withContext(Dispatchers.Main) {
-                                                        finalSettings.save()
+                                                        Settings.updateCurrentSettings(finalSettings)
                                                         onSettingsChange(finalSettings)
                                                     }
                                                     serviceController.startService()
@@ -583,12 +779,12 @@ private fun OnboardingStep1Welcome() {
                 description = "Directly sourced from The Metropolitan Museum of Art open access archive."
             )
             WelcomePillar(
-                title = "Automatic Daily Refresh",
-                description = "Wakes up silently and changes your background at the exact time you prefer."
+                title = "True Laptop Screen Fit",
+                description = "Smart ambient matting prevents stretching, fitting your laptop resolution perfectly."
             )
             WelcomePillar(
-                title = "Offline Memory Gallery",
-                description = "Keeps a local high-res cache so your wallpaper rotates even without internet."
+                title = "Automatic Daily Refresh",
+                description = "Wakes up silently and changes your background at the exact time you prefer."
             )
         }
     }
@@ -674,7 +870,7 @@ private fun OnboardingStep2Schedule(
             modifier = Modifier.fillMaxWidth(),
             backgroundColor = ArtColors.Surface,
             shape = RoundedCornerShape(8.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, ArtColors.DividerLine)
+            border = BorderStroke(1.dp, ArtColors.CardBorder)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -783,7 +979,8 @@ private fun OnboardingStep3Integration(
         Card(
             modifier = Modifier.fillMaxWidth(),
             backgroundColor = ArtColors.SurfaceVariant,
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, ArtColors.CardBorder)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -932,7 +1129,7 @@ private fun OnboardingStep4Curate(
             Spacer(Modifier.height(8.dp))
 
             Text(
-                "Click below to curate your first museum wallpaper and apply it directly to your Windows desktop.",
+                "Click below to curate your first museum wallpaper and apply it directly to your Windows desktop with true screen fit.",
                 style = MaterialTheme.typography.body2,
                 color = ArtColors.PaperMuted,
                 textAlign = TextAlign.Center

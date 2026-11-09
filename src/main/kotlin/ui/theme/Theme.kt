@@ -3,65 +3,112 @@ import androidx.compose.material.Typography
 import androidx.compose.material.darkColors
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 // ── System font family — platform-native sans-serif typeface ──────────────────
-// Automatically maps to Segoe UI on Windows, San Francisco on macOS.
-
 internal val SystemFontFamily: FontFamily = FontFamily.SansSerif
 
-// ── Palette ─────────────────────────────────────────────────────────────────
-// Gallery-dark: near-black canvas, warm gold accent, clean off-white text.
-// Art looks best on a dark, low-saturation background.
+// ── Rich Theme Color Model ───────────────────────────────────────────────────
+
+data class ArtThemeColors(
+    val canvas: Color,
+    val surface: Color,
+    val surfaceVariant: Color,
+    val galleryGold: Color,
+    val galleryGoldDim: Color,
+    val paperWhite: Color,
+    val paperMuted: Color,
+    val dividerLine: Color,
+    val errorRed: Color,
+    val scrimBlack: Color,
+    val cardBorder: Color,
+    val chipBackground: Color,
+    val isDark: Boolean
+)
+
+val GalleryDarkThemeColors = ArtThemeColors(
+    canvas         = Color(0xFF0E0E10), // Deep museum obsidian
+    surface        = Color(0xFF18181B), // Elevated surface
+    surfaceVariant = Color(0xFF242428), // Overlays & subtle cards
+    galleryGold    = Color(0xFFD4AF37), // Warm luminous brass
+    galleryGoldDim = Color(0xFF8A7055), // Secondary muted brass
+    paperWhite     = Color(0xFFF4F4F6), // Crisp text
+    paperMuted     = Color(0xFFA1A1AA), // Secondary muted text
+    dividerLine    = Color(0xFF27272A), // Subtle separator
+    errorRed       = Color(0xFFCF6679),
+    scrimBlack     = Color(0xCC000000), // 80% opaque overlay
+    cardBorder     = Color(0xFF2D2D32),
+    chipBackground = Color(0xFF242428),
+    isDark         = true
+)
+
+val GalleryLightThemeColors = ArtThemeColors(
+    canvas         = Color(0xFFF8F6F1), // Warm museum linen / alabaster
+    surface        = Color(0xFFFFFFFF), // Crisp gallery mount white
+    surfaceVariant = Color(0xFFEDE9E1), // Soft warm stone
+    galleryGold    = Color(0xFF9E783E), // Rich burnished museum bronze (high contrast on light)
+    galleryGoldDim = Color(0xFF785B2E),
+    paperWhite     = Color(0xFF1A1917), // Deep charcoal/espresso text
+    paperMuted     = Color(0xFF6E6860), // Warm stone secondary text
+    dividerLine    = Color(0xFFE2DDD5), // Warm line
+    errorRed       = Color(0xFFB00020),
+    scrimBlack     = Color(0x99000000), // 60% overlay on photos
+    cardBorder     = Color(0xFFE0DAD0),
+    chipBackground = Color(0xFFEFECE5),
+    isDark         = false
+)
+
+val LocalArtColors = staticCompositionLocalOf { GalleryDarkThemeColors }
 
 object ArtColors {
-    val Canvas         = Color(0xFF0F0F0F)   // Near-black background
-    val Surface        = Color(0xFF1A1A1A)   // Elevated surfaces (cards)
-    val SurfaceVariant = Color(0xFF242424)   // Slightly lighter (overlays)
-    val GalleryGold    = Color(0xFFC8A97E)   // Warm accent — gallery brass
-    val GalleryGoldDim = Color(0xFF8A7055)   // Secondary accent
-    val PaperWhite     = Color(0xFFF0EDE8)   // Off-white — aged paper
-    val PaperMuted     = Color(0xFFB8B4AF)   // Muted text
-    val DividerLine    = Color(0xFF2E2E2E)   // Subtle separator
-    val ErrorRed       = Color(0xFFCF6679)
-    val ScrimBlack     = Color(0xCC000000)   // 80% opaque for image overlays
+    val Canvas: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.canvas
+
+    val Surface: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.surface
+
+    val SurfaceVariant: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.surfaceVariant
+
+    val GalleryGold: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.galleryGold
+
+    val GalleryGoldDim: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.galleryGoldDim
+
+    val PaperWhite: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.paperWhite
+
+    val PaperMuted: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.paperMuted
+
+    val DividerLine: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.dividerLine
+
+    val ErrorRed: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.errorRed
+
+    val ScrimBlack: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.scrimBlack
+
+    val CardBorder: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.cardBorder
+
+    val ChipBackground: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.chipBackground
+
+    val isDark: Boolean
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.isDark
 }
 
-private val GalleryDarkColors = darkColors(
-    primary         = ArtColors.GalleryGold,
-    primaryVariant  = ArtColors.GalleryGoldDim,
-    secondary       = ArtColors.GalleryGold,
-    background      = ArtColors.Canvas,
-    surface         = ArtColors.Surface,
-    error           = ArtColors.ErrorRed,
-    onPrimary       = ArtColors.Canvas,
-    onSecondary     = ArtColors.Canvas,
-    onBackground    = ArtColors.PaperWhite,
-    onSurface       = ArtColors.PaperWhite,
-    onError         = Color.White
-)
-
-// Light variant — kept minimal; app defaults to dark
-private val GalleryLightColors = lightColors(
-    primary         = Color(0xFF8A6A3E),
-    primaryVariant  = Color(0xFF6B5230),
-    secondary       = Color(0xFF8A6A3E),
-    background      = Color(0xFFF5F3F0),
-    surface         = Color.White,
-    onPrimary       = Color.White,
-    onSecondary     = Color.White,
-    onBackground    = Color(0xFF1A1A1A),
-    onSurface       = Color(0xFF1A1A1A)
-)
-
 // ── Typography ───────────────────────────────────────────────────────────────
-// Editorial scale using the platform-native font family:
-//   Windows 11 → Segoe UI Variable   macOS → SF Pro   Other → JVM default
 
 private val GalleryTypography = Typography(
     defaultFontFamily = SystemFontFamily,
@@ -130,9 +177,42 @@ fun ArtWallpaperTheme(
     darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    MaterialTheme(
-        colors     = if (darkTheme) GalleryDarkColors else GalleryLightColors,
-        typography = GalleryTypography,
-        content    = content
-    )
+    val artColors = if (darkTheme) GalleryDarkThemeColors else GalleryLightThemeColors
+    val materialColors = if (darkTheme) {
+        darkColors(
+            primary        = artColors.galleryGold,
+            primaryVariant = artColors.galleryGoldDim,
+            secondary      = artColors.galleryGold,
+            background     = artColors.canvas,
+            surface        = artColors.surface,
+            error          = artColors.errorRed,
+            onPrimary      = Color.Black,
+            onSecondary    = Color.Black,
+            onBackground   = artColors.paperWhite,
+            onSurface      = artColors.paperWhite,
+            onError        = Color.White
+        )
+    } else {
+        lightColors(
+            primary        = artColors.galleryGold,
+            primaryVariant = artColors.galleryGoldDim,
+            secondary      = artColors.galleryGold,
+            background     = artColors.canvas,
+            surface        = artColors.surface,
+            error          = artColors.errorRed,
+            onPrimary      = Color.White,
+            onSecondary    = Color.White,
+            onBackground   = artColors.paperWhite,
+            onSurface      = artColors.paperWhite,
+            onError        = Color.White
+        )
+    }
+
+    CompositionLocalProvider(LocalArtColors provides artColors) {
+        MaterialTheme(
+            colors     = materialColors,
+            typography = GalleryTypography,
+            content    = content
+        )
+    }
 }

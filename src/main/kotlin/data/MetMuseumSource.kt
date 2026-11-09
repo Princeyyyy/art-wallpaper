@@ -146,7 +146,8 @@ class MetMuseumSource(
         tempFile.writeBytes(imageResponse.body())
 
         try {
-            val processedFile = imageProcessor.processImage(tempFile)
+            val fitMode = Settings.currentSettings.value.wallpaperFitMode
+            val processedFile = imageProcessor.processImage(tempFile, fitMode)
             tempFile.deleteIfExists()
 
             val metadata = ArtworkMetadata(

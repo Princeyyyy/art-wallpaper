@@ -80,9 +80,9 @@ fun PulsingButton(
     enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.buttonColors(
         backgroundColor = ArtColors.GalleryGold,
-        contentColor = ArtColors.Canvas,
+        contentColor = if (ArtColors.isDark) Color(0xFF0E0E10) else Color.White,
         disabledBackgroundColor = ArtColors.GalleryGoldDim.copy(alpha = 0.4f),
-        disabledContentColor = ArtColors.Canvas.copy(alpha = 0.5f)
+        disabledContentColor = (if (ArtColors.isDark) Color(0xFF0E0E10) else Color.White).copy(alpha = 0.5f)
     ),
     content: @Composable () -> Unit
 ) {
