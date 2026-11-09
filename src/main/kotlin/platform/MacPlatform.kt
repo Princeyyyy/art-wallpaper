@@ -7,8 +7,7 @@ import org.slf4j.LoggerFactory
  *
  * 1. Hide the app from the Dock and Cmd+Tab switcher at runtime (`setActivationPolicy: 1`).
  * 2. Activate application and bring window frontmost (`activateIgnoringOtherApps: YES`).
- * 3. Post branded notifications to macOS Notification Center via `NSUserNotificationCenter`
- *    (displaying the app's real `icon.icns`), with osascript fallback.
+ * 3. Post branded notifications to macOS Notification Center targeting the app's bundle ID.
  */
 object MacPlatform {
 
@@ -40,9 +39,11 @@ object MacPlatform {
         if (!isMac) return
         val lib = objc ?: return
         try {
-            val nsAppClass  = lib.objc_getClass("NSApplication")
+            val nsAppClass = lib.objc_getClass("NSApplication")
+            if (nsAppClass == 0L) return
             val sharedAppSel = lib.sel_registerName("sharedApplication")
-            val nsApp       = lib.objc_msgSend(nsAppClass, sharedAppSel)
+            val nsApp = lib.objc_msgSend(nsAppClass, sharedAppSel)
+            if (nsApp == 0L) return
             val setPolicySel = lib.sel_registerName("setActivationPolicy:")
             // NSApplicationActivationPolicyAccessory = 1
             lib.objc_msgSend(nsApp, setPolicySel, 1L)
@@ -61,8 +62,10 @@ object MacPlatform {
         val lib = objc ?: return
         try {
             val nsAppClass = lib.objc_getClass("NSApplication")
+            if (nsAppClass == 0L) return
             val sharedAppSel = lib.sel_registerName("sharedApplication")
             val nsApp = lib.objc_msgSend(nsAppClass, sharedAppSel)
+            if (nsApp == 0L) return
             val activateSel = lib.sel_registerName("activateIgnoringOtherApps:")
             lib.objc_msgSend(nsApp, activateSel, 1L)
             logger.info("macOS: application activated frontmost")
@@ -73,55 +76,29 @@ object MacPlatform {
 
     /**
      * Posts a notification to macOS Notification Center.
-     * Uses NSUserNotificationCenter so macOS attaches the app's real icon.icns logo.
+     * Targets the app's bundle identifier so macOS displays the real app icon.
+     * Uses osascript subprocess to guarantee 100% JVM crash-safety on all architectures (x86_64 and arm64).
      */
     fun showNotification(title: String, body: String) {
         if (!isMac) return
-
-        // Approach 1: Native Cocoa NSUserNotificationCenter (shows app bundle icon)
-        val lib = objc
-        if (lib != null) {
-            try {
-                val centerClass = lib.objc_getClass("NSUserNotificationCenter")
-                val defaultCenterSel = lib.sel_registerName("defaultUserNotificationCenter")
-                val center = lib.objc_msgSend(centerClass, defaultCenterSel)
-
-                if (center != 0L) {
-                    val notifClass = lib.objc_getClass("NSUserNotification")
-                    val allocSel = lib.sel_registerName("alloc")
-                    val initSel = lib.sel_registerName("init")
-                    val notifAlloc = lib.objc_msgSend(notifClass, allocSel)
-                    val notif = lib.objc_msgSend(notifAlloc, initSel)
-
-                    val strClass = lib.objc_getClass("NSString")
-                    val strWithUtf8Sel = lib.sel_registerName("stringWithUTF8String:")
-
-                    val titleNs = lib.objc_msgSend(strClass, strWithUtf8Sel, title)
-                    val bodyNs = lib.objc_msgSend(strClass, strWithUtf8Sel, body)
-
-                    val setTitleSel = lib.sel_registerName("setTitle:")
-                    val setInfoSel = lib.sel_registerName("setInformativeText:")
-                    val deliverSel = lib.sel_registerName("deliverNotification:")
-
-                    lib.objc_msgSend(notif, setTitleSel, titleNs)
-                    lib.objc_msgSend(notif, setInfoSel, bodyNs)
-                    lib.objc_msgSend(center, deliverSel, notif)
-                    logger.info("macOS: posted notification via NSUserNotificationCenter")
-                    return
-                }
-            } catch (e: Exception) {
-                logger.debug("Cocoa notification failed, falling back to osascript: ${e.message}")
-            }
-        }
-
-        // Approach 2: AppleScript fallback
         try {
-            val safeTitle = title.replace("\"", "'")
-            val safeBody  = body.replace("\"", "'")
-            ProcessBuilder(
-                "osascript", "-e",
-                """display notification "$safeBody" with title "$safeTitle" """
-            ).redirectErrorStream(true).start()
+            val safeTitle = title.replace("\"", "'").replace("\\", "")
+            val safeBody  = body.replace("\"", "'").replace("\\", "")
+            val bundleId  = AppInfo.BUNDLE_ID
+
+            // Try targeting the bundle ID for native app icon, with universal fallback
+            val script = """
+                try
+                    tell application id "$bundleId" to display notification "$safeBody" with title "$safeTitle"
+                on error
+                    display notification "$safeBody" with title "$safeTitle"
+                end try
+            """.trimIndent()
+
+            ProcessBuilder("osascript", "-e", script)
+                .redirectErrorStream(true)
+                .start()
+            logger.info("macOS: notification sent")
         } catch (e: Exception) {
             logger.warn("macOS notification failed: ${e.message}")
         }
