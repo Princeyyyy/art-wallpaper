@@ -77,10 +77,6 @@
 
     <UIRef Id="JpUI"/>
 
-    <!-- Custom Branded WiX Dialog & Banner Bitmaps -->
-    <WixVariable Id="WixUIDialogBmp" Value="$(var.JpConfigDir)\WixUIDialogBmp.bmp" />
-    <WixVariable Id="WixUIBannerBmp" Value="$(var.JpConfigDir)\WixUIBannerBmp.bmp" />
-
     <!-- Gracefully close running Art Wallpaper before install / uninstall -->
     <util:CloseApplication
       Id="CloseArtWallpaper"

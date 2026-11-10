@@ -19,7 +19,7 @@ fun normalizeVersion(raw: String): String {
 }
 
 // Single source of truth for build versioning (from gradle.properties or -PappVersion)
-val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.1.1"
+val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.1.2"
 val appVersion: String = normalizeVersion(rawVersion)
 val appGroup: String = project.findProperty("appGroup")?.toString() ?: "com.prince.artwallpaper"
 
