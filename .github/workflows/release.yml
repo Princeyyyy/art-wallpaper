@@ -266,6 +266,7 @@ jobs:
             echo "Verifying Info.plist..."
             plutil -lint "$APP_PATH/Contents/Info.plist"
             echo "Executing native macOS binary with --smoke-test..."
+            chmod +x "$APP_PATH/Contents/MacOS/Art Wallpaper" || true
             "$APP_PATH/Contents/MacOS/Art Wallpaper" --smoke-test
           fi
 
