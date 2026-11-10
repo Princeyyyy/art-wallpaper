@@ -193,9 +193,9 @@ class UpdateManager(
         try {
             if (os.contains("windows")) {
                 logger.info("Launching Windows MSI installer: $installerPath")
-                // Start msiexec passively so the installer takes over and app terminates
-                ProcessBuilder("msiexec.exe", "/i", installerPath.toAbsolutePath().toString()).start()
-                Thread.sleep(600)
+                // Start msiexec detached via cmd start so the installer runs independently and app terminates
+                ProcessBuilder("cmd.exe", "/c", "start \"\" msiexec.exe /i \"${installerPath.toAbsolutePath()}\"").start()
+                Thread.sleep(800)
                 System.exit(0)
             } else if (os.contains("mac")) {
                 logger.info("Mounting macOS DMG installer: $installerPath")

@@ -8,7 +8,7 @@ on:
         description: 'Release version (e.g. 4.0.3) — must be valid 3-part semver'
         required: true
         type: string
-        default: '4.1.0'
+        default: '4.1.1'
       release_notes:
         description: 'Release notes (supports markdown)'
         required: false

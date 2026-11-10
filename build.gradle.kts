@@ -19,7 +19,7 @@ fun normalizeVersion(raw: String): String {
 }
 
 // Single source of truth for build versioning (from gradle.properties or -PappVersion)
-val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.1.0"
+val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.1.1"
 val appVersion: String = normalizeVersion(rawVersion)
 val appGroup: String = project.findProperty("appGroup")?.toString() ?: "com.prince.artwallpaper"
 
@@ -134,6 +134,35 @@ compose.desktop {
 
                 // Add startup parameters
                 jvmArgs += listOf("-Dfile.encoding=UTF-8")
+            }
+        }
+    }
+}
+
+
+// Inject custom WiX packaging templates & bitmaps into jpackage for MSI packaging
+val copyWixResources by tasks.registering(Copy::class) {
+    from(project.file("src/main/resources/packaging")) {
+        include("main.wxs", "overrides.wxi", "WixUIBannerBmp.bmp", "WixUIDialogBmp.bmp")
+    }
+    into(project.layout.buildDirectory.dir("compose/tmp/resources"))
+}
+
+tasks.matching { it.name.startsWith("package") && it.name.endsWith("Msi", ignoreCase = true) }.configureEach {
+    dependsOn(copyWixResources)
+}
+
+tasks.withType<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>().configureEach {
+    if (name.contains("Msi", ignoreCase = true)) {
+        val resDir = project.file("src/main/resources/packaging")
+        freeArgs.addAll(listOf("--resource-dir", resDir.absolutePath))
+        doFirst {
+            val composeTmpRes = project.layout.buildDirectory.dir("compose/tmp/resources").get().asFile
+            composeTmpRes.mkdirs()
+            resDir.listFiles()?.forEach { file ->
+                if (file.isFile) {
+                    file.copyTo(composeTmpRes.resolve(file.name), overwrite = true)
+                }
             }
         }
     }
