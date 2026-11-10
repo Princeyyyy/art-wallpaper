@@ -159,12 +159,14 @@ Art Wallpaper is an open-source project welcoming community contributions:
 
 ---
 
-## Privacy Policy
+## Legal and Privacy
 
-Art Wallpaper is committed to user privacy. The application:
-- Does **not** collect, store, track, or transmit any personal user data or telemetry.
-- Communicates exclusively with the public [Metropolitan Museum of Art Open Access API](https://metmuseum.github.io/) to download public-domain masterpieces and artwork metadata.
-- Stores user settings, history, and offline artwork caches strictly locally on the device (`%USERPROFILE%\.artwallpaper` on Windows, `~/.artwallpaper` on macOS).
+Art Wallpaper is built on local-first, zero-telemetry principles. The application collects no personal data and stores all preferences and artwork caches strictly on your local machine.
+
+Detailed legal documentation and policies are maintained on the web application:
+- [Privacy Policy](web/src/app/privacy/page.tsx)
+- [Terms of Service](web/src/app/terms/page.tsx)
+- [Software License (CC BY-NC 4.0)](LICENSE)
 
 ---
 
