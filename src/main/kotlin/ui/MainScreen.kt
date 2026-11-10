@@ -233,7 +233,7 @@ fun MainScreen(
                                             bitmap = bitmap,
                                             contentDescription = metadata.title,
                                             modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Fit
+                                            contentScale = ContentScale.Crop
                                         )
                                     } else {
                                         Box(
