@@ -25,6 +25,11 @@ class WallpaperManagerTest {
         artworkStorage = mockk(relaxed = true)
         historyManager = mockk(relaxed = true)
         connectivityChecker = mockk(relaxed = true)
+
+        every { wallpaperService.getCurrentWallpaper() } returns null
+        every { artworkStorage.getLatestStoredArtwork() } returns null
+        every { artworkStorage.getStoredArtworks() } returns emptyList()
+        every { historyManager.getHistory() } returns emptyList()
     }
 
     @AfterTest

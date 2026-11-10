@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "Security Vulnerability Reporting"
+    url: "mailto:princemumo80@gmail.com"
+    about: "Report sensitive security issues confidentially to the maintainer."
+  - name: "Questions and Community Discussions"
+    url: "https://github.com/Princeyyyy/art-wallpaper/discussions"
+    about: "Ask questions, share desktop setups, and discuss artwork collections."

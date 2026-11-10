@@ -131,16 +131,19 @@ fun MainScreen(
                                         .clip(RoundedCornerShape(16.dp))
                                         .clickable { showSettings = true }
                                 ) {
+                                    val goldColor = ArtColors.GalleryGold
                                     Row(
                                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                                     ) {
-                                        Text("★", color = ArtColors.GalleryGold, fontSize = 10.sp)
+                                        androidx.compose.foundation.Canvas(modifier = Modifier.size(6.dp)) {
+                                            drawCircle(color = goldColor)
+                                        }
                                         Text(
                                             "v$latestVer Ready",
                                             style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Bold),
-                                            color = ArtColors.GalleryGold
+                                            color = goldColor
                                         )
                                     }
                                 }
@@ -152,12 +155,13 @@ fun MainScreen(
                                 AppTheme.LIGHT  -> AppTheme.DARK
                                 AppTheme.DARK   -> AppTheme.SYSTEM
                             }
-                            val themeIcon = if (ArtColors.isDark) "☾" else "☀"
                             val themeLabel = when (currentSettings.themeMode) {
                                 AppTheme.SYSTEM -> "System"
                                 AppTheme.LIGHT  -> "Light"
                                 AppTheme.DARK   -> "Dark"
                             }
+                            val isDarkTheme = ArtColors.isDark
+                            val themeGold = ArtColors.GalleryGold
 
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
@@ -174,13 +178,15 @@ fun MainScreen(
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(
-                                        themeIcon,
-                                        color = ArtColors.GalleryGold,
-                                        fontSize = 11.sp
-                                    )
+                                    androidx.compose.foundation.Canvas(modifier = Modifier.size(8.dp)) {
+                                        if (isDarkTheme) {
+                                            drawCircle(color = themeGold)
+                                        } else {
+                                            drawCircle(color = themeGold, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f))
+                                        }
+                                    }
                                     Text(
                                         themeLabel,
                                         style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium),

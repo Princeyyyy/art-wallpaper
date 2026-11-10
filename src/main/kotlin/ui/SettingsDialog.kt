@@ -154,7 +154,7 @@ fun SettingsDialog(
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Text(
-                                    "Ambient Blur Matting · Permanent Standard",
+                                    "Ambient Blur Matting - Permanent Standard",
                                     style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold),
                                     color = ArtColors.GalleryGold
                                 )
@@ -383,7 +383,7 @@ fun SettingsDialog(
                                         verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
                                         Text(
-                                            "Leaving the gallery? We're sad to see you go! ðŸŽ¨",
+                                            "Leaving the gallery? We are sorry to see you go.",
                                             style = MaterialTheme.typography.caption,
                                             color = ArtColors.GalleryGold
                                         )

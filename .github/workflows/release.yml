@@ -25,6 +25,7 @@ jobs:
   prepare:
     name: Prepare Release Version
     runs-on: ubuntu-latest
+    if: github.repository_owner == github.actor
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:

@@ -23,18 +23,18 @@
 
 ---
 
-## 🌟 What's New in v4.0.0
+## What's New in v4.0.0
 
-- 🍏 **Full macOS Support**: Native wallpaper setting via AppleScript System Events and macOS `LaunchAgents` auto-start `.plist` management.
-- ⚡ **Dual Release Pipeline**: Automated manual GitHub Actions workflow building both **Windows MSI** (`packageMsi`) and **macOS DMG** (`packageDmg`) releases.
-- 🧭 **Guided 4-Step Onboarding**: A complete interactive setup wizard (Welcome → Schedule presets → System integration → Live curation and desktop reveal).
-- 🚀 **Performance & Battery Engine**:
+- **Full macOS Support**: Native wallpaper setting via AppleScript System Events and macOS `LaunchAgents` auto-start `.plist` management.
+- **Dual Release Pipeline**: Automated manual GitHub Actions workflow building both **Windows MSI** (`packageMsi`) and **macOS DMG** (`packageDmg`) releases.
+- **Guided 4-Step Onboarding**: A complete interactive setup wizard (Welcome → Schedule presets → System integration → Live curation and desktop reveal).
+- **Performance & Battery Engine**:
   - Asynchronous non-blocking image decoding on `Dispatchers.IO`.
   - In-memory `ArtworkBitmapCache` for instantaneous 60/120fps window navigation with zero frame drops.
   - Off-heap native memory reclaim via automatic `BufferedImage.flush()` cleanup.
   - Battery-friendly timers sleeping precisely until the next rotation window without busy CPU polling.
   - In-memory Met Museum department ID caching to bypass 10,000+ item redundant network downloads.
-- 🎯 **Synchronized System Tray / Menu Bar**:
+- **Synchronized System Tray / Menu Bar**:
   - Dynamic Pause/Resume menu item that reflects background engine status in real time.
   - Active artwork tooltip and header displaying the currently loaded masterpiece title.
   - Direct "Next Wallpaper" trigger from the taskbar notification area.
@@ -42,7 +42,7 @@
 
 ---
 
-## 🎨 Asset Showcase
+## Asset Showcase
 
 <p align="center">
   <img src="src/main/resources/branding/preview-sheet.png" alt="ArtWallpaper Asset Pack" width="90%" />
@@ -57,24 +57,24 @@ ArtWallpaper includes a complete professional multi-platform asset pack:
 
 ---
 
-## ✨ Features
+## Features
 
-- 🏛️ **Museum-Grade Curation**: Draws from the public domain collection of The Metropolitan Museum of Art (400,000+ open-access artworks).
-- 🌅 **Automatic Daily Rotation**: Configurable refresh time (default 07:00 AM) that persists across reboots.
-- 🖼️ **Full-Bleed Gallery UI**: Editorial dark aesthetic with subtle scrims, title/artist typography, and smooth crossfades.
-- ⚡ **Native System Tray & Menu Bar**: Runs discreetly in the Windows taskbar or macOS menu bar with dynamic pause/resume, instant refresh, and notification support.
-- 💾 **Smart Offline Fallback**: High-resolution artworks and JSON metadata stay saved locally in your personal gallery; if the internet is down, ArtWallpaper rotates through saved gems.
-- 🧹 **Automatic Storage Pruning**: Keeps up to 100 recent artworks, automatically cleaning up orphaned files and cache artifacts.
-- 🪟 **Windows 11 Native Integration**: Immersive DWM dark mode title bar (`DWMWA_USE_IMMERSIVE_DARK_MODE`), native rounded window corners, live registry system theme detection (`AppsUseLightTheme`), and native Segoe UI Variable typography.
-- 🍏 **macOS Native Integration**: Clean menu bar accessory (`LSUIElement=1` / `NSApplicationActivationPolicyAccessory` hiding Dock icon), live `AppleInterfaceStyle` detection, native Notification Center integration via `osascript`, and San Francisco typography.
-- 🚀 **Cross-Platform Auto-Start**:
+- **Museum-Grade Curation**: Draws from the public domain collection of The Metropolitan Museum of Art (400,000+ open-access artworks).
+- **Automatic Daily Rotation**: Configurable refresh time (default 07:00 AM) that persists across reboots.
+- **Full-Bleed Gallery UI**: Editorial dark aesthetic with subtle scrims, title/artist typography, and smooth crossfades.
+- **Native System Tray & Menu Bar**: Runs discreetly in the Windows taskbar or macOS menu bar with dynamic pause/resume, instant refresh, and notification support.
+- **Smart Offline Fallback**: High-resolution artworks and JSON metadata stay saved locally in your personal gallery; if the internet is down, ArtWallpaper rotates through saved gems.
+- **Automatic Storage Pruning**: Keeps up to 100 recent artworks, automatically cleaning up orphaned files and cache artifacts.
+- **Windows 11 Native Integration**: Immersive DWM dark mode title bar (`DWMWA_USE_IMMERSIVE_DARK_MODE`), native rounded window corners, live registry system theme detection (`AppsUseLightTheme`), and native Segoe UI Variable typography.
+- **macOS Native Integration**: Clean menu bar accessory (`LSUIElement=1` / `NSApplicationActivationPolicyAccessory` hiding Dock icon), live `AppleInterfaceStyle` detection, native Notification Center integration via `osascript`, and San Francisco typography.
+- **Cross-Platform Auto-Start**:
   - *Windows*: Configured directly in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
   - *macOS*: Configured in `~/Library/LaunchAgents/com.prince.artwallpaper.plist`.
-- 🛡️ **Crash-Resilient Settings**: Dual-layer settings storage with automatic `.json.bak` backup restoration.
+- **Crash-Resilient Settings**: Dual-layer settings storage with automatic `.json.bak` backup restoration.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Windows Installation via MSI
 1. Download `ArtWallpaper-4.0.0-Windows.msi` from [Releases](https://github.com/Princeyyyy/art-wallpaper/releases).
@@ -88,7 +88,7 @@ ArtWallpaper includes a complete professional multi-platform asset pack:
 1. Download `ArtWallpaper-4.0.0-macOS.dmg` from [Releases](https://github.com/Princeyyyy/art-wallpaper/releases).
 2. Open the `.dmg` and drag **Art Wallpaper** into your `/Applications` folder.
 3. Launch the app from Spotlight or Applications.
-   > 💡 **macOS Gatekeeper Note**: On macOS 14+ (Sonoma/Sequoia), if macOS prompts that the app cannot be opened because the developer cannot be verified, right-click `Art Wallpaper.app` in `/Applications` and choose **Open**, or run in Terminal:
+   > **macOS Gatekeeper Note**: On macOS 14+ (Sonoma/Sequoia), if macOS prompts that the app cannot be opened because the developer cannot be verified, right-click `Art Wallpaper.app` in `/Applications` and choose **Open**, or run in Terminal:
    > ```bash
    > xattr -cr "/Applications/Art Wallpaper.app"
    > ```
@@ -105,7 +105,7 @@ ArtWallpaper --clear-data
 
 ---
 
-## 📁 Data Storage
+## Data Storage
 
 All user data is stored safely in `%USERPROFILE%\.artwallpaper\` (Windows) or `~/.artwallpaper/` (macOS):
 
@@ -121,7 +121,7 @@ All user data is stored safely in `%USERPROFILE%\.artwallpaper\` (Windows) or `~
 
 ---
 
-## 🎮 System Tray / Menu Bar Controls
+## System Tray and Menu Bar Controls
 
 Right-click the ArtWallpaper icon in your Windows notification area or click the macOS menu bar icon:
 - **Art Wallpaper**: Displays the currently active artwork title.
@@ -132,7 +132,7 @@ Right-click the ArtWallpaper icon in your Windows notification area or click the
 
 ---
 
-## 🧪 Testing & CI/CD Pipeline
+## Testing and CI/CD Pipeline
 
 The project features a comprehensive multi-platform test suite:
 - **Unit Tests**: `HistoryManagerTest`, `SettingsTest`, `RetryPolicyTest`, `ArtworkStorageManagerTest`, `WallpaperManagerTest`, `ServiceControllerTest`.
@@ -147,7 +147,19 @@ The project features a comprehensive multi-platform test suite:
 
 ---
 
-## 🔒 Privacy Policy
+## Contributing and Governance
+
+Art Wallpaper is an open-source project welcoming community contributions:
+- Please read our [Contributing Guide](CONTRIBUTING.md) to get started.
+- Check our [Developer Handbook](DEVELOPMENT.md) for architectural details and local setup.
+- Review our [Project Governance](GOVERNANCE.md) for merging rules and release authority.
+- All participants must follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+> **Note on Merging & Releases**: To ensure software reliability, direct pushes to `master` are strictly disabled. All contributions must be submitted via Pull Requests. Only the repository owner ([@Princeyyyy](https://github.com/Princeyyyy)) can approve and merge Pull Requests and trigger official releases.
+
+---
+
+## Privacy Policy
 
 Art Wallpaper is committed to user privacy. The application:
 - Does **not** collect, store, track, or transmit any personal user data or telemetry.
@@ -156,7 +168,7 @@ Art Wallpaper is committed to user privacy. The application:
 
 ---
 
-## 📜 License
+## License
 
 Licensed under [Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)](http://creativecommons.org/licenses/by-nc/4.0/).
 Artworks delivered by the application belong to the public domain collections of The Metropolitan Museum of Art.
