@@ -11,6 +11,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.nio.file.Path
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.*
 
@@ -22,11 +23,13 @@ class MetMuseumSource(
     private val logger = LoggerFactory.getLogger(MetMuseumSource::class.java)
     private val baseUrl = "https://collectionapi.metmuseum.org/public/collection/v1"
     private val departments = listOf(
-        11, // European Paintings
-        21  // Modern Art
+        11, // European Paintings (Rembrandt, Monet, Van Gogh, Vermeer, Cézanne)
+        6,  // Asian Art (Hokusai, Hiroshige woodblocks, landscape screens)
+        1,  // American Paintings & Decorative Arts (Bierstadt, Sargent, Homer)
+        21  // Modern Art (when public domain / has image)
     )
     private val json = Json { ignoreUnknownKeys = true }
-    private val maxFetchAttempts = 10
+    private val maxFetchAttempts = 25
     private val imageProcessor = ImageProcessor()
 
     // Performance optimization: Cache department object IDs in memory to avoid
@@ -35,8 +38,8 @@ class MetMuseumSource(
 
     @Serializable
     private data class ObjectIdsResponse(
-        val total: Int,
-        val objectIDs: List<Int>
+        val total: Int = 0,
+        val objectIDs: List<Int>? = emptyList()
     )
 
     @Serializable
@@ -73,38 +76,48 @@ class MetMuseumSource(
 
     override suspend fun fetchRandomArtwork(): Result<Pair<Path, ArtworkMetadata>> = runCatching {
         withContext(Dispatchers.IO) {
-            val selectedDepartment = departments.random()
-            logger.info("Selecting artwork from Met Museum API (Dept ID: $selectedDepartment)")
-
-            val objectIds = getDepartmentObjectIds(selectedDepartment)
-            if (objectIds.isEmpty()) {
-                throw IllegalStateException("No artworks found in department $selectedDepartment")
-            }
-
-            var availableIds = objectIds.filter { !historyManager.isInHistory(it.toString()) }
-            if (availableIds.isEmpty()) {
-                logger.info("All department artworks have been shown, refreshing history cycle")
-                historyManager.clearHistory()
-                availableIds = objectIds
-            }
-
-            val shuffledIds = availableIds.shuffled()
+            val candidateDepartments = departments.shuffled()
             var lastError: Exception? = null
 
-            for (attempt in 0 until minOf(maxFetchAttempts, shuffledIds.size)) {
-                val candidateId = shuffledIds[attempt]
+            for (deptId in candidateDepartments) {
                 try {
-                    val result = tryFetchArtwork(candidateId)
-                    if (result != null) return@withContext result
-                    delay(120)
+                    logger.info("Selecting artwork from Met Museum API (Dept ID: $deptId)")
+
+                    val objectIds = getDepartmentObjectIds(deptId)
+                    if (objectIds.isEmpty()) {
+                        logger.warn("No artworks found in Dept $deptId, checking next department...")
+                        continue
+                    }
+
+                    var availableIds = objectIds.filter { !historyManager.isInHistory(it.toString()) }
+                    if (availableIds.isEmpty()) {
+                        logger.info("All artworks in Dept $deptId have been shown, refreshing history cycle")
+                        historyManager.clearHistory()
+                        availableIds = objectIds
+                    }
+
+                    val shuffledIds = availableIds.shuffled()
+                    for (attempt in 0 until minOf(maxFetchAttempts, shuffledIds.size)) {
+                        val candidateId = shuffledIds[attempt]
+                        try {
+                            val result = tryFetchArtwork(candidateId)
+                            if (result != null) return@withContext result
+                            delay(60)
+                        } catch (e: Exception) {
+                            logger.debug("Candidate $candidateId in Dept $deptId failed: ${e.message}")
+                            lastError = e
+                            delay(100)
+                        }
+                    }
+
+                    logger.warn("Could not find usable image in Dept $deptId after $maxFetchAttempts candidates, trying next department...")
                 } catch (e: Exception) {
-                    logger.warn("Candidate $candidateId failed: ${e.message}")
+                    logger.warn("Failed querying Dept $deptId: ${e.message}, trying next department...")
                     lastError = e
-                    delay(200)
                 }
             }
 
-            throw lastError ?: IllegalStateException("Could not find a usable artwork after $maxFetchAttempts attempts")
+            throw lastError ?: IllegalStateException("Could not find a usable artwork across any Met Museum department")
         }
     }
 
@@ -114,22 +127,55 @@ class MetMuseumSource(
             return@withContext cached
         }
 
-        val request = HttpRequest.newBuilder()
-            .uri(URI.create("$baseUrl/objects?departmentIds=$departmentId"))
-            .build()
+        // Prefer /search?departmentId=X&hasImages=true&q=* so 100% of candidate IDs have images
+        val searchUrl = "$baseUrl/search?departmentId=$departmentId&hasImages=true&q=*"
+        val decoded = try {
+            val searchRequest = HttpRequest.newBuilder()
+                .uri(URI.create(searchUrl))
+                .header("User-Agent", "ArtWallpaper-DesktopApp")
+                .timeout(Duration.ofSeconds(15))
+                .build()
+            val response = client.send(searchRequest, BodyHandlers.ofString())
+            if (response.statusCode() == 200) {
+                val resp = json.decodeFromString<ObjectIdsResponse>(response.body())
+                resp.objectIDs ?: emptyList()
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            logger.debug("Met Museum search endpoint failed for Dept $departmentId: ${e.message}, falling back to /objects")
+            emptyList()
+        }
 
-        val response = client.send(request, BodyHandlers.ofString())
-        val decoded = json.decodeFromString<ObjectIdsResponse>(response.body()).objectIDs
-        departmentCache[departmentId] = decoded
-        decoded
+        val finalIds = if (decoded.isNotEmpty()) {
+            decoded
+        } else {
+            // Fallback to /objects?departmentIds=X
+            val fallbackRequest = HttpRequest.newBuilder()
+                .uri(URI.create("$baseUrl/objects?departmentIds=$departmentId"))
+                .header("User-Agent", "ArtWallpaper-DesktopApp")
+                .timeout(Duration.ofSeconds(15))
+                .build()
+            val fallbackResponse = client.send(fallbackRequest, BodyHandlers.ofString())
+            val resp = json.decodeFromString<ObjectIdsResponse>(fallbackResponse.body())
+            resp.objectIDs ?: emptyList()
+        }
+
+        departmentCache[departmentId] = finalIds
+        finalIds
     }
 
     private suspend fun tryFetchArtwork(objectId: Int): Pair<Path, ArtworkMetadata>? = withContext(Dispatchers.IO) {
         val artworkRequest = HttpRequest.newBuilder()
             .uri(URI.create("$baseUrl/objects/$objectId"))
+            .header("User-Agent", "ArtWallpaper-DesktopApp")
+            .timeout(Duration.ofSeconds(15))
             .build()
 
         val artworkResponse = client.send(artworkRequest, BodyHandlers.ofString())
+        if (artworkResponse.statusCode() != 200) {
+            return@withContext null
+        }
         val artwork = json.decodeFromString<ArtworkResponse>(artworkResponse.body())
 
         if (artwork.primaryImage.isBlank()) {
@@ -138,6 +184,8 @@ class MetMuseumSource(
 
         val imageRequest = HttpRequest.newBuilder()
             .uri(URI.create(artwork.primaryImage))
+            .header("User-Agent", "ArtWallpaper-DesktopApp")
+            .timeout(Duration.ofSeconds(20))
             .build()
 
         val imageResponse = client.send(imageRequest, BodyHandlers.ofByteArray())

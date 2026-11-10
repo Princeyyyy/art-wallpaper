@@ -71,12 +71,7 @@ class ImageProcessor(
         val (targetWidth, targetHeight) = targetDimensions ?: getScreenDimensions()
 
         try {
-            val processedImage: BufferedImage = when (fitMode) {
-                WallpaperFitMode.AMBIENT_BLUR -> renderAmbientBlur(originalImage, targetWidth, targetHeight)
-                WallpaperFitMode.FILL_CROP   -> renderFillCrop(originalImage, targetWidth, targetHeight)
-                WallpaperFitMode.MUSEUM_MAT  -> renderMuseumMat(originalImage, targetWidth, targetHeight)
-                WallpaperFitMode.FIT         -> renderFit(originalImage, targetWidth, targetHeight)
-            }
+            val processedImage: BufferedImage = renderAmbientBlur(originalImage, targetWidth, targetHeight)
 
             val destination = outputPath ?: imagePath.parent.resolve("processed_${imagePath.fileName}")
             destination.parent?.createDirectories()
@@ -199,99 +194,9 @@ class ImageProcessor(
         return canvas
     }
 
-    /**
-     * Proportional Fill & Center Crop.
-     * Scales uniformly to fill 100% of the screen with zero distortion, cropping excess edges.
-     */
-    private fun renderFillCrop(original: BufferedImage, targetW: Int, targetH: Int): BufferedImage {
-        val canvas = BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB)
-        val g2d = canvas.createGraphics()
-        try {
-            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
-            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
-            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
-            val scale = maxOf(targetW.toDouble() / original.width, targetH.toDouble() / original.height)
-            val dw = (original.width * scale).toInt()
-            val dh = (original.height * scale).toInt()
-            val dx = (targetW - dw) / 2
-            val dy = (targetH - dh) / 2
-            g2d.drawImage(original, dx, dy, dw, dh, null)
-        } finally {
-            g2d.dispose()
-        }
-        return canvas
-    }
 
-    /**
-     * Solid Museum Mat: Centered un-distorted artwork mounted on an obsidian gallery matte.
-     */
-    private fun renderMuseumMat(original: BufferedImage, targetW: Int, targetH: Int): BufferedImage {
-        val canvas = BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB)
-        val g2d = canvas.createGraphics()
-        try {
-            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
-            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
-            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
-            // Deep obsidian museum matting
-            g2d.color = Color(0x13, 0x13, 0x16)
-            g2d.fillRect(0, 0, targetW, targetH)
-
-            val taskbarReserve = (targetH * 0.058).toInt().coerceIn(52, 90)
-            val usableH = targetH - taskbarReserve
-
-            val maxArtW = (targetW * 0.84).toInt()
-            val maxArtH = (usableH * 0.86).toInt()
-            val scale = minOf(maxArtW.toDouble() / original.width, maxArtH.toDouble() / original.height)
-            val artW = maxOf((original.width * scale).toInt(), 100)
-            val artH = maxOf((original.height * scale).toInt(), 100)
-            val artX = (targetW - artW) / 2
-            val artY = (usableH - artH) / 2
-
-            // Gallery drop shadow
-            for (i in 5 downTo 1) {
-                val spread = i * 4
-                val alpha = (28 / i).coerceIn(4, 30)
-                g2d.color = Color(0, 0, 0, alpha)
-                g2d.fillRoundRect(artX - spread, artY - spread + 4, artW + spread * 2, artH + spread * 2, 8, 8)
-            }
-
-            g2d.drawImage(original, artX, artY, artW, artH, null)
-            g2d.color = Color(255, 255, 255, 40)
-            g2d.drawRect(artX, artY, artW, artH)
-        } finally {
-            g2d.dispose()
-        }
-        return canvas
-    }
-
-    /**
-     * Clean Fit: Proportional fit centered on a dark canvas.
-     */
-    private fun renderFit(original: BufferedImage, targetW: Int, targetH: Int): BufferedImage {
-        val canvas = BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB)
-        val g2d = canvas.createGraphics()
-        try {
-            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
-            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
-
-            g2d.color = Color(0x0A, 0x0A, 0x0C)
-            g2d.fillRect(0, 0, targetW, targetH)
-
-            val taskbarReserve = (targetH * 0.058).toInt().coerceIn(52, 90)
-            val usableH = targetH - taskbarReserve
-            val scale = minOf(targetW.toDouble() / original.width, usableH.toDouble() / original.height)
-            val artW = maxOf((original.width * scale).toInt(), 100)
-            val artH = maxOf((original.height * scale).toInt(), 100)
-            val artX = (targetW - artW) / 2
-            val artY = (usableH - artH) / 2
-            g2d.drawImage(original, artX, artY, artW, artH, null)
-        } finally {
-            g2d.dispose()
-        }
-        return canvas
-    }
 
     /**
      * Fast, multi-pass separable box blur.

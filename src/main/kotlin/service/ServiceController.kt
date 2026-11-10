@@ -138,7 +138,7 @@ class ServiceController(
                 wallpaperManager.setWallpaperManually(storedPath, artwork.second)
                 artworkStorage.cleanupOldArtworks()
             } catch (e: Exception) {
-                logger.error("Failed to set next wallpaper", e)
+                logger.warn("Could not set next wallpaper: ${e.message}")
                 throw e
             }
         }

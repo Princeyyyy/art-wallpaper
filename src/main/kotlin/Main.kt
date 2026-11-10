@@ -24,12 +24,19 @@ fun main(args: Array<String>) {
     setupGlobalExceptionHandler()
     WindowsPlatform.registerAppUserModelId("com.prince.artwallpaper")
 
-    // ── macOS: hide from Dock BEFORE AWT toolkit initialises ──────────────────
-    // This is the runtime complement to LSUIElement=1 in Info.plist (DMG builds).
-    // Must run here, before any Swing/AWT call, or the Dock icon will flash.
-    MacPlatform.hideFromDock()
 
     // Add command line argument handling
+    if (args.contains("--version")) {
+        println("Art Wallpaper v${AppInfo.version}")
+        System.exit(0)
+        return
+    }
+
+    if (args.contains("--smoke-test")) {
+        println("Art Wallpaper v${AppInfo.version} runtime smoke test OK")
+        System.exit(0)
+        return
+    }
     if (args.contains("--clear-data")) {
         DataCleanup.clearAllData()
         println("All application data cleared")

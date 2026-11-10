@@ -88,7 +88,7 @@ class WallpaperManager(
                 }
             }
         } catch (e: Exception) {
-            logger.error("Failed to load wallpaper state", e)
+            logger.warn("Wallpaper state file unparseable, starting fresh: ${e.message}")
         }
         // FIX #4: Removed duplicate loadSavedState() — logic is fully inlined above.
     }

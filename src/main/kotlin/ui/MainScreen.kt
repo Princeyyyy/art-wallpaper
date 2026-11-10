@@ -188,53 +188,6 @@ fun MainScreen(
                                 }
                             }
 
-                            // Quick Fit Mode Switcher
-                            val fitLabel = when (currentSettings.wallpaperFitMode) {
-                                WallpaperFitMode.AMBIENT_BLUR -> "Ambient Mat"
-                                WallpaperFitMode.FILL_CROP   -> "Full Bleed"
-                                WallpaperFitMode.MUSEUM_MAT  -> "Museum Mat"
-                                WallpaperFitMode.FIT         -> "Classic Fit"
-                            }
-                            val nextFit = when (currentSettings.wallpaperFitMode) {
-                                WallpaperFitMode.AMBIENT_BLUR -> WallpaperFitMode.FILL_CROP
-                                WallpaperFitMode.FILL_CROP   -> WallpaperFitMode.MUSEUM_MAT
-                                WallpaperFitMode.MUSEUM_MAT  -> WallpaperFitMode.FIT
-                                WallpaperFitMode.FIT         -> WallpaperFitMode.AMBIENT_BLUR
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = ArtColors.SurfaceVariant,
-                                border = BorderStroke(1.dp, ArtColors.CardBorder),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable {
-                                        val updated = currentSettings.copy(wallpaperFitMode = nextFit)
-                                        Settings.updateCurrentSettings(updated)
-                                        onSettingsChange(updated)
-                                        coroutineScope.launch {
-                                            serviceController.reprocessWallpaper(nextFit)
-                                        }
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                ) {
-                                    Text(
-                                        "◫",
-                                        color = ArtColors.GalleryGold,
-                                        fontSize = 11.sp
-                                    )
-                                    Text(
-                                        fitLabel,
-                                        style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium),
-                                        color = ArtColors.PaperWhite
-                                    )
-                                }
-                            }
-
                             // Settings Button
                             IconButton(
                                 onClick = { showSettings = true },

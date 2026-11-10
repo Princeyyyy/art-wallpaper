@@ -106,6 +106,7 @@ Generate the complete GitHub release notes in markdown following this exact stru
 ## 🚀 Installation
 
 * **Windows**: Download [`ArtWallpaper-{version}-Windows.msi`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-Windows.msi) and run the installer.
+  > 💡 **Windows SmartScreen**: Click **"More info"** and then **"Run anyway"** to install.
 * **macOS**: Download [`ArtWallpaper-{version}-macOS.dmg`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-macOS.dmg), open it, and drag ArtWallpaper into Applications.
   > 💡 **First-Time Mac Launch**: If macOS Gatekeeper prompts that the app cannot be opened because the developer cannot be verified, right-click `Art Wallpaper.app` in Applications and choose **Open**, or run: `xattr -cr "/Applications/Art Wallpaper.app"`.
 
@@ -235,6 +236,7 @@ def generate_fallback_notes(version, prev_tag, commits):
 ## 🚀 Installation
 
 * **Windows**: Download [`ArtWallpaper-{version}-Windows.msi`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-Windows.msi) and run the installer.
+  > 💡 **Windows SmartScreen**: Click **"More info"** and then **"Run anyway"** to install.
 * **macOS**: Download [`ArtWallpaper-{version}-macOS.dmg`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-macOS.dmg), open it, and drag ArtWallpaper into Applications.
   > 💡 **First-Time Mac Launch**: If macOS Gatekeeper prompts that the app cannot be opened because the developer cannot be verified, right-click `Art Wallpaper.app` in Applications and choose **Open**, or run: `xattr -cr "/Applications/Art Wallpaper.app"`.
 
@@ -300,6 +302,7 @@ def main():
 ## 🚀 Installation
 
 * **Windows**: Download [`ArtWallpaper-{version}-Windows.msi`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-Windows.msi) and run the installer.
+  > 💡 **Windows SmartScreen**: Click **"More info"** and then **"Run anyway"** to install.
 * **macOS**: Download [`ArtWallpaper-{version}-macOS.dmg`](https://github.com/Princeyyyy/art-wallpaper/releases/download/v{version}/ArtWallpaper-{version}-macOS.dmg), open it, and drag ArtWallpaper into Applications.
   > 💡 **First-Time Mac Launch**: If macOS Gatekeeper prompts that the app cannot be opened because the developer cannot be verified, right-click `Art Wallpaper.app` in Applications and choose **Open**, or run: `xattr -cr "/Applications/Art Wallpaper.app"`.
 

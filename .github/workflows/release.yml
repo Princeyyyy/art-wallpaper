@@ -8,7 +8,7 @@ on:
         description: 'Release version (e.g. 4.0.3) — must be valid 3-part semver'
         required: true
         type: string
-        default: '4.0.3'
+        default: '4.1.0'
       release_notes:
         description: 'Release notes (supports markdown)'
         required: false
@@ -256,6 +256,17 @@ jobs:
           else
             echo "Packaging standard macOS DMG (unsigned)..."
             ./gradlew packageDmg -PappVersion=$V
+          fi
+
+      - name: Smoke-test packaged macOS application
+        run: |
+          APP_PATH=$(find build -name "*.app" | head -n 1)
+          if [ -n "$APP_PATH" ]; then
+            echo "Found packaged app: $APP_PATH"
+            echo "Verifying Info.plist..."
+            plutil -lint "$APP_PATH/Contents/Info.plist"
+            echo "Executing native macOS binary with --smoke-test..."
+            "$APP_PATH/Contents/MacOS/Art Wallpaper" --smoke-test
           fi
 
       - name: Locate and stage DMG artifact

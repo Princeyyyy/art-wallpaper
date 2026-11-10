@@ -1,73 +1,45 @@
-import com.sun.jna.Library
-import com.sun.jna.Native
 import org.slf4j.LoggerFactory
 
 /**
  * macOS platform integration for ArtWallpaper.
  *
- * 1. Hide the app from the Dock and Cmd+Tab switcher at runtime (`setActivationPolicy: 1`).
- * 2. Activate application and bring window frontmost (`activateIgnoringOtherApps: YES`).
- * 3. Post branded notifications to macOS Notification Center targeting the app's bundle ID.
+ * 1. Safe window activation and foreground focus via native macOS AppleScript.
+ * 2. Branded notifications to macOS Notification Center targeting the app's bundle ID.
+ *
+ * Uses osascript subprocess to guarantee 100% JVM crash-safety across all architectures
+ * (Intel x86_64 and Apple Silicon arm64 / M-series).
  */
 object MacPlatform {
 
     private val logger = LoggerFactory.getLogger(MacPlatform::class.java)
     val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
 
-    // ── Minimal Objective-C runtime bridge via JNA ──────────────────────────
-
-    internal interface ObjCLibrary : Library {
-        fun objc_getClass(className: String): Long
-        fun sel_registerName(selectorName: String): Long
-        fun objc_msgSend(receiver: Long, sel: Long, vararg args: Any?): Long
-    }
-
-    internal val objc: ObjCLibrary? by lazy {
-        if (!isMac) null
-        else try {
-            Native.load("objc", ObjCLibrary::class.java) as ObjCLibrary
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     /**
-     * Sets NSApplication activation policy to Accessory (1), which removes
-     * the app from the Dock and Cmd+Tab.
+     * No-op on modern macOS: allows standard Dock presentation and window focus,
+     * avoiding dangerous variadic JNA calls to the Objective-C runtime on ARM64 / Apple Silicon.
      */
     fun hideFromDock() {
-        if (!isMac) return
-        val lib = objc ?: return
-        try {
-            val nsAppClass = lib.objc_getClass("NSApplication")
-            if (nsAppClass == 0L) return
-            val sharedAppSel = lib.sel_registerName("sharedApplication")
-            val nsApp = lib.objc_msgSend(nsAppClass, sharedAppSel)
-            if (nsApp == 0L) return
-            val setPolicySel = lib.sel_registerName("setActivationPolicy:")
-            // NSApplicationActivationPolicyAccessory = 1
-            lib.objc_msgSend(nsApp, setPolicySel, 1L)
-            logger.info("macOS: activation policy set to Accessory (hidden from Dock)")
-        } catch (e: Exception) {
-            logger.warn("macOS: could not set activation policy: ${e.message}")
-        }
+        // Preserved as safe no-op for API compatibility
     }
 
     /**
      * Activates the application and brings its windows frontmost.
-     * Essential for LSUIElement=1 / Accessory apps when opening windows.
      */
     fun activateApp() {
         if (!isMac) return
-        val lib = objc ?: return
         try {
-            val nsAppClass = lib.objc_getClass("NSApplication")
-            if (nsAppClass == 0L) return
-            val sharedAppSel = lib.sel_registerName("sharedApplication")
-            val nsApp = lib.objc_msgSend(nsAppClass, sharedAppSel)
-            if (nsApp == 0L) return
-            val activateSel = lib.sel_registerName("activateIgnoringOtherApps:")
-            lib.objc_msgSend(nsApp, activateSel, 1L)
+            val bundleId = AppInfo.BUNDLE_ID
+            val script = """
+                try
+                    tell application id "$bundleId" to activate
+                on error
+                    tell application "Art Wallpaper" to activate
+                end try
+            """.trimIndent()
+
+            ProcessBuilder("osascript", "-e", script)
+                .redirectErrorStream(true)
+                .start()
             logger.info("macOS: application activated frontmost")
         } catch (e: Exception) {
             logger.debug("macOS: could not activate app: ${e.message}")
@@ -77,7 +49,6 @@ object MacPlatform {
     /**
      * Posts a notification to macOS Notification Center.
      * Targets the app's bundle identifier so macOS displays the real app icon.
-     * Uses osascript subprocess to guarantee 100% JVM crash-safety on all architectures (x86_64 and arm64).
      */
     fun showNotification(title: String, body: String) {
         if (!isMac) return
@@ -86,7 +57,6 @@ object MacPlatform {
             val safeBody  = body.replace("\"", "'").replace("\\", "")
             val bundleId  = AppInfo.BUNDLE_ID
 
-            // Try targeting the bundle ID for native app icon, with universal fallback
             val script = """
                 try
                     tell application id "$bundleId" to display notification "$safeBody" with title "$safeTitle"

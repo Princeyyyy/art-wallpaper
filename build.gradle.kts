@@ -19,7 +19,7 @@ fun normalizeVersion(raw: String): String {
 }
 
 // Single source of truth for build versioning (from gradle.properties or -PappVersion)
-val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.0.3"
+val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.1.0"
 val appVersion: String = normalizeVersion(rawVersion)
 val appGroup: String = project.findProperty("appGroup")?.toString() ?: "com.prince.artwallpaper"
 
@@ -84,18 +84,8 @@ compose.desktop {
             licenseFile.set(project.file("LICENSE"))
             appResourcesRootDir.set(project.file("src/main/resources/packaging"))
 
-            // Optimized JRE bundling: only bundle required modules to shrink distribution size
-            modules(
-                "java.base",
-                "java.desktop",
-                "java.net.http",
-                "java.prefs",
-                "java.naming",
-                "java.sql",
-                "java.instrument",
-                "java.management",
-                "jdk.unsupported"
-            )
+            // Bundle full modular OpenJDK runtime (includes java.xml for Logback, java.logging, and jdk.crypto.ec for TLS)
+            includeAllModules = true
 
             // Add JDK bundling configuration
             jvmArgs += listOf(
@@ -116,14 +106,12 @@ compose.desktop {
                     }
                 }
 
-                // Hide app from macOS Dock and Cmd+Tab — it lives in the menu bar only.
-                // LSUIElement=1 is the standard Info.plist key for status-bar / helper apps
-                // (like Bartender, Lungo, Hand Mirror, etc.).
+                // Standard macOS application presentation and Retina / High-DPI support
                 infoPlist {
                     extraKeysRawXml = """
-                        <key>LSUIElement</key>
-                        <true/>
                         <key>NSSupportsAutomaticGraphicsSwitching</key>
+                        <true/>
+                        <key>NSHighResolutionCapable</key>
                         <true/>
                     """.trimIndent()
                 }

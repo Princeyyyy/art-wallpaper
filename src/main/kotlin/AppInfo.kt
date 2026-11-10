@@ -7,7 +7,7 @@ import java.util.Properties
 object AppInfo {
     const val APP_NAME = "Art Wallpaper"
     const val BUNDLE_ID = "com.prince.artwallpaper"
-    const val DEFAULT_VERSION = "4.0.3"
+    const val DEFAULT_VERSION = "4.1.0"
 
     val version: String by lazy {
         try {

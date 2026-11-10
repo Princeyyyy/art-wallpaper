@@ -35,7 +35,6 @@ fun SettingsDialog(
     var isAutoStartEnabled by remember { mutableStateOf(WindowsAutoStart.isEnabled()) }
     var isNotificationsEnabled by remember { mutableStateOf(settings.notificationsEnabled) }
     var currentThemeMode by remember { mutableStateOf(settings.themeMode) }
-    var currentFitMode by remember { mutableStateOf(settings.wallpaperFitMode) }
     var showUninstallConfirmation by remember { mutableStateOf(false) }
     var deleteUserDataOnUninstall by remember { mutableStateOf(true) }
     val logger = LoggerFactory.getLogger("SettingsDialog")
@@ -144,82 +143,30 @@ fun SettingsDialog(
 
                     Divider(color = ArtColors.DividerLine)
 
-                    // ── Section 2: Laptop Wallpaper Fit Mode ──────────────────────
+                    // -- Section 2: Permanent Museum Ambient Matting ---------------
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SettingsSectionLabel("LAPTOP WALLPAPER FIT")
-                        Text(
-                            "Fine art has non-standard aspect ratios. ArtWallpaper renders wallpapers directly to your screen dimensions to eliminate stretching.",
-                            style = MaterialTheme.typography.caption,
-                            color = ArtColors.PaperMuted
-                        )
-
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            FitModeRow(
-                                title = "Ambient Blur Mat (Recommended)",
-                                description = "Preserves 100% true art proportions with a soft matching ambient glow.",
-                                selected = currentFitMode == WallpaperFitMode.AMBIENT_BLUR,
-                                onClick = {
-                                    currentFitMode = WallpaperFitMode.AMBIENT_BLUR
-                                    val updated = settings.copy(wallpaperFitMode = WallpaperFitMode.AMBIENT_BLUR)
-                                    onSettingsChange(updated)
-                                    serviceController?.let { ctrl ->
-                                        coroutineScope.launch {
-                                            ctrl.reprocessWallpaper(WallpaperFitMode.AMBIENT_BLUR)
-                                        }
-                                    }
-                                }
-                            )
-
-                            FitModeRow(
-                                title = "Full Bleed Crop",
-                                description = "Proportional zoom filling 100% of the screen without distortion.",
-                                selected = currentFitMode == WallpaperFitMode.FILL_CROP,
-                                onClick = {
-                                    currentFitMode = WallpaperFitMode.FILL_CROP
-                                    val updated = settings.copy(wallpaperFitMode = WallpaperFitMode.FILL_CROP)
-                                    onSettingsChange(updated)
-                                    serviceController?.let { ctrl ->
-                                        coroutineScope.launch {
-                                            ctrl.reprocessWallpaper(WallpaperFitMode.FILL_CROP)
-                                        }
-                                    }
-                                }
-                            )
-
-                            FitModeRow(
-                                title = "Museum Solid Mat",
-                                description = "Centered original painting framed on a dark obsidian exhibition mount.",
-                                selected = currentFitMode == WallpaperFitMode.MUSEUM_MAT,
-                                onClick = {
-                                    currentFitMode = WallpaperFitMode.MUSEUM_MAT
-                                    val updated = settings.copy(wallpaperFitMode = WallpaperFitMode.MUSEUM_MAT)
-                                    onSettingsChange(updated)
-                                    serviceController?.let { ctrl ->
-                                        coroutineScope.launch {
-                                            ctrl.reprocessWallpaper(WallpaperFitMode.MUSEUM_MAT)
-                                        }
-                                    }
-                                }
-                            )
-
-                            FitModeRow(
-                                title = "Classic Fit",
-                                description = "Centered proportional fit on a clean dark canvas.",
-                                selected = currentFitMode == WallpaperFitMode.FIT,
-                                onClick = {
-                                    currentFitMode = WallpaperFitMode.FIT
-                                    val updated = settings.copy(wallpaperFitMode = WallpaperFitMode.FIT)
-                                    onSettingsChange(updated)
-                                    serviceController?.let { ctrl ->
-                                        coroutineScope.launch {
-                                            ctrl.reprocessWallpaper(WallpaperFitMode.FIT)
-                                        }
-                                    }
-                                }
-                            )
+                        SettingsSectionLabel("WALLPAPER PRESENTATION")
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = ArtColors.SurfaceVariant,
+                            border = BorderStroke(1.dp, ArtColors.GalleryGold.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Text(
+                                    "Ambient Blur Matting � Permanent Standard",
+                                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = FontWeight.Bold),
+                                    color = ArtColors.GalleryGold
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "Preserves 100% authentic fine art aspect ratios without stretching, cropping, or letterbox bars. The screen is filled with a soft Gaussian bokeh sampled directly from the artwork's pigments.",
+                                    style = MaterialTheme.typography.caption,
+                                    color = ArtColors.PaperMuted
+                                )
+                            }
                         }
                     }
-
                     Divider(color = ArtColors.DividerLine)
 
                     // ── Section 3: Daily Schedule ─────────────────────────────────
@@ -589,51 +536,7 @@ private fun ThemePill(
     }
 }
 
-@Composable
-private fun FitModeRow(
-    title: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    val borderColor = if (selected) ArtColors.GalleryGold else ArtColors.DividerLine
-    val bgColor = if (selected) ArtColors.SurfaceVariant else ArtColors.Surface
 
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = bgColor,
-        border = BorderStroke(if (selected) 1.5.dp else 1.dp, borderColor)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.subtitle2.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium),
-                    color = if (selected) ArtColors.GalleryGold else ArtColors.PaperWhite
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    description,
-                    style = MaterialTheme.typography.caption,
-                    color = ArtColors.PaperMuted
-                )
-            }
-            RadioButton(
-                selected = selected,
-                onClick = onClick,
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = ArtColors.GalleryGold,
-                    unselectedColor = ArtColors.PaperMuted
-                )
-            )
-        }
-    }
-}
 
 @Composable
 private fun SettingsSectionLabel(text: String) {

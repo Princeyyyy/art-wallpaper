@@ -46,7 +46,7 @@ class HistoryManager(
                                 .decodeFromString(ListSerializer(ArtworkMetadata.serializer()), content)
                                 .map { it.id }
                         } catch (e: Exception) {
-                            logger.error("Failed to migrate legacy history format", e)
+                            logger.warn("History file unparseable or corrupted, starting fresh: ${e.message}")
                             emptyList()
                         }
                     }
@@ -55,7 +55,7 @@ class HistoryManager(
                 }
             }
         } catch (e: Exception) {
-            logger.error("Failed to load history, resetting file", e)
+            logger.warn("Failed to load history, resetting file: ${e.message}")
             historyFile.writeText("[]")
         }
     }
@@ -102,7 +102,7 @@ class HistoryManager(
             historyFile.writeText(
                 Json.encodeToString(ListSerializer(String.serializer()), history.toList())
             )
-            logger.info("Saved ${history.size} items to history")
+            logger.debug("Saved ${history.size} items to history")
         } catch (e: Exception) {
             logger.error("Failed to save history", e)
         }

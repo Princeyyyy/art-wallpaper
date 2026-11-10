@@ -496,7 +496,7 @@ export default function GallerySalon() {
                 <Download className="w-4 h-4 text-[#8E8B82] group-hover:text-[#C29F6C] transition-colors" />
               </div>
               <p className="text-[11px] font-sans text-[#8E8B82] leading-relaxed mb-3">
-                Native Windows 10 & 11 (.msi). Digitally signed via SignPath Foundation.
+                Native Windows 10 & 11 (.msi) installer. Zero telemetry, open source.
               </p>
               <div className="text-[10px] font-sans uppercase tracking-wider text-[#C29F6C] flex items-center gap-1">
                 <span>Download MSI</span>
@@ -559,7 +559,7 @@ export default function GallerySalon() {
 
           <div className="text-[11px] text-[#8E8B82] space-y-0.5">
             <p>Artworks delivered via The Metropolitan Museum of Art Open Access Collection.</p>
-            <p>Code signing supported by the SignPath Foundation.</p>
+            <p>100% Free and open source for the community.</p>
           </div>
         </div>
       </footer>

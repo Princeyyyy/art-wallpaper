@@ -16,12 +16,13 @@ enum class AppTheme {
     DARK
 }
 
+/**
+ * Wallpaper presentation mode.
+ * Ambient Blur Mat is the permanent, de facto museum standard across all displays.
+ */
 @Serializable
 enum class WallpaperFitMode {
-    AMBIENT_BLUR,
-    FILL_CROP,
-    MUSEUM_MAT,
-    FIT
+    AMBIENT_BLUR
 }
 
 @Serializable
@@ -40,7 +41,6 @@ data class Settings(
     val themeMode: AppTheme = AppTheme.SYSTEM,
     val wallpaperFitMode: WallpaperFitMode = WallpaperFitMode.AMBIENT_BLUR
 ) {
-    // FIX #20: Single logger definition — removed duplicate from companion object.
     @kotlinx.serialization.Transient
     private val logger = LoggerFactory.getLogger(Settings::class.java)
 
@@ -61,12 +61,17 @@ data class Settings(
     }
 
     companion object {
+        private val json = Json {
+            ignoreUnknownKeys = true
+            coerceInputValues = true
+            encodeDefaults = true
+        }
+
         private val settingsPath = Path(System.getProperty("user.home"), ".artwallpaper", "settings.json")
         private val backupPath = Path(System.getProperty("user.home"), ".artwallpaper", "settings.json.bak")
         private val _currentSettings = MutableStateFlow<Settings>(Settings())
         val currentSettings: StateFlow<Settings> = _currentSettings.asStateFlow()
 
-        // FIX #20: Removed duplicate companion-object logger; instance logger is sufficient.
         private val logger = LoggerFactory.getLogger(Settings::class.java)
 
         fun updateCurrentSettings(settings: Settings) {
@@ -77,12 +82,12 @@ data class Settings(
         fun loadSavedSettings(): Settings {
             return try {
                 if (settingsPath.exists()) {
-                    val settings = Json.decodeFromString<Settings>(settingsPath.readText())
+                    val settings = json.decodeFromString<Settings>(settingsPath.readText())
                     _currentSettings.value = settings
                     settings
                 } else if (backupPath.exists()) {
                     logger.info("Main settings file not found, attempting to restore from backup")
-                    val settings = Json.decodeFromString<Settings>(backupPath.readText())
+                    val settings = json.decodeFromString<Settings>(backupPath.readText())
                     _currentSettings.value = settings
                     settings
                 } else {
@@ -110,17 +115,11 @@ data class Settings(
         }
     }
 
-    // FIX #6: Removed the require() invariant that crashed the app whenever
-    // startWithSystem and hasEnabledAutoStart diverged (e.g., registry missing
-    // but settings file says true). These two fields can legitimately differ
-    // during transitions; they should converge over time, not throw on startup.
-    // No init block needed.
-
     fun save() {
         try {
             backup()
             settingsPath.parent.createDirectories()
-            settingsPath.writeText(Json.encodeToString(serializer(), this))
+            settingsPath.writeText(json.encodeToString(serializer(), this))
             _currentSettings.value = this
         } catch (e: Exception) {
             logger.error("Failed to save settings", e)

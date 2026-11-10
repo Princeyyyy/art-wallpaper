@@ -38,7 +38,11 @@ class ArtworkProvider(
             try {
                 return@runCatching source.fetchRandomArtwork().getOrThrow()
             } catch (e: Exception) {
-                logger.error("Attempt ${attempt + 1} failed", e)
+                if (attempt < maxRetries - 1) {
+                    logger.warn("Fetch attempt ${attempt + 1}/$maxRetries failed (${e.message}); retrying...")
+                } else {
+                    logger.error("All $maxRetries fetch attempts failed", e)
+                }
                 lastError = e
             }
         }
