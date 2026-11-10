@@ -5,10 +5,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 4.0.3) — must be valid 3-part semver'
+        description: 'Release version (e.g. 4.1.3) — must be valid 3-part semver'
         required: true
         type: string
-        default: '4.1.2'
+        default: '4.1.3'
       release_notes:
         description: 'Release notes (supports markdown)'
         required: false
@@ -21,9 +21,39 @@ on:
         type: boolean
 
 jobs:
+  # ─── 0. Validate & Normalize Release Version ────────────────────────────────
+  prepare:
+    name: Prepare Release Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - name: Parse & Validate Semantic Version
+        id: ver
+        shell: bash
+        run: |
+          RAW="${{ inputs.version }}"
+          CLEAN=$(echo "$RAW" | sed -E 's/^[vV]//' | tr -d '[:space:]')
+          IFS='.' read -r -a PARTS <<< "$CLEAN"
+          if [ ${#PARTS[@]} -lt 3 ]; then
+            echo "::error::Invalid version string '$RAW'. Must be 3-part semver, e.g. 4.1.3 or 5.0.0"
+            exit 1
+          fi
+          MAJOR="${PARTS[0]}"
+          MINOR="${PARTS[1]}"
+          PATCH="${PARTS[2]}"
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
+            echo "::error::Version components must be numbers: '$RAW'"
+            exit 1
+          fi
+          V="$MAJOR.$MINOR.$PATCH"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Validated release version: $V"
+
   # ─── 1. Run tests across both Windows and macOS ────────────────────────────
   test:
     name: Test (${{ matrix.os }})
+    needs: prepare
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -57,12 +87,7 @@ jobs:
       - name: Run tests
         shell: bash
         run: |
-          RAW="${{ inputs.version }}"
-          RAW="${RAW#v}"
-          RAW="${RAW#V}"
-          IFS='.' read -r -a PARTS <<< "$RAW"
-          V="${PARTS[0]:-4}.${PARTS[1]:-0}.${PARTS[2]:-0}"
-          ./gradlew test -PappVersion=$V
+          ./gradlew test "-PappVersion=${{ needs.prepare.outputs.version }}"
 
       - name: Upload test reports
         if: always()
@@ -75,7 +100,7 @@ jobs:
   # ─── 2. Build Windows MSI Installer ─────────────────────────────────────────
   build-windows:
     name: Build Windows MSI
-    needs: test
+    needs: [ prepare, test ]
     runs-on: windows-latest
 
     steps:
@@ -102,49 +127,26 @@ jobs:
             ./gradlew --version && break || (echo "Gradle download attempt $i failed, retrying in 5s..." && sleep 5)
           done
 
-      - name: Update gradle.properties & version.properties
-        shell: pwsh
-        run: |
-          $raw = "${{ inputs.version }}".Trim().TrimStart('v', 'V')
-          $parts = $raw.Split('.') | Where-Object { $_ -match '^\d+' }
-          $major = if ($parts.Count -gt 0) { $parts[0] } else { "4" }
-          $minor = if ($parts.Count -gt 1) { $parts[1] } else { "0" }
-          $patch = if ($parts.Count -gt 2) { $parts[2] } else { "0" }
-          $v = "$major.$minor.$patch"
-          # gradle.properties — build-time single source of truth
-          $gp = Get-Content gradle.properties -Raw
-          $gp = $gp -replace '(?<=appVersion=)[^\r\n]*', $v
-          [System.IO.File]::WriteAllText("$PWD\gradle.properties", $gp)
-          # version.properties — runtime single source of truth
-          $vp = Get-Content src\main\resources\version.properties -Raw
-          $vp = $vp -replace '(?<=version=)[^\r\n]*', $v
-          [System.IO.File]::WriteAllText("$PWD\src\main\resources\version.properties", $vp)
-          Write-Output "Version normalized and bumped to $v"
-
       - name: Package Windows MSI
         shell: pwsh
         run: |
-          $raw = "${{ inputs.version }}".Trim().TrimStart('v', 'V')
-          $parts = $raw.Split('.') | Where-Object { $_ -match '^\d+' }
-          $major = if ($parts.Count -gt 0) { $parts[0] } else { "4" }
-          $minor = if ($parts.Count -gt 1) { $parts[1] } else { "0" }
-          $patch = if ($parts.Count -gt 2) { $parts[2] } else { "0" }
-          $v = "$major.$minor.$patch"
-          .\gradlew packageMsi -PappVersion=$v
+          $v = "${{ needs.prepare.outputs.version }}"
+          Write-Output "Building Windows MSI for ArtWallpaper v$v..."
+          .\gradlew packageMsi "-PappVersion=$v"
 
       - name: Locate and stage MSI artifact
         shell: pwsh
         run: |
-          $raw = "${{ inputs.version }}".Trim().TrimStart('v', 'V')
-          $parts = $raw.Split('.') | Where-Object { $_ -match '^\d+' }
-          $major = if ($parts.Count -gt 0) { $parts[0] } else { "4" }
-          $minor = if ($parts.Count -gt 1) { $parts[1] } else { "0" }
-          $patch = if ($parts.Count -gt 2) { $parts[2] } else { "0" }
-          $v = "$major.$minor.$patch"
-          $f = Get-ChildItem -Path build -Filter "*.msi" -Recurse | Select-Object -First 1
+          $v = "${{ needs.prepare.outputs.version }}"
+          $msiDir = "build\compose\binaries\main\msi"
+          $f = Get-ChildItem -Path $msiDir -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $f) {
+              $f = Get-ChildItem -Path build -Filter "*.msi" -Recurse | Select-Object -First 1
+          }
           if (-not $f) { throw "MSI artifact not found" }
+          Write-Output "Found built MSI: $($f.FullName) (Size: $($f.Length) bytes)"
           New-Item -ItemType Directory -Force "dist-windows" | Out-Null
-          Copy-Item $f.FullName "dist-windows\ArtWallpaper-$v-Windows.msi"
+          Copy-Item $f.FullName "dist-windows\ArtWallpaper-$v-Windows.msi" -Force
           Write-Output "MSI staged: dist-windows\ArtWallpaper-$v-Windows.msi"
 
       - name: Optional Windows Code Signing
@@ -183,7 +185,7 @@ jobs:
   # ─── 3. Build macOS DMG Installer ───────────────────────────────────────────
   build-macos:
     name: Build macOS DMG
-    needs: test
+    needs: [ prepare, test ]
     runs-on: macos-latest
 
     steps:
@@ -210,22 +212,6 @@ jobs:
             ./gradlew --version && break || (echo "Gradle download attempt $i failed, retrying in 5s..." && sleep 5)
           done
 
-      - name: Update gradle.properties & version.properties
-        run: |
-          RAW="${{ inputs.version }}"
-          RAW="${RAW#v}"
-          RAW="${RAW#V}"
-          IFS='.' read -r -a PARTS <<< "$RAW"
-          MAJOR="${PARTS[0]:-4}"
-          MINOR="${PARTS[1]:-0}"
-          PATCH="${PARTS[2]:-0}"
-          V="$MAJOR.$MINOR.$PATCH"
-          # gradle.properties
-          sed -i.bak "s/^appVersion=.*/appVersion=$V/" gradle.properties
-          # version.properties
-          sed -i.bak "s/^version=.*/version=$V/" src/main/resources/version.properties
-          echo "Version normalized and bumped to $V"
-
       - name: Import Apple Certificate (if configured)
         if: env.MACOS_CERTIFICATE_P12_BASE64 != ''
         env:
@@ -245,17 +231,13 @@ jobs:
 
       - name: Package macOS DMG
         run: |
-          RAW="${{ inputs.version }}"
-          RAW="${RAW#v}"
-          RAW="${RAW#V}"
-          IFS='.' read -r -a PARTS <<< "$RAW"
-          V="${PARTS[0]:-4}.${PARTS[1]:-0}.${PARTS[2]:-0}"
+          V="${{ needs.prepare.outputs.version }}"
           if [ -n "$DETECTED_IDENTITY" ]; then
             echo "Packaging DMG with Apple Code Signing ($DETECTED_IDENTITY)..."
-            ./gradlew packageDmg -PappVersion=$V -PmacSignIdentity="$DETECTED_IDENTITY"
+            ./gradlew packageDmg "-PappVersion=$V" -PmacSignIdentity="$DETECTED_IDENTITY"
           else
             echo "Packaging standard macOS DMG (unsigned)..."
-            ./gradlew packageDmg -PappVersion=$V
+            ./gradlew packageDmg "-PappVersion=$V"
           fi
 
       - name: Smoke-test packaged macOS application
@@ -272,17 +254,14 @@ jobs:
 
       - name: Locate and stage DMG artifact
         run: |
-          RAW="${{ inputs.version }}"
-          RAW="${RAW#v}"
-          RAW="${RAW#V}"
-          IFS='.' read -r -a PARTS <<< "$RAW"
-          V="${PARTS[0]:-4}.${PARTS[1]:-0}.${PARTS[2]:-0}"
+          V="${{ needs.prepare.outputs.version }}"
           mkdir -p dist-macos
           DMG=$(find build -name "*.dmg" | head -n 1)
           if [ -z "$DMG" ]; then
             echo "ERROR: DMG artifact not found!"
             exit 1
           fi
+          echo "Found built DMG: $DMG"
           cp "$DMG" "dist-macos/ArtWallpaper-$V-macOS.dmg"
           echo "DMG staged: dist-macos/ArtWallpaper-$V-macOS.dmg"
 
@@ -317,7 +296,7 @@ jobs:
   # ─── 4. Publish GitHub Release with both MSI and DMG ────────────────────────
   publish-release:
     name: Publish Multi-Platform Release
-    needs: [ build-windows, build-macos ]
+    needs: [ prepare, build-windows, build-macos ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -349,24 +328,15 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CUSTOM_NOTES: ${{ inputs.release_notes }}
         run: |
-          RAW="${{ inputs.version }}"
-          RAW="${RAW#v}"
-          RAW="${RAW#V}"
-          IFS='.' read -r -a PARTS <<< "$RAW"
-          MAJOR="${PARTS[0]:-4}"
-          MINOR="${PARTS[1]:-0}"
-          PATCH="${PARTS[2]:-0}"
-          V="$MAJOR.$MINOR.$PATCH"
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-
+          V="${{ needs.prepare.outputs.version }}"
           python3 scripts/generate_release_notes.py "$V" "release_body.md"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.release_notes.outputs.version }}
+          tag_name: v${{ needs.prepare.outputs.version }}
           target_commitish: ${{ github.sha }}
-          name: ArtWallpaper v${{ steps.release_notes.outputs.version }}
+          name: ArtWallpaper v${{ needs.prepare.outputs.version }}
           body_path: release_body.md
           generate_release_notes: false
           files: release-artifacts/*

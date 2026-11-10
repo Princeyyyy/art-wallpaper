@@ -12,14 +12,18 @@ fun normalizeVersion(raw: String): String {
     val parts = clean.split('.').mapNotNull { part ->
         part.takeWhile { it.isDigit() }.toIntOrNull()
     }
-    val major = parts.getOrNull(0) ?: 4
-    val minor = parts.getOrNull(1) ?: 0
-    val patch = parts.getOrNull(2) ?: 0
+    require(parts.isNotEmpty()) {
+        "Invalid version string: '$raw'. Version must contain numeric semver (e.g. 4.1.3)."
+    }
+    val major = parts[0]
+    val minor = parts.getOrElse(1) { 0 }
+    val patch = parts.getOrElse(2) { 0 }
     return "$major.$minor.$patch"
 }
 
 // Single source of truth for build versioning (from gradle.properties or -PappVersion)
-val rawVersion: String = project.findProperty("appVersion")?.toString() ?: "4.1.2"
+val rawVersion: String = project.findProperty("appVersion")?.toString()
+    ?: error("appVersion must be configured in gradle.properties or passed via -PappVersion")
 val appVersion: String = normalizeVersion(rawVersion)
 val appGroup: String = project.findProperty("appGroup")?.toString() ?: "com.prince.artwallpaper"
 
@@ -139,6 +143,15 @@ compose.desktop {
     }
 }
 
+
+// Dynamic filtering of version.properties so runtime metadata is automatically synchronized
+tasks.processResources {
+    inputs.property("version", appVersion)
+    inputs.property("group", appGroup)
+    filesMatching("version.properties") {
+        expand(mapOf("version" to appVersion, "group" to appGroup))
+    }
+}
 
 // Inject custom WiX packaging templates & bitmaps into jpackage for MSI packaging
 val copyWixResources by tasks.registering(Copy::class) {

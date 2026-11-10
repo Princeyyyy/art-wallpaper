@@ -7,7 +7,7 @@ import java.util.Properties
 object AppInfo {
     const val APP_NAME = "Art Wallpaper"
     const val BUNDLE_ID = "com.prince.artwallpaper"
-    const val DEFAULT_VERSION = "4.1.2"
+    const val DEFAULT_VERSION = "0.0.0"
 
     val version: String by lazy {
         try {
@@ -15,7 +15,8 @@ object AppInfo {
             if (stream != null) {
                 val props = Properties()
                 stream.use { props.load(it) }
-                props.getProperty("version", DEFAULT_VERSION)
+                val v = props.getProperty("version", DEFAULT_VERSION)?.trim()
+                if (v == null || v.startsWith("\${") || v.isBlank()) DEFAULT_VERSION else v
             } else {
                 DEFAULT_VERSION
             }
