@@ -2,18 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
+:root,
+.dark {
+  --canvas-bg: #07080B;
+  --surface-bg: #0D0E14;
+  --surface-elevated: #151821;
+  --surface-card: #0B0D12;
+  --surface-glass: rgba(13, 14, 20, 0.85);
+  --paper-white: #F5EFE6;
+  --paper-muted: #8E8B82;
+  --paper-dim: #5A5852;
+  --gallery-gold: #C29F6C;
+  --gallery-gold-light: #E0C8A2;
+  --gallery-gold-glow: rgba(194, 159, 108, 0.28);
+  --gallery-gold-dim: #8A7055;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --frame-wood: #221c16;
+  --frame-wood-body: #110e0b;
+  --frame-shadow: rgba(0, 0, 0, 0.95);
+  --shelf-top: #242220;
+  --shelf-mid: #151413;
+  --shelf-bot: #0e0d0c;
+  --curtain-dark: #120c0e;
+  --curtain-mid: #2b1216;
+  --curtain-deep: #421a20;
+  --spotlight-alpha-high: 0.16;
+  --spotlight-alpha-low: 0.05;
+  --grain-opacity: 0.035;
+}
+
+.light {
+  --canvas-bg: #F8F6F1; /* Sunlit marble / museum alabaster */
+  --surface-bg: #FFFFFF; /* Pristine gallery mount white */
+  --surface-elevated: #EDE9E1; /* Soft warm limestone */
+  --surface-card: #FFFFFF;
+  --surface-glass: rgba(255, 255, 255, 0.88);
+  --paper-white: #1A1917; /* Deep charcoal / espresso text */
+  --paper-muted: #6E6860; /* Warm stone secondary text */
+  --paper-dim: #9E9890;
+  --gallery-gold: #9E783E; /* Rich burnished museum bronze */
+  --gallery-gold-light: #C29F6C;
+  --gallery-gold-glow: rgba(158, 120, 62, 0.22);
+  --gallery-gold-dim: #785B2E;
+  --border-subtle: rgba(0, 0, 0, 0.09);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --frame-wood: #3B2014; /* Warm museum walnut */
+  --frame-wood-body: #23120A;
+  --frame-shadow: rgba(0, 0, 0, 0.35);
+  --shelf-top: #EDE8DF;
+  --shelf-mid: #DDD6CA;
+  --shelf-bot: #CBC2B3;
+  --curtain-dark: #2A1014;
+  --curtain-mid: #4A1B22;
+  --curtain-deep: #682630;
+  --spotlight-alpha-high: 0.08;
+  --spotlight-alpha-low: 0.02;
+  --grain-opacity: 0.02;
+}
+
 @layer base {
   body {
-    background-color: #060709;
-    color: #EFE9DF;
+    background-color: var(--canvas-bg);
+    color: var(--paper-white);
     overflow-x: hidden;
-    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
     letter-spacing: -0.01em;
+    transition: background-color 0.4s ease, color 0.4s ease;
   }
 
   ::selection {
-    background-color: #C29F6C;
-    color: #060709;
+    background-color: var(--gallery-gold);
+    color: var(--canvas-bg);
   }
 }
 
@@ -23,11 +83,11 @@
     linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 15%, rgba(0,0,0,0.6) 100%),
     repeating-linear-gradient(
       90deg,
-      #120c0e 0px,
-      #2b1216 12px,
-      #421a20 25px,
-      #1a0c0e 38px,
-      #0a0506 50px
+      var(--curtain-dark) 0px,
+      var(--curtain-mid) 12px,
+      var(--curtain-deep) 25px,
+      var(--curtain-mid) 38px,
+      var(--curtain-dark) 50px
     );
   box-shadow: 
     inset 0 10px 30px rgba(0,0,0,0.9),
@@ -41,47 +101,50 @@
   height: 14px;
   background: linear-gradient(to bottom, #d4af37 0%, #aa820a 50%, #4a3600 100%);
   border-radius: 7px;
-  box-shadow: 0 6px 15px rgba(0,0,0,0.8);
+  box-shadow: 0 6px 15px rgba(0,0,0,0.6);
   position: relative;
   z-index: 30;
 }
 
 .curtain-tassel {
   background: linear-gradient(135deg, #d4af37 0%, #8c6d1f 100%);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
 }
 
 /* ── Classical Architectural Mantlepiece ────────────────────────────────── */
 .mantlepiece-shelf {
-  background: linear-gradient(to bottom, #242220 0%, #151413 60%, #0e0d0c 100%);
-  border-top: 2px solid rgba(212, 175, 55, 0.25);
+  background: linear-gradient(to bottom, var(--shelf-top) 0%, var(--shelf-mid) 60%, var(--shelf-bot) 100%);
+  border-top: 2px solid var(--gallery-gold);
   box-shadow: 
-    0 -5px 15px rgba(0,0,0,0.5),
-    0 25px 50px -10px rgba(0,0,0,0.95),
-    inset 0 1px 0 rgba(255,255,255,0.08);
+    0 -5px 15px rgba(0,0,0,0.2),
+    0 25px 50px -10px var(--frame-shadow),
+    inset 0 1px 0 rgba(255,255,255,0.12);
   position: relative;
+  transition: background 0.4s ease, border-color 0.4s ease;
 }
 
 .mantlepiece-corbel {
-  background: linear-gradient(135deg, #1d1b19 0%, #0d0c0b 100%);
-  border: 1px solid rgba(255,255,255,0.04);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+  background: linear-gradient(135deg, var(--shelf-mid) 0%, var(--shelf-bot) 100%);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 10px 25px var(--frame-shadow);
+  transition: background 0.4s ease;
 }
 
 /* ── Gilded Baroque Picture Frame ───────────────────────────────────────── */
 .gilded-frame {
   position: relative;
-  background: linear-gradient(135deg, #221c16 0%, #110e0b 100%);
-  padding: 24px;
+  background: linear-gradient(135deg, var(--frame-wood) 0%, var(--frame-wood-body) 100%);
+  padding: 22px;
   box-shadow: 
-    0 45px 110px -20px rgba(0, 0, 0, 0.98),
-    0 20px 45px -10px rgba(0, 0, 0, 0.9),
-    inset 0 0 0 1px rgba(212, 175, 55, 0.5),
-    inset 0 0 0 6px #0c0a08,
-    inset 0 0 0 8px rgba(180, 140, 70, 0.4),
-    inset 0 0 0 16px #161310,
-    inset 0 0 0 17px rgba(212, 175, 55, 0.25);
+    0 40px 100px -20px var(--frame-shadow),
+    0 20px 45px -10px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px var(--gallery-gold),
+    inset 0 0 0 5px #0c0a08,
+    inset 0 0 0 7px var(--gallery-gold-dim),
+    inset 0 0 0 14px #161310,
+    inset 0 0 0 15px var(--gallery-gold);
   border-radius: 2px;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .canvas-recess {
@@ -101,12 +164,13 @@
   height: 650px;
   background: radial-gradient(
     ellipse 550px 320px at 50% 0%,
-    rgba(255, 230, 180, 0.16) 0%,
-    rgba(255, 210, 150, 0.05) 50%,
+    rgba(255, 230, 180, var(--spotlight-alpha-high)) 0%,
+    rgba(255, 210, 150, var(--spotlight-alpha-low)) 50%,
     transparent 100%
   );
   pointer-events: none;
   filter: blur(24px);
+  transition: background 0.4s ease;
 }
 
 /* ── Subtle Ambient Cursor Spotlight ────────────────────────────────────── */
@@ -116,9 +180,8 @@
   inset: 0;
   background: radial-gradient(
     circle 800px at var(--mouse-x, 50%) var(--mouse-y, 35%),
-    rgba(218, 178, 126, 0.07) 0%,
-    rgba(218, 178, 126, 0.02) 40%,
-    transparent 75%
+    var(--gallery-gold-glow) 0%,
+    transparent 70%
   );
   z-index: 2;
   transition: background 0.1s ease-out;
@@ -137,4 +200,69 @@
 /* ── Subtle Film Grain Texture ───────────────────────────────────────────── */
 .film-grain {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
+  opacity: var(--grain-opacity);
+}
+
+/* ── Fluid Dynamics & Spatial Stroll 3D Helpers ─────────────────────────── */
+.perspective-container {
+  perspective: 1200px;
+  perspective-origin: 50% 40%;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.gallery-stroll-card {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  will-change: transform;
+}
+
+.gallery-stroll-card:hover {
+  transform: translateY(-8px) scale(1.02);
+}
+
+/* ── Shimmer & Micro-Interactions ───────────────────────────────────────── */
+.gilded-shimmer-btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gilded-shimmer-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.25) 50%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  transition: none;
+}
+
+.gilded-shimmer-btn:hover::before {
+  left: 200%;
+  transition: left 0.85s ease-in-out;
+}
+
+.brass-plaque {
+  background: linear-gradient(135deg, #2A241C 0%, #171410 100%);
+  border: 1px solid var(--gallery-gold);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.light .brass-plaque {
+  background: linear-gradient(135deg, #F0EADF 0%, #DFD5C6 100%);
+  border: 1px solid var(--gallery-gold);
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }

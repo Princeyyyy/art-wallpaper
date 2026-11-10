@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "../components/ThemeProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -23,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <meta name="referrer" content="no-referrer" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -32,9 +33,29 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
           rel="stylesheet"
         />
+        {/* Anti-flash inline script to restore theme before first paint */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var saved = localStorage.getItem('art_wallpaper_theme') || 'system';
+                  var isDark = saved === 'dark' || (saved === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                  if (isDark) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                  } else {
+                    document.documentElement.classList.add('light');
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
       </head>
-      <body className="bg-gallery-obsidian text-gallery-vellum antialiased selection:bg-gallery-gold selection:text-gallery-obsidian relative min-h-screen">
-        {children}
+      <body className="antialiased relative min-h-screen">
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

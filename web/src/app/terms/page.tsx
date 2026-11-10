@@ -1,6 +1,8 @@
 import React from "react";
 import Link from "next/link";
 import { ArrowLeft, BookOpen, Scale, Award, ShieldAlert, Mail } from "lucide-react";
+import { ThemeToggle } from "../../components/ThemeProvider";
+import { CURRENT_APP_VERSION } from "../../lib/version";
 
 export const metadata = {
   title: "Terms of Service · Art Wallpaper",
@@ -9,172 +11,173 @@ export const metadata = {
 
 export default function TermsOfServicePage() {
   return (
-    <div className="relative min-h-screen bg-[#07080B] text-[#EFE9DF] selection:bg-[#C29F6C] selection:text-[#07080B] font-sans antialiased">
+    <div className="relative min-h-screen bg-[var(--canvas-bg)] text-[var(--paper-white)] selection:bg-[var(--gallery-gold)] selection:text-[var(--canvas-bg)] font-sans antialiased transition-colors duration-500">
       {/* Film grain texture */}
       <div className="fixed inset-0 film-grain pointer-events-none z-10" />
 
       {/* Header */}
-      <header className="relative z-20 border-b border-white/[0.06] bg-[#07080B]/90 backdrop-blur-md px-6 sm:px-12 py-5 flex items-center justify-between">
+      <header className="relative z-20 border-b border-[var(--border-subtle)] bg-[var(--surface-glass)] backdrop-blur-md px-6 sm:px-12 py-4 flex items-center justify-between transition-colors">
         <Link
           href="/"
-          className="flex items-center gap-2 text-xs uppercase tracking-widest text-[#8E8B82] hover:text-[#C29F6C] transition-colors"
+          className="flex items-center gap-2 text-xs uppercase tracking-widest text-[var(--paper-muted)] hover:text-[var(--gallery-gold)] transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Return to Salon</span>
         </Link>
 
-        <div className="flex items-center gap-6 text-xs">
-          <Link href="/privacy" className="text-[#8E8B82] hover:text-[#EFE9DF] transition-colors">
+        <div className="flex items-center gap-4 sm:gap-6 text-xs">
+          <Link href="/privacy" className="text-[var(--paper-muted)] hover:text-[var(--paper-white)] transition-colors">
             Privacy Policy
           </Link>
           <a
             href="https://github.com/Princeyyyy/art-wallpaper"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#C29F6C] hover:underline"
+            className="text-[var(--gallery-gold)] hover:underline"
           >
             GitHub
           </a>
+          <ThemeToggle />
         </div>
       </header>
 
       {/* Main Content */}
       <main className="relative z-10 max-w-4xl mx-auto px-6 sm:px-12 py-16 sm:py-24">
         {/* Title Block */}
-        <div className="mb-16 pb-8 border-b border-white/[0.08]">
+        <div className="mb-16 pb-8 border-b border-[var(--border-subtle)]">
           <div className="flex items-center gap-2 mb-3">
-            <Scale className="w-4 h-4 text-[#C29F6C]" />
-            <span className="font-serif tracking-widest text-[#C29F6C] uppercase text-xs font-semibold">
+            <Scale className="w-4 h-4 text-[var(--gallery-gold)]" />
+            <span className="font-serif tracking-widest text-[var(--gallery-gold)] uppercase text-xs font-semibold">
               Legal Agreement and License
             </span>
           </div>
-          <h1 className="font-serif text-4xl sm:text-5xl text-[#F5EFE6] font-normal leading-tight mb-4">
+          <h1 className="font-serif text-4xl sm:text-5xl text-[var(--paper-white)] font-normal leading-tight mb-4">
             Terms of Service
           </h1>
-          <p className="text-xs text-[#8E8B82] tracking-wider uppercase font-mono">
-            Effective Date: November 10, 2026 · Version 4.1.5
+          <p className="text-xs text-[var(--paper-muted)] tracking-wider uppercase font-mono">
+            Effective Date: November 10, 2026 · Version {CURRENT_APP_VERSION}
           </p>
         </div>
 
         {/* Section 1 */}
         <section className="mb-14 space-y-4">
-          <h2 className="font-serif text-2xl text-[#F5EFE6] font-normal">
+          <h2 className="font-serif text-2xl text-[var(--paper-white)] font-normal">
             1. Acceptance of Terms
           </h2>
-          <p className="text-sm text-[#8E8B82] leading-relaxed">
-            By downloading, installing, launching, copying, or otherwise using **Art Wallpaper** (including its desktop binaries, source code, website, and documentation), you acknowledge that you have read, understood, and agree to be bound by these Terms of Service. If you do not agree to these terms, do not install or use the software.
+          <p className="text-sm text-[var(--paper-muted)] leading-relaxed">
+            By downloading, installing, running, or building Art Wallpaper (hereafter referred to as the &quot;Software&quot;), you agree to be bound by these Terms of Service. If you do not agree with any provision of these terms, do not install or use the Software.
           </p>
         </section>
 
         {/* Section 2 */}
         <section className="mb-14 space-y-4">
-          <h2 className="font-serif text-2xl text-[#F5EFE6] font-normal">
-            2. Software License (CC BY-NC 4.0)
+          <h2 className="font-serif text-2xl text-[var(--paper-white)] font-normal">
+            2. Open Source License
           </h2>
-          <p className="text-sm text-[#8E8B82] leading-relaxed">
-            Art Wallpaper is free software released under the **Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)**.
+          <p className="text-sm text-[var(--paper-muted)] leading-relaxed">
+            The source code of Art Wallpaper is released under the{" "}
+            <strong className="text-[var(--paper-white)]">
+              Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+            </strong>{" "}
+            license. Under this license:
           </p>
-          <div className="p-5 rounded bg-[#0A0B10] border border-white/[0.06] space-y-3 text-xs text-[#8E8B82]">
-            <p className="text-[#EFE9DF] font-medium">Under this license, you are free to:</p>
-            <ul className="list-disc list-inside space-y-1.5 pl-2">
-              <li><strong className="text-[#EFE9DF]">Share:</strong> Copy and redistribute the material in any medium or format.</li>
-              <li><strong className="text-[#EFE9DF]">Adapt:</strong> Remix, transform, and build upon the material for personal and educational use.</li>
-            </ul>
-            <p className="text-[#EFE9DF] font-medium pt-2">Subject to the following terms:</p>
-            <ul className="list-disc list-inside space-y-1.5 pl-2">
-              <li><strong className="text-[#EFE9DF]">Attribution:</strong> You must give appropriate credit to the original creator (Prince) and provide a link to the original repository.</li>
-              <li><strong className="text-[#EFE9DF]">NonCommercial:</strong> You may not use the software, binaries, or derivatives for commercial purposes, including selling the software, bundling it with paid products, or monetizing it with advertising.</li>
-            </ul>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="p-5 rounded bg-[var(--surface-elevated)] border border-[var(--border-subtle)]">
+              <h3 className="text-sm font-semibold text-[var(--gallery-gold)] mb-2">You Are Free To:</h3>
+              <ul className="text-xs text-[var(--paper-muted)] space-y-1.5 list-disc list-inside">
+                <li><strong className="text-[var(--paper-white)]">Share:</strong> Copy and redistribute the material in any medium.</li>
+                <li><strong className="text-[var(--paper-white)]">Adapt:</strong> Remix, transform, and build upon the codebase.</li>
+              </ul>
+            </div>
+            <div className="p-5 rounded bg-[var(--surface-elevated)] border border-[var(--border-subtle)]">
+              <h3 className="text-sm font-semibold text-[var(--gallery-gold)] mb-2">Under These Terms:</h3>
+              <ul className="text-xs text-[var(--paper-muted)] space-y-1.5 list-disc list-inside">
+                <li><strong className="text-[var(--paper-white)]">Attribution:</strong> You must give appropriate credit to Prince and provide a link to the license.</li>
+                <li><strong className="text-[var(--paper-white)]">NonCommercial:</strong> You may not use the material for commercial purposes or monetization.</li>
+              </ul>
+            </div>
           </div>
         </section>
 
         {/* Section 3 */}
         <section className="mb-14 space-y-4">
-          <h2 className="font-serif text-2xl text-[#F5EFE6] font-normal">
-            3. Public Domain Masterpieces & Museum Attribution
+          <h2 className="font-serif text-2xl text-[var(--paper-white)] font-normal">
+            3. Museum Artwork & Public Domain Attributions
           </h2>
-          <p className="text-sm text-[#8E8B82] leading-relaxed">
-            All fine art masterpieces and historical curatorial records delivered by the application belong to the public domain collections of **The Metropolitan Museum of Art** under their **Open Access program** and are dedicated to the public domain under Creative Commons Zero (CC0).
+          <p className="text-sm text-[var(--paper-muted)] leading-relaxed">
+            All historic artworks delivered to your desktop via Art Wallpaper are sourced from The Metropolitan Museum of Art Open Access collection and are in the{" "}
+            <strong className="text-[var(--paper-white)]">Public Domain (Creative Commons Zero / CC0)</strong>:
           </p>
-          <div className="p-5 rounded bg-[#0A0B10] border border-white/[0.06] space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#C29F6C]">
-              <Award className="w-4 h-4" />
-              <span>Independent Open Source Curation</span>
-            </div>
-            <p className="text-xs text-[#8E8B82] leading-relaxed">
-              Art Wallpaper is an independent open-source desktop viewer and is not affiliated with, funded by, or officially endorsed by The Metropolitan Museum of Art. We express deep gratitude to The Met for their visionary leadership in digital open access to world culture.
+          <div className="p-5 rounded bg-[var(--surface-elevated)] border border-[var(--border-subtle)] text-xs text-[var(--paper-muted)] leading-relaxed space-y-2">
+            <p>
+              Under Creative Commons Zero, these historic fine art images may be freely viewed, downloaded, copied, modified, and enjoyed worldwide without copyright restrictions.
+            </p>
+            <p>
+              Art Wallpaper provides curatorial attribution (title, artist, year, medium, dimensions, and curatorial notes) as historical documentation, not as a copyright restriction.
             </p>
           </div>
         </section>
 
         {/* Section 4 */}
         <section className="mb-14 space-y-4">
-          <h2 className="font-serif text-2xl text-[#F5EFE6] font-normal">
-            4. Acceptable Use Policy
+          <h2 className="font-serif text-2xl text-[var(--paper-white)] font-normal">
+            4. Disclaimer of Warranties
           </h2>
-          <p className="text-sm text-[#8E8B82] leading-relaxed">
-            You agree to use Art Wallpaper only for lawful personal desktop customization. You agree not to:
-          </p>
-          <ul className="list-disc list-inside text-sm text-[#8E8B82] space-y-2 pl-2">
-            <li>Modify the software to initiate distributed denial-of-service (DDoS) requests against museum API endpoints.</li>
-            <li>Use the software to spread malware, spyware, trojans, or malicious code.</li>
-            <li>Misrepresent the provenance, authorship, or historical context of public-domain cultural artifacts.</li>
-            <li>Circumvent or tamper with open-source licensing notices or project copyright headers.</li>
-          </ul>
-        </section>
-
-        {/* Section 5 */}
-        <section className="mb-14 space-y-4">
-          <h2 className="font-serif text-2xl text-[#F5EFE6] font-normal">
-            5. Disclaimer of Warranties
-          </h2>
-          <div className="p-5 rounded bg-[#0D0E14] border border-white/[0.08] space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-yellow-500/90">
+          <div className="p-5 rounded bg-[var(--surface-elevated)] border border-[var(--border-subtle)] text-xs text-[var(--paper-muted)] leading-relaxed space-y-3">
+            <div className="flex items-center gap-2 text-[var(--gallery-gold)] font-semibold">
               <ShieldAlert className="w-4 h-4" />
-              <span>AS IS Software Provision</span>
+              <span>THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND</span>
             </div>
-            <p className="text-xs text-[#8E8B82] leading-relaxed uppercase tracking-wide">
-              TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, ART WALLPAPER IS PROVIDED ON AN &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING, WITHOUT LIMITATION, ANY WARRANTIES OR CONDITIONS OF TITLE, NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+            <p>
+              TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE MAINTAINER DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
             </p>
-            <p className="text-xs text-[#8E8B82] leading-relaxed">
-              We do not warrant that desktop wallpaper rotation will operate uninterrupted or error-free across all third-party desktop environments, window managers, virtual multi-monitor setups, or operating system updates.
+            <p>
+              IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
             </p>
           </div>
         </section>
 
+        {/* Section 5 */}
+        <section className="mb-14 space-y-4">
+          <h2 className="font-serif text-2xl text-[var(--paper-white)] font-normal">
+            5. Governance and Contributions
+          </h2>
+          <p className="text-sm text-[var(--paper-muted)] leading-relaxed">
+            Art Wallpaper operates under a Benevolent Dictator for Life (BDFL) governance model. All contributions submitted via GitHub pull requests are subject to the project&apos;s{" "}
+            <a
+              href="https://github.com/Princeyyyy/art-wallpaper/blob/master/GOVERNANCE.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--gallery-gold)] hover:underline"
+            >
+              GOVERNANCE.md
+            </a>{" "}
+            and{" "}
+            <a
+              href="https://github.com/Princeyyyy/art-wallpaper/blob/master/CONTRIBUTING.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--gallery-gold)] hover:underline"
+            >
+              CONTRIBUTING.md
+            </a>{" "}
+            guidelines. Merges into the master branch and release publishing are strictly governed by the repository owner.
+          </p>
+        </section>
+
         {/* Section 6 */}
         <section className="mb-14 space-y-4">
-          <h2 className="font-serif text-2xl text-[#F5EFE6] font-normal">
-            6. Limitation of Liability
+          <h2 className="font-serif text-2xl text-[var(--paper-white)] font-normal">
+            6. Contact & Legal Notices
           </h2>
-          <p className="text-sm text-[#8E8B82] leading-relaxed">
-            In no event shall the author, maintainers, or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, loss of data, loss of use, or operating system configuration disruption) arising in any way out of the use or inability to use this software.
+          <p className="text-sm text-[var(--paper-muted)] leading-relaxed">
+            For legal inquiries, copyright notices, or licensing clarification, please contact:
           </p>
-        </section>
-
-        {/* Section 7 */}
-        <section className="mb-14 space-y-4">
-          <h2 className="font-serif text-2xl text-[#F5EFE6] font-normal">
-            7. Governance and Modifications to Terms
-          </h2>
-          <p className="text-sm text-[#8E8B82] leading-relaxed">
-            Project governance follows the Benevolent Dictator for Life (BDFL) model outlined in the repository&apos;s <code className="text-[#C29F6C]">GOVERNANCE.md</code>. We reserve the right to modify these Terms of Service at any time. Changes will be published with an updated effective date. Continued use of Art Wallpaper constitutes acceptance of the revised terms.
-          </p>
-        </section>
-
-        {/* Section 8 */}
-        <section className="mb-14 space-y-4">
-          <h2 className="font-serif text-2xl text-[#F5EFE6] font-normal">
-            8. Contact Information
-          </h2>
-          <p className="text-sm text-[#8E8B82] leading-relaxed">
-            For questions or inquiries regarding these Terms of Service, contact the project maintainer:
-          </p>
-          <div className="flex items-center gap-3 p-4 rounded bg-[#0D0E14] border border-white/[0.08] w-fit">
-            <Mail className="w-4 h-4 text-[#C29F6C]" />
+          <div className="flex items-center gap-3 p-4 rounded bg-[var(--surface-elevated)] border border-[var(--border-subtle)] w-fit">
+            <Mail className="w-4 h-4 text-[var(--gallery-gold)]" />
             <a
               href="mailto:princemumo80@gmail.com"
-              className="text-xs font-mono text-[#EFE9DF] hover:text-[#C29F6C] transition-colors"
+              className="text-xs font-mono text-[var(--paper-white)] hover:text-[var(--gallery-gold)] transition-colors"
             >
               princemumo80@gmail.com
             </a>
@@ -183,17 +186,17 @@ export default function TermsOfServicePage() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-white/[0.04] py-10 px-6 sm:px-12 bg-[#030406] text-xs font-sans text-[#8E8B82]/70">
+      <footer className="relative z-10 border-t border-[var(--border-subtle)] py-10 px-6 sm:px-12 bg-[var(--canvas-bg)] text-xs font-sans text-[var(--paper-muted)] transition-colors">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-          <p className="text-[11px] text-[#8E8B82]">
+          <p className="text-[11px] text-[var(--paper-muted)]">
             Art Wallpaper Manager · Maintained by Prince · Free and open source.
           </p>
           <div className="flex items-center gap-4 text-[11px]">
-            <Link href="/" className="hover:text-[#C29F6C] transition-colors">
+            <Link href="/" className="hover:text-[var(--gallery-gold)] transition-colors">
               Home
             </Link>
             <span>·</span>
-            <Link href="/privacy" className="hover:text-[#C29F6C] transition-colors">
+            <Link href="/privacy" className="hover:text-[var(--gallery-gold)] transition-colors">
               Privacy Policy
             </Link>
           </div>
