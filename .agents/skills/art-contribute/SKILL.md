@@ -162,7 +162,7 @@ Navigate to `https://github.com/Princeyyyy/art-wallpaper` and open a Pull Reques
 ### Single Source of Truth for Versioning
 - The version string is declared exclusively in `gradle.properties`:
   ```properties
-  appVersion=4.1.5
+  appVersion=4.1.6
   ```
 - Source code dynamically reads `AppInfo.version` from generated properties. **Never** hardcode version strings in source files.
 

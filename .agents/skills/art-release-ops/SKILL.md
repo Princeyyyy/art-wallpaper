@@ -33,7 +33,7 @@ Art Wallpaper enforces a **single source of truth** versioning architecture:
 The version is governed by `appVersion`:
 ```properties
 # ArtWallpaper Build Properties
-appVersion=4.1.5
+appVersion=4.1.6
 appGroup=com.prince.artwallpaper
 ```
 
@@ -44,13 +44,13 @@ Ensure all documentation, CI workflows, and unit tests reflect the new version:
    workflow_dispatch:
      inputs:
        version:
-         description: 'Release version (semver format e.g. 4.1.5)'
+         description: 'Release version (semver format e.g. 4.1.6)'
          required: true
-         default: '4.1.5'
+         default: '4.1.6'
    ```
 2. `README.md`:
-   - Update header: `<h1 align="center">ArtWallpaper Manager v4.1.5</h1>`.
-   - Update badge: `Release-v4.1.5`.
+   - Update header: `<h1 align="center">ArtWallpaper Manager v4.1.6</h1>`.
+   - Update badge: `Release-v4.1.6`.
 3. `src/test/kotlin/UpdateManagerTest.kt`:
    - Verify that semver comparison test suites assert the new version as newer than preceding releases.
 
@@ -74,7 +74,7 @@ Official installers for Windows (`.msi`) and macOS (`.dmg`) are built and publis
 1. Navigate to: **[GitHub Actions > Release](https://github.com/Princeyyyy/art-wallpaper/actions/workflows/release.yml)**.
 2. Click **Run workflow**.
 3. Select branch: `master`.
-4. Enter target version (e.g., `4.1.5`).
+4. Enter target version (e.g., `4.1.6`).
 5. Click **Run workflow**.
 
 ---
@@ -84,7 +84,7 @@ Official installers for Windows (`.msi`) and macOS (`.dmg`) are built and publis
 ```
 ┌────────────────────────────────────────────────────────┐
 │                      0. prepare                        │
-│ - Validate semver format (e.g. 4.1.5)                  │
+│ - Validate semver format (e.g. 4.1.6)                  │
 │ - Verify actor is repository owner                     │
 └───────────────────────────┬────────────────────────────┘
                             │
@@ -106,10 +106,10 @@ Official installers for Windows (`.msi`) and macOS (`.dmg`) are built and publis
 │                   2. publish-release                   │
 │ - scripts/generate_release_notes.py (Gemini / fallback)│
 │ - Strictly ZERO emojis in generated release text       │
-│ - Create GitHub Release v4.1.5                         │
-│ - Attach ArtWallpaper-4.1.5-Windows.msi + .sha256      │
-│ - Attach ArtWallpaper-4.1.5-macOS.dmg + .sha256        │
-│ - Push git tag v4.1.5                                  │
+│ - Create GitHub Release v4.1.6                         │
+│ - Attach ArtWallpaper-4.1.6-Windows.msi + .sha256      │
+│ - Attach ArtWallpaper-4.1.6-macOS.dmg + .sha256        │
+│ - Push git tag v4.1.6                                  │
 └────────────────────────────────────────────────────────┘
 ```
 

@@ -6,7 +6,7 @@
   <img src="src/main/resources/icons/128x128.png" alt="ArtWallpaper Logo" width="64" height="64" />
 </p>
 
-<h1 align="center">ArtWallpaper Manager v4.1.5</h1>
+<h1 align="center">ArtWallpaper Manager v4.1.6</h1>
 
 <p align="center">
   <strong>Transform your Windows and macOS desktop into a daily museum gallery.</strong><br>
@@ -14,10 +14,11 @@
 </p>
 
 <p align="center">
+  <a href="https://art-wallpaper.vercel.app/"><img src="https://img.shields.io/badge/Web-art--wallpaper.vercel.app-000000?logo=vercel&logoColor=white" alt="Web Application" /></a>
   <a href="#-features"><img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011%20%7C%20macOS-0078D6?logo=windows&logoColor=white" alt="Platform" /></a>
   <a href="#-features"><img src="https://img.shields.io/badge/UI-Compose%20Desktop-4285F4?logo=jetpackcompose&logoColor=white" alt="Compose Desktop" /></a>
   <a href="#-features"><img src="https://img.shields.io/badge/Language-Kotlin%202.1-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin" /></a>
-  <a href="https://github.com/Princeyyyy/art-wallpaper/releases"><img src="https://img.shields.io/badge/Release-v4.1.5-C8A97E" alt="Release" /></a>
+  <a href="https://github.com/Princeyyyy/art-wallpaper/releases"><img src="https://img.shields.io/badge/Release-v4.1.6-C8A97E" alt="Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey" alt="License" /></a>
 </p>
 
@@ -164,9 +165,9 @@ Art Wallpaper is an open-source project welcoming community contributions:
 Art Wallpaper is built on local-first, zero-telemetry principles. The application collects no personal data and stores all preferences and artwork caches strictly on your local machine.
 
 Detailed legal documentation and policies are maintained on the web application:
-- [Privacy Policy](web/src/app/privacy/page.tsx)
-- [Terms of Service](web/src/app/terms/page.tsx)
-- [Software License (CC BY-NC 4.0)](LICENSE)
+- [Privacy Policy](https://art-wallpaper.vercel.app/privacy)
+- [Terms of Service](https://art-wallpaper.vercel.app/terms)
+- [Software License (CC BY-NC 4.0)](https://github.com/Princeyyyy/art-wallpaper/blob/master/LICENSE)
 
 ---
 

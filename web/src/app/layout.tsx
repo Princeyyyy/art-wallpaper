@@ -4,7 +4,7 @@ import { ThemeProvider } from "../components/ThemeProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || "https://princeyyyy.github.io/art-wallpaper"
+    process.env.NEXT_PUBLIC_SITE_URL || "https://art-wallpaper.vercel.app"
   ),
   title: "Art Wallpaper — An Art Museum for Your Desktop",
   description: "Walk into an art gallery every morning. Curated masterpieces from The Metropolitan Museum of Art delivered directly to your desktop.",
