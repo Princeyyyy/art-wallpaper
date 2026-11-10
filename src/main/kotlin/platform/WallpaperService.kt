@@ -1,3 +1,4 @@
+import kotlin.io.path.exists
 import com.sun.jna.Native
 import com.sun.jna.win32.W32APIOptions
 import org.slf4j.LoggerFactory
@@ -8,6 +9,7 @@ import java.nio.file.Path
  */
 interface WallpaperService {
     fun setWallpaper(imagePath: Path): Result<Unit>
+    fun getCurrentWallpaper(): Path? = null
 
     companion object {
         fun create(): WallpaperService {
@@ -77,6 +79,23 @@ class WindowsWallpaperService : WallpaperService {
 
         logger.info("Windows wallpaper set successfully")
     }
+
+    override fun getCurrentWallpaper(): Path? {
+        return try {
+            val regPath = com.sun.jna.platform.win32.Advapi32Util.registryGetStringValue(
+                com.sun.jna.platform.win32.WinReg.HKEY_CURRENT_USER,
+                "Control Panel\\Desktop",
+                "Wallpaper"
+            )
+            if (!regPath.isNullOrBlank()) {
+                val p = Path.of(regPath)
+                if (p.exists()) p else null
+            } else null
+        } catch (e: Exception) {
+            logger.warn("Could not read Windows wallpaper registry: ${e.message}")
+            null
+        }
+    }
 }
 
 // ── macOS Implementation (Native AppleScript / System Events & Finder) ────────
@@ -112,5 +131,21 @@ class MacWallpaperService : WallpaperService {
         }
 
         logger.info("macOS wallpaper set successfully")
+    }
+
+    override fun getCurrentWallpaper(): Path? {
+        return try {
+            val script = "tell application \"System Events\" to get picture of current desktop"
+            val process = ProcessBuilder("osascript", "-e", script)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText().trim()
+            if (process.waitFor() == 0 && output.isNotBlank()) {
+                val p = Path.of(output)
+                if (p.exists()) p else null
+            } else null
+        } catch (e: Exception) {
+            null
+        }
     }
 }

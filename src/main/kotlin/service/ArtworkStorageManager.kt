@@ -39,21 +39,32 @@ class ArtworkStorageManager(
         return cachedArtworks ?: loadStoredArtworks().also { cachedArtworks = it }
     }
 
+    fun getLatestStoredArtwork(): Pair<Path, ArtworkMetadata>? {
+        return getStoredArtworks().firstOrNull()
+    }
+
+    fun getArtworkMetadata(id: String): ArtworkMetadata? {
+        val metadataPath = metadataDir.resolve("$id.json")
+        return if (metadataPath.exists()) {
+            try {
+                Json.decodeFromString<ArtworkMetadata>(metadataPath.readText())
+            } catch (e: Exception) {
+                logger.warn("Skipping corrupt metadata at $metadataPath: ${e.message}")
+                null
+            }
+        } else null
+    }
+
     private fun loadStoredArtworks(): List<Pair<Path, ArtworkMetadata>> {
-        return artworksDir.listDirectoryEntries("*.jpg").mapNotNull { artworkPath ->
-            val id = artworkPath.nameWithoutExtension
-            val metadataPath = metadataDir.resolve("$id.json")
-            
-            if (metadataPath.exists()) {
-                try {
-                    val metadata = Json.decodeFromString<ArtworkMetadata>(metadataPath.readText())
-                    artworkPath to metadata
-                } catch (e: Exception) {
-                    logger.warn("Skipping corrupt metadata at $metadataPath: ${e.message}")
-                    null
-                }
-            } else null
-        }
+        return artworksDir.listDirectoryEntries("*.jpg")
+            .sortedByDescending {
+                try { it.getLastModifiedTime().toMillis() } catch (_: Exception) { 0L }
+            }
+            .mapNotNull { artworkPath ->
+                val id = artworkPath.nameWithoutExtension
+                val metadata = getArtworkMetadata(id)
+                if (metadata != null) artworkPath to metadata else null
+            }
     }
 
     fun getArtworkPath(id: String): Path? {

@@ -24,19 +24,33 @@ import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.exists
 import kotlin.io.path.readBytes
+import kotlin.io.path.getLastModifiedTime
 
 // ── In-Memory Bitmap Cache for Instant UI Rendering ─────────────────────────
 
 object ArtworkBitmapCache {
-    private val memoryCache = ConcurrentHashMap<String, ImageBitmap>()
+    private val memoryCache = ConcurrentHashMap<String, Pair<Long, ImageBitmap>>()
 
-    fun get(path: Path): ImageBitmap? = memoryCache[path.toAbsolutePath().toString()]
+    fun get(path: Path): ImageBitmap? {
+        val entry = memoryCache[path.toAbsolutePath().toString()] ?: return null
+        val currentMod = try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
+        return if (entry.first == currentMod) entry.second else null
+    }
 
     fun put(path: Path, bitmap: ImageBitmap) {
         if (memoryCache.size > 8) {
             memoryCache.clear() // Prevent memory bloat; keep recent few in RAM
         }
-        memoryCache[path.toAbsolutePath().toString()] = bitmap
+        val currentMod = try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
+        memoryCache[path.toAbsolutePath().toString()] = currentMod to bitmap
+    }
+
+    fun invalidate(path: Path) {
+        memoryCache.remove(path.toAbsolutePath().toString())
+    }
+
+    fun clear() {
+        memoryCache.clear()
     }
 }
 
@@ -48,24 +62,26 @@ object ArtworkBitmapCache {
 fun rememberArtworkBitmap(path: Path?): ImageBitmap? {
     if (path == null) return null
 
-    var bitmap by remember(path) { mutableStateOf(ArtworkBitmapCache.get(path)) }
+    val fileModTime = remember(path) {
+        try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
+    }
 
-    LaunchedEffect(path) {
-        if (bitmap == null) {
-            val loaded = withContext(Dispatchers.IO) {
-                try {
-                    if (path.exists()) {
-                        val bytes = path.readBytes()
-                        SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap().also {
-                            ArtworkBitmapCache.put(path, it)
-                        }
-                    } else null
-                } catch (e: Exception) {
-                    null
-                }
+    var bitmap by remember(path, fileModTime) { mutableStateOf(ArtworkBitmapCache.get(path)) }
+
+    LaunchedEffect(path, fileModTime) {
+        val loaded = withContext(Dispatchers.IO) {
+            try {
+                if (path.exists()) {
+                    val bytes = path.readBytes()
+                    SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap().also {
+                        ArtworkBitmapCache.put(path, it)
+                    }
+                } else null
+            } catch (e: Exception) {
+                null
             }
-            bitmap = loaded
         }
+        bitmap = loaded
     }
 
     return bitmap

@@ -28,6 +28,7 @@ import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
+import kotlin.io.path.nameWithoutExtension
 import exception.NetworkUnavailableException
 
 class WallpaperManager(
@@ -77,8 +78,11 @@ class WallpaperManager(
     init {
         // Load last saved state on construction.
         try {
-            var restored = false
-            if (stateFile.exists()) {
+            // Priority 1: Synchronize directly with what the OS desktop wallpaper actually displays
+            var restored = syncWithActiveDesktopWallpaper()
+
+            // Priority 2: If OS wallpaper wasn't an artwork, load from wallpaper_state.json
+            if (!restored && stateFile.exists()) {
                 val savedState = Json.decodeFromString<SavedState>(stateFile.readText())
                 lastUpdateTime = savedState.lastUpdateTime
                 lastScheduledUpdateTime = savedState.lastScheduledUpdateTime
@@ -91,8 +95,7 @@ class WallpaperManager(
                 }
             }
 
-            // Fallback: If saved state was missing or pointed to a non-existent image,
-            // recover the latest valid artwork from history or disk so the gallery is never blank.
+            // Priority 3: Fallback to the latest stored artwork on disk or history
             if (!restored) {
                 recoverLatestArtworkFromStorage()
             }
@@ -103,10 +106,47 @@ class WallpaperManager(
     }
 
     /**
-     * Resiliently recovers the most recent valid artwork from history or the artworks directory.
+     * Ensures the in-memory state and UI are 100% synchronized with the active
+     * desktop wallpaper set in the operating system.
+     */
+    fun syncWithActiveDesktopWallpaper(): Boolean {
+        try {
+            val osWallpaperPath = wallpaperService.getCurrentWallpaper()
+            if (osWallpaperPath != null && osWallpaperPath.exists()) {
+                val id = osWallpaperPath.nameWithoutExtension
+                val meta = artworkStorage.getArtworkMetadata(id)
+                if (meta != null) {
+                    val currentId = _currentArtwork.value?.second?.id
+                    if (currentId != id) {
+                        logger.info("Synchronized with active OS desktop wallpaper: ${meta.title} ($id)")
+                        _currentArtwork.value = osWallpaperPath to meta
+                        lastSuccessfulArtwork = osWallpaperPath to meta
+                        saveState(meta, if (lastUpdateTime > 0) lastUpdateTime else System.currentTimeMillis(), lastScheduledUpdateTime)
+                    }
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Could not sync with OS desktop wallpaper: ${e.message}")
+        }
+        return false
+    }
+
+    /**
+     * Resiliently recovers the most recent valid artwork from storage or history.
      */
     private fun recoverLatestArtworkFromStorage() {
         try {
+            // Priority 1: Check the most recently modified artwork in storage
+            val latestStored = artworkStorage.getLatestStoredArtwork()
+            if (latestStored != null && latestStored.first.exists()) {
+                logger.info("Recovered active artwork from latest stored file: ${latestStored.second.title} (${latestStored.second.id})")
+                _currentArtwork.value = latestStored
+                lastSuccessfulArtwork = latestStored
+                return
+            }
+
+            // Priority 2: Fallback to history
             val stored = artworkStorage.getStoredArtworks()
             val historyIds = historyManager.getHistory()
             for (id in historyIds.reversed()) {
@@ -117,15 +157,6 @@ class WallpaperManager(
                     lastSuccessfulArtwork = match
                     return
                 }
-            }
-
-            // Fallback: use the most recently modified stored artwork
-            val latest = stored.filter { it.first.exists() }
-                .maxByOrNull { Files.getLastModifiedTime(it.first).toMillis() }
-            if (latest != null) {
-                logger.info("Recovered active artwork from storage directory: ${latest.second.title} (${latest.second.id})")
-                _currentArtwork.value = latest
-                lastSuccessfulArtwork = latest
             }
         } catch (e: Exception) {
             logger.warn("Could not recover artwork from storage: ${e.message}")
@@ -375,6 +406,9 @@ class WallpaperManager(
             _currentArtwork.value = path to metadata
             lastSuccessfulArtwork = path to metadata
             saveState(metadata, now, now)
+            scope.launch {
+                historyManager.addToHistory(metadata)
+            }
             artworkProvider.cleanupCacheFiles()
             logger.info("Wallpaper set manually: ${metadata.title}")
         }

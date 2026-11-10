@@ -1,5 +1,7 @@
 import java.awt.Color
 import java.awt.GraphicsEnvironment
+import java.awt.Graphics2D
+import java.awt.LinearGradientPaint
 import java.awt.RadialGradientPaint
 import java.awt.RenderingHints
 import java.awt.Toolkit
@@ -147,47 +149,11 @@ class ImageProcessor(
             g2d.paint = vignette
             g2d.fillRect(0, 0, targetW, targetH)
 
-            // ── 2. Foreground: Authentic proportional artwork ────────────────
-            val screenRatio = targetW.toDouble() / targetH
-            val artRatio = original.width.toDouble() / maxOf(original.height, 1)
-            val ratioDelta = Math.abs(artRatio - screenRatio) / screenRatio
-
-            if (ratioDelta < 0.07 && artRatio > 1.2) {
-                // Wide landscape matching the screen aspect ratio: fill edge-to-edge
-                val scale = maxOf(targetW.toDouble() / original.width, targetH.toDouble() / original.height)
-                val dw = (original.width * scale).toInt()
-                val dh = (original.height * scale).toInt()
-                val dx = (targetW - dw) / 2
-                val dy = (targetH - dh) / 2
-                g2d.drawImage(original, dx, dy, dw, dh, null)
-            } else {
-                // Taskbar / Dock clearance: account for bottom taskbar so art is centered in the visible workspace
-                val taskbarReserve = (targetH * 0.058).toInt().coerceIn(52, 90)
-                val usableH = targetH - taskbarReserve
-
-                val maxArtW = (targetW * 0.86).toInt()
-                val maxArtH = (usableH * 0.86).toInt()
-                val scale = minOf(maxArtW.toDouble() / original.width, maxArtH.toDouble() / original.height)
-                val artW = maxOf((original.width * scale).toInt(), 100)
-                val artH = maxOf((original.height * scale).toInt(), 100)
-                val artX = (targetW - artW) / 2
-                val artY = (usableH - artH) / 2 // Centered visually above taskbar
-
-                // Refined multi-layer gallery drop shadow
-                for (i in 5 downTo 1) {
-                    val spread = i * 4
-                    val alpha = (24 / i).coerceIn(3, 26)
-                    g2d.color = Color(0, 0, 0, alpha)
-                    g2d.fillRoundRect(artX - spread, artY - spread + 4, artW + spread * 2, artH + spread * 2, 8, 8)
-                }
-
-                // Crisp artwork in original proportions
-                g2d.drawImage(original, artX, artY, artW, artH, null)
-
-                // Delicate museum rim
-                g2d.color = Color(255, 255, 255, 38)
-                g2d.drawRect(artX, artY, artW, artH)
-            }
+            // ── 2. Foreground: Museum Framed Artwork ─────────────────────────
+            // Taskbar / Dock clearance: account for bottom taskbar so art is centered in the visible workspace
+            val taskbarReserve = (targetH * 0.055).toInt().coerceIn(48, 80)
+            val usableH = targetH - taskbarReserve
+            renderFramedArtwork(g2d, original, targetW, usableH)
         } finally {
             g2d.dispose()
         }
@@ -197,6 +163,138 @@ class ImageProcessor(
 
 
 
+
+
+    /**
+     * Renders an authentic handcrafted walnut museum gallery frame around the artwork.
+     * Features:
+     * - Multi-tier ambient drop shadow casting onto the ambient background wall.
+     * - Beveled walnut hardwood moulding with hand-rubbed oil sheen highlights.
+     * - Classical cove relief profile.
+     * - Gilded antique gold leaf / brass fillet inlay.
+     * - Recessed sight-edge shadow bevel for physical canvas depth.
+     */
+    private fun renderFramedArtwork(
+        g2d: Graphics2D,
+        original: BufferedImage,
+        targetW: Int,
+        usableH: Int
+    ) {
+        val minDim = minOf(targetW, usableH)
+        val frameMoulding = maxOf(16, (minDim * 0.020).toInt())
+        val goldFillet = maxOf(3, (frameMoulding * 0.14).toInt())
+        val sightEdge = maxOf(2, (frameMoulding * 0.08).toInt())
+        val totalBorder = frameMoulding + goldFillet + sightEdge
+
+        // Optimal curatorial viewing size within desktop bounds
+        val maxFramedW = (targetW * 0.84).toInt()
+        val maxFramedH = (usableH * 0.84).toInt()
+        val maxInnerW = maxFramedW - totalBorder * 2
+        val maxInnerH = maxFramedH - totalBorder * 2
+
+        val scale = minOf(maxInnerW.toDouble() / original.width, maxInnerH.toDouble() / original.height)
+        val artW = maxOf((original.width * scale).toInt(), 100)
+        val artH = maxOf((original.height * scale).toInt(), 100)
+        val artX = (targetW - artW) / 2
+        val artY = (usableH - artH) / 2
+
+        val outerX = artX - totalBorder
+        val outerY = artY - totalBorder
+        val outerW = artW + totalBorder * 2
+        val outerH = artH + totalBorder * 2
+
+        // 1. Ambient gallery drop shadow cast onto background wall
+        for (i in 8 downTo 1) {
+            val spread = i * 4
+            val alpha = (32 / i).coerceIn(2, 35)
+            g2d.color = Color(0, 0, 0, alpha)
+            g2d.fillRoundRect(
+                outerX - spread,
+                outerY - spread + (i * 2), // Natural downward track lighting angle
+                outerW + spread * 2,
+                outerH + spread * 2,
+                16, 16
+            )
+        }
+
+        // 2. Handcrafted Walnut Moulding (Outer Frame)
+        val woodDark = Color(0x1E, 0x11, 0x0A)
+        val woodMedium = Color(0x3E, 0x23, 0x14)
+        val woodLight = Color(0x62, 0x3E, 0x24)
+        val woodHighlight = Color(0x7D, 0x51, 0x2E)
+
+        // Wood grain gradient across the face
+        val woodGrad = LinearGradientPaint(
+            outerX.toFloat(), outerY.toFloat(),
+            (outerX + outerW).toFloat(), (outerY + outerH).toFloat(),
+            floatArrayOf(0.0f, 0.35f, 0.70f, 1.0f),
+            arrayOf(woodLight, woodMedium, woodDark, woodMedium)
+        )
+        g2d.paint = woodGrad
+        g2d.fillRoundRect(outerX, outerY, outerW, outerH, 6, 6)
+
+        // Outer lip highlight and shadow (beveled relief)
+        g2d.color = woodHighlight
+        g2d.drawLine(outerX + 3, outerY, outerX + outerW - 3, outerY)
+        g2d.drawLine(outerX, outerY + 3, outerX, outerY + outerH - 3)
+
+        g2d.color = Color(0x12, 0x09, 0x04)
+        g2d.drawLine(outerX + 3, outerY + outerH, outerX + outerW - 3, outerY + outerH)
+        g2d.drawLine(outerX + outerW, outerY + 3, outerX + outerW, outerY + outerH - 3)
+
+        // Classical cove relief grooves inside moulding
+        val coveInset = (frameMoulding * 0.38).toInt()
+        if (coveInset > 2) {
+            g2d.color = Color(0x14, 0x0A, 0x05, 175)
+            g2d.drawRect(outerX + coveInset, outerY + coveInset, outerW - coveInset * 2, outerH - coveInset * 2)
+            g2d.color = Color(0x75, 0x4B, 0x2A, 130)
+            g2d.drawRect(outerX + coveInset + 1, outerY + coveInset + 1, outerW - (coveInset + 1) * 2, outerH - (coveInset + 1) * 2)
+        }
+
+        // 3. Gilded Brass / Museum Gold Fillet
+        val filletX = outerX + frameMoulding
+        val filletY = outerY + frameMoulding
+        val filletW = outerW - frameMoulding * 2
+        val filletH = outerH - frameMoulding * 2
+
+        val goldLight = Color(0xE8, 0xC8, 0x78)
+        val goldMedium = Color(0xC5, 0xA0, 0x59)
+        val goldDark = Color(0x8A, 0x68, 0x24)
+
+        val goldGrad = LinearGradientPaint(
+            filletX.toFloat(), filletY.toFloat(),
+            (filletX + filletW).toFloat(), (filletY + filletH).toFloat(),
+            floatArrayOf(0.0f, 0.45f, 1.0f),
+            arrayOf(goldLight, goldMedium, goldDark)
+        )
+        g2d.paint = goldGrad
+        g2d.fillRect(filletX, filletY, filletW, filletH)
+
+        // Fillet seam definitions
+        g2d.color = Color(0x18, 0x0C, 0x05)
+        g2d.drawRect(filletX, filletY, filletW, filletH)
+
+        // 4. Archival Sight-Edge Bevel (recess onto canvas)
+        val sightX = filletX + goldFillet
+        val sightY = filletY + goldFillet
+        val sightW = filletW - goldFillet * 2
+        val sightH = filletH - goldFillet * 2
+
+        g2d.color = Color(0x0E, 0x08, 0x05)
+        g2d.fillRect(sightX, sightY, sightW, sightH)
+
+        // 5. Authentic Artwork Canvas
+        g2d.drawImage(original, artX, artY, artW, artH, null)
+
+        // 6. Canvas inner bevel shadow (recess cast by frame onto the painting surface)
+        val shadowDepth = maxOf(2, (minDim * 0.003).toInt())
+        for (s in 0 until shadowDepth) {
+            val a = ((shadowDepth - s).toFloat() / shadowDepth * 90).toInt()
+            g2d.color = Color(0, 0, 0, a)
+            g2d.drawLine(artX, artY + s, artX + artW, artY + s)
+            g2d.drawLine(artX + s, artY, artX + s, artY + artH)
+        }
+    }
 
     /**
      * Fast, multi-pass separable box blur.

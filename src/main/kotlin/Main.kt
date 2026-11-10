@@ -127,6 +127,7 @@ private fun setupApplication(
 
     onSetWakeCallback {
         javax.swing.SwingUtilities.invokeLater {
+            wallpaperManager.syncWithActiveDesktopWallpaper()
             windowVisibilityCallback?.invoke(true)
             activeAwtWindow?.let { win ->
                 WindowsPlatform.bringToFront(win)
