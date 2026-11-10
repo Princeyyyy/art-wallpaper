@@ -90,6 +90,8 @@ class HistoryManager(
 
     fun isInHistory(id: String): Boolean = synchronized(this) { history.contains(id) }
 
+    fun getHistory(): List<String> = synchronized(this) { history.toList() }
+
     fun clearHistory() {
         logger.info("Clearing artwork history")
         history.clear()

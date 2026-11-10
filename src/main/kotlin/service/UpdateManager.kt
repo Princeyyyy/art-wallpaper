@@ -14,6 +14,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import kotlin.io.path.createDirectories
@@ -69,6 +70,11 @@ class UpdateManager(
     val status: StateFlow<UpdateStatus> = _status.asStateFlow()
 
     private val updatesDir = Path.of(System.getProperty("user.home"), ".artwallpaper", "updates")
+
+    init {
+        // Automatically purge any obsolete installers on startup to prevent disk bloat
+        cleanupOldInstallers(updatesDir)
+    }
 
     /**
      * Checks GitHub Releases API for a newer version than currentVersion.
@@ -210,6 +216,34 @@ class UpdateManager(
     }
 
     companion object {
+        /**
+         * Deletes obsolete installer files (.msi / .dmg) from ~/.artwallpaper/updates
+         * to prevent disk bloat.
+         */
+        fun cleanupOldInstallers(updatesDir: Path = Path.of(System.getProperty("user.home"), ".artwallpaper", "updates")) {
+            val logger = LoggerFactory.getLogger(UpdateManager::class.java)
+            try {
+                if (!Files.exists(updatesDir)) return
+                Files.list(updatesDir).use { stream ->
+                    stream.forEach { file ->
+                        val name = file.fileName.toString()
+                        if (name.endsWith(".msi", ignoreCase = true) || name.endsWith(".dmg", ignoreCase = true)) {
+                            try {
+                                val sizeBytes = Files.size(file)
+                                val sizeMb = sizeBytes / (1024.0 * 1024.0)
+                                Files.deleteIfExists(file)
+                                logger.info("Cleaned up obsolete installer file: $name (freed ${"%.1f".format(sizeMb)} MB)")
+                            } catch (e: Exception) {
+                                logger.warn("Could not delete obsolete installer $name: ${e.message}")
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                logger.warn("Failed to clean up updates directory: ${e.message}")
+            }
+        }
+
         fun isNewerVersion(latest: String, current: String): Boolean {
             val latestParts = latest.trim().removePrefix("v").removePrefix("V")
                 .split('.').mapNotNull { it.takeWhile { c -> c.isDigit() }.toIntOrNull() }

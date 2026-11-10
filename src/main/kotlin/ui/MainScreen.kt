@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -202,138 +203,203 @@ fun MainScreen(
                         }
                     }
 
-                    // ── Main Artwork Exhibition Card ───────────────────────────────
+                    // ── Main Artwork Exhibition (Authentic Museum Gallery Picture Frame) ──
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .border(BorderStroke(1.dp, ArtColors.CardBorder), RoundedCornerShape(12.dp))
-                            .background(ArtColors.Surface)
-                    ) {
-                        Crossfade(
-                            targetState = currentArtwork,
-                            animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
-                        ) { targetArtwork ->
-                            if (targetArtwork != null) {
-                                val (path, metadata) = targetArtwork
-                                val bitmap = rememberArtworkBitmap(path)
-
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    if (bitmap != null) {
-                                        Image(
-                                            bitmap = bitmap,
-                                            contentDescription = metadata.title,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Fit
+                            .padding(horizontal = 18.dp, vertical = 6.dp)
+                            // Ambient drop shadow cast by frame on gallery wall
+                            .shadow(elevation = 14.dp, shape = RoundedCornerShape(10.dp), spotColor = Color.Black.copy(alpha = 0.65f))
+                            // Layer 1: Handcrafted Walnut / Mahogany Molded Hardwood Frame
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        ArtColors.FrameWoodLight,
+                                        ArtColors.FrameWoodMedium,
+                                        ArtColors.FrameWoodDark,
+                                        ArtColors.FrameWoodMedium,
+                                        ArtColors.FrameWoodDark
+                                    )
+                                )
+                            )
+                            .border(
+                                BorderStroke(
+                                    2.dp,
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            ArtColors.FrameWoodLight.copy(alpha = 0.95f),
+                                            ArtColors.FrameWoodDark.copy(alpha = 0.85f)
                                         )
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(ArtColors.Surface),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            CircularProgressIndicator(
-                                                color = ArtColors.GalleryGold,
-                                                modifier = Modifier.size(32.dp),
-                                                strokeWidth = 2.dp
+                                    )
+                                ),
+                                RoundedCornerShape(10.dp)
+                            )
+                            .padding(12.dp) // Outer wood frame molding depth
+                    ) {
+                        // Layer 2: Gilded Fillet (Classic Museum Brass / Gold Bead Inlay)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(6.dp))
+                                .border(
+                                    BorderStroke(
+                                        1.5.dp,
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                ArtColors.FrameGoldFillet,
+                                                Color(0xFFE2C485),
+                                                ArtColors.FrameGoldFillet,
+                                                Color(0xFFA67C38)
                                             )
-                                        }
-                                    }
-
-                                    // Gallery Exhibition Placard (Semi-transparent scrim overlay)
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .align(Alignment.BottomCenter)
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    colors = listOf(
-                                                        Color.Transparent,
-                                                        Color(0x99000000),
-                                                        Color(0xEB0A0A0C)
-                                                    )
-                                                )
-                                            )
-                                            .padding(horizontal = 22.dp, vertical = 16.dp)
-                                    ) {
-                                        Column(modifier = Modifier.fillMaxWidth()) {
-                                            Text(
-                                                metadata.title,
-                                                style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.SemiBold),
-                                                color = Color.White,
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Spacer(Modifier.height(3.dp))
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                metadata.artist?.let { artist ->
-                                                    Text(
-                                                        artist,
-                                                        style = MaterialTheme.typography.subtitle2,
-                                                        color = Color.White.copy(alpha = 0.9f)
-                                                    )
-                                                }
-                                                metadata.year?.let { year ->
-                                                    Text(
-                                                        "· $year",
-                                                        style = MaterialTheme.typography.subtitle2,
-                                                        color = Color.White.copy(alpha = 0.7f)
-                                                    )
-                                                }
-                                            }
-
-                                            // Curatorial Chips
-                                            Spacer(Modifier.height(8.dp))
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                CuratorialChip("The Met Archive")
-                                                val desc = metadata.description
-                                                if (!desc.isNullOrBlank()) {
-                                                    val firstLine = desc.lines().firstOrNull()?.trim()
-                                                    if (!firstLine.isNullOrBlank()) {
-                                                        val shortMedium = if (firstLine.length > 32) firstLine.take(30) + "…" else firstLine
-                                                        CuratorialChip(shortMedium)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                // Welcoming empty state
+                                        )
+                                    ),
+                                    RoundedCornerShape(6.dp)
+                                )
+                                .padding(2.dp) // Gilded fillet width
+                        ) {
+                            // Layer 3: Archival Museum Mat Board (Passpartout)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(ArtColors.FrameMatBoard)
+                                    .padding(12.dp) // Archival mat width
+                            ) {
+                                // Layer 4: Recessed Canvas Window (With 45° beveled shadow)
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(ArtColors.Surface),
-                                    contentAlignment = Alignment.Center
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .border(BorderStroke(1.dp, Color.Black.copy(alpha = 0.55f)), RoundedCornerShape(2.dp))
+                                        .background(Color.Black)
                                 ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Image(
-                                            painter = painterResource("icons/48x48.png"),
-                                            contentDescription = "Art Wallpaper",
-                                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp))
-                                        )
-                                        Text(
-                                            "Your Gallery Awaits",
-                                            style = MaterialTheme.typography.h6,
-                                            color = ArtColors.PaperWhite
-                                        )
-                                        Text(
-                                            "Click NEXT ARTWORK to curate a masterpiece for your desktop",
-                                            style = MaterialTheme.typography.caption,
-                                            color = ArtColors.PaperMuted
-                                        )
+                                    Crossfade(
+                                        targetState = currentArtwork,
+                                        animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
+                                    ) { targetArtwork ->
+                                        if (targetArtwork != null) {
+                                            val (path, metadata) = targetArtwork
+                                            val bitmap = rememberArtworkBitmap(path)
+
+                                            Box(modifier = Modifier.fillMaxSize()) {
+                                                if (bitmap != null) {
+                                                    Image(
+                                                        bitmap = bitmap,
+                                                        contentDescription = metadata.title,
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        contentScale = ContentScale.Fit
+                                                    )
+                                                } else {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(Color.Black),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        CircularProgressIndicator(
+                                                            color = ArtColors.GalleryGold,
+                                                            modifier = Modifier.size(32.dp),
+                                                            strokeWidth = 2.dp
+                                                        )
+                                                    }
+                                                }
+
+                                                // Gallery Exhibition Placard (Museum Brass Plaque Scrim)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .align(Alignment.BottomCenter)
+                                                        .background(
+                                                            Brush.verticalGradient(
+                                                                colors = listOf(
+                                                                    Color.Transparent,
+                                                                    Color(0xB3120E0A),
+                                                                    Color(0xF2100C09)
+                                                                )
+                                                            )
+                                                        )
+                                                        .padding(horizontal = 22.dp, vertical = 14.dp)
+                                                ) {
+                                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                                        Text(
+                                                            metadata.title,
+                                                            style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.SemiBold),
+                                                            color = Color.White,
+                                                            maxLines = 2,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Spacer(Modifier.height(3.dp))
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                        ) {
+                                                            metadata.artist?.let { artist ->
+                                                                Text(
+                                                                    artist,
+                                                                    style = MaterialTheme.typography.subtitle2,
+                                                                    color = Color.White.copy(alpha = 0.9f)
+                                                                )
+                                                            }
+                                                            metadata.year?.let { year ->
+                                                                Text(
+                                                                    "· $year",
+                                                                    style = MaterialTheme.typography.subtitle2,
+                                                                    color = Color.White.copy(alpha = 0.7f)
+                                                                )
+                                                            }
+                                                        }
+
+                                                        // Curatorial Chips
+                                                        Spacer(Modifier.height(8.dp))
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            CuratorialChip("The Met Archive")
+                                                            val desc = metadata.description
+                                                            if (!desc.isNullOrBlank()) {
+                                                                val firstLine = desc.lines().firstOrNull()?.trim()
+                                                                if (!firstLine.isNullOrBlank()) {
+                                                                    val shortMedium = if (firstLine.length > 32) firstLine.take(30) + "…" else firstLine
+                                                                    CuratorialChip(shortMedium)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            // Welcoming empty state (Framed museum mount)
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(ArtColors.Surface),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                                ) {
+                                                    Image(
+                                                        painter = painterResource("icons/48x48.png"),
+                                                        contentDescription = "Art Wallpaper",
+                                                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp))
+                                                    )
+                                                    Text(
+                                                        "Your Gallery Awaits",
+                                                        style = MaterialTheme.typography.h6,
+                                                        color = ArtColors.PaperWhite
+                                                    )
+                                                    Text(
+                                                        "Click NEXT ARTWORK to curate a masterpiece for your desktop",
+                                                        style = MaterialTheme.typography.caption,
+                                                        color = ArtColors.PaperMuted
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -345,6 +411,7 @@ fun MainScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .zIndex(2f)
+                                    .clip(RoundedCornerShape(10.dp))
                                     .background(Color.Black.copy(alpha = 0.75f)),
                                 contentAlignment = Alignment.Center
                             ) {

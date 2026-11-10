@@ -30,6 +30,12 @@ data class ArtThemeColors(
     val scrimBlack: Color,
     val cardBorder: Color,
     val chipBackground: Color,
+    val frameWoodDark: Color,
+    val frameWoodMedium: Color,
+    val frameWoodLight: Color,
+    val frameGoldFillet: Color,
+    val frameMatBoard: Color,
+    val frameShadow: Color,
     val isDark: Boolean
 )
 
@@ -46,6 +52,12 @@ val GalleryDarkThemeColors = ArtThemeColors(
     scrimBlack     = Color(0xCC000000), // 80% opaque overlay
     cardBorder     = Color(0xFF2D2D32),
     chipBackground = Color(0xFF242428),
+    frameWoodDark  = Color(0xFF1E100A), // Deep antique walnut shadow
+    frameWoodMedium= Color(0xFF331C12), // Warm museum walnut molding
+    frameWoodLight = Color(0xFF4D2B1C), // Beveled wood highlight edge
+    frameGoldFillet= Color(0xFFC8A97E), // Gilded inner fillet bead
+    frameMatBoard  = Color(0xFF151413), // Deep museum archival dark mat
+    frameShadow    = Color(0x73000000), // Deep ambient drop shadow
     isDark         = true
 )
 
@@ -62,6 +74,12 @@ val GalleryLightThemeColors = ArtThemeColors(
     scrimBlack     = Color(0x99000000), // 60% overlay on photos
     cardBorder     = Color(0xFFE0DAD0),
     chipBackground = Color(0xFFEFECE5),
+    frameWoodDark  = Color(0xFF2E1910), // Rich classic walnut frame
+    frameWoodMedium= Color(0xFF48291A), // Warm wood body
+    frameWoodLight = Color(0xFF633A25), // Beveled wood top rail highlight
+    frameGoldFillet= Color(0xFFA88448), // Antique gilded inner fillet
+    frameMatBoard  = Color(0xFFF3EFE7), // Museum archival warm alabaster / ivory mat
+    frameShadow    = Color(0x3D000000),
     isDark         = false
 )
 
@@ -103,6 +121,24 @@ object ArtColors {
 
     val ChipBackground: Color
         @Composable @ReadOnlyComposable get() = LocalArtColors.current.chipBackground
+
+    val FrameWoodDark: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.frameWoodDark
+
+    val FrameWoodMedium: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.frameWoodMedium
+
+    val FrameWoodLight: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.frameWoodLight
+
+    val FrameGoldFillet: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.frameGoldFillet
+
+    val FrameMatBoard: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.frameMatBoard
+
+    val FrameShadow: Color
+        @Composable @ReadOnlyComposable get() = LocalArtColors.current.frameShadow
 
     val isDark: Boolean
         @Composable @ReadOnlyComposable get() = LocalArtColors.current.isDark

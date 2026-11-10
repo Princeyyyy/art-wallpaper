@@ -40,16 +40,14 @@ class WallpaperManagerTest {
     )
 
     private fun makeManager(settings: Settings = Settings(isFirstRun = false)): service.WallpaperManager {
-        // We need a stateFile path in tempDir â€” WallpaperManager always reads from user.home/.artwallpaper
-        // We pass the dir as a system property override isn't possible without refactoring,
-        // so we test with defaults and mock all file I/O collaborators.
         return service.WallpaperManager(
             wallpaperService = wallpaperService,
             artworkProvider = artworkProvider,
             artworkStorage = artworkStorage,
             historyManager = historyManager,
             connectivityChecker = connectivityChecker,
-            settings = settings
+            settings = settings,
+            stateFile = tempDir.resolve("wallpaper_state.json")
         )
     }
 

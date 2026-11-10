@@ -18,6 +18,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.time.LocalDateTime
@@ -35,12 +36,12 @@ class WallpaperManager(
     private val artworkStorage: ArtworkStorageManager,
     private val historyManager: HistoryManager,
     private val connectivityChecker: ConnectivityChecker = ConnectivityChecker(),
-    private var settings: Settings
+    private var settings: Settings,
+    private val stateFile: Path = Path.of(System.getProperty("user.home"), ".artwallpaper", "wallpaper_state.json")
 ) {
     private val logger = LoggerFactory.getLogger(WallpaperManager::class.java)
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var job: Job? = null
-    private val stateFile = Path.of(System.getProperty("user.home"), ".artwallpaper", "wallpaper_state.json")
     private var lastSuccessfulArtwork: Pair<Path, ArtworkMetadata>? = null
     private var lastUpdateTime: Long = 0
     private var lastScheduledUpdateTime: Long = 0
@@ -76,6 +77,7 @@ class WallpaperManager(
     init {
         // Load last saved state on construction.
         try {
+            var restored = false
             if (stateFile.exists()) {
                 val savedState = Json.decodeFromString<SavedState>(stateFile.readText())
                 lastUpdateTime = savedState.lastUpdateTime
@@ -85,12 +87,49 @@ class WallpaperManager(
                 if (storedPath != null && storedPath.exists()) {
                     _currentArtwork.value = storedPath to savedState.metadata
                     lastSuccessfulArtwork = storedPath to savedState.metadata
+                    restored = true
                 }
+            }
+
+            // Fallback: If saved state was missing or pointed to a non-existent image,
+            // recover the latest valid artwork from history or disk so the gallery is never blank.
+            if (!restored) {
+                recoverLatestArtworkFromStorage()
             }
         } catch (e: Exception) {
             logger.warn("Wallpaper state file unparseable, starting fresh: ${e.message}")
+            recoverLatestArtworkFromStorage()
         }
-        // FIX #4: Removed duplicate loadSavedState() — logic is fully inlined above.
+    }
+
+    /**
+     * Resiliently recovers the most recent valid artwork from history or the artworks directory.
+     */
+    private fun recoverLatestArtworkFromStorage() {
+        try {
+            val stored = artworkStorage.getStoredArtworks()
+            val historyIds = historyManager.getHistory()
+            for (id in historyIds.reversed()) {
+                val match = stored.firstOrNull { it.second.id == id && it.first.exists() }
+                if (match != null) {
+                    logger.info("Recovered active artwork from history: ${match.second.title} ($id)")
+                    _currentArtwork.value = match
+                    lastSuccessfulArtwork = match
+                    return
+                }
+            }
+
+            // Fallback: use the most recently modified stored artwork
+            val latest = stored.filter { it.first.exists() }
+                .maxByOrNull { Files.getLastModifiedTime(it.first).toMillis() }
+            if (latest != null) {
+                logger.info("Recovered active artwork from storage directory: ${latest.second.title} (${latest.second.id})")
+                _currentArtwork.value = latest
+                lastSuccessfulArtwork = latest
+            }
+        } catch (e: Exception) {
+            logger.warn("Could not recover artwork from storage: ${e.message}")
+        }
     }
 
     suspend fun checkAndUpdateIfNeeded() {
@@ -134,7 +173,17 @@ class WallpaperManager(
                 lastSuccessfulArtwork = storedPath to state.metadata
                 lastUpdateTime = state.lastUpdateTime
                 lastScheduledUpdateTime = state.lastScheduledUpdateTime
+            } else {
+                recoverLatestArtworkFromStorage()
             }
+        }
+
+        // If after restoration memory is STILL empty (e.g. no artwork files on disk)
+        // do not stay stuck in an empty state; immediately curate initial artwork
+        if (_currentArtwork.value == null && !currentActiveSettings.isFirstRun) {
+            logger.info("No active artwork on disk — triggering initial curation")
+            updateWallpaper()
+            return
         }
 
         if (shouldUpdate(state.lastUpdateTime)) {
