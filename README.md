@@ -147,12 +147,6 @@ The project features a comprehensive multi-platform test suite:
 
 ---
 
-## 🔏 Code Signing
-
-Free code signing for Windows releases is generously provided by [SignPath.io](https://signpath.io), with certificates provided by the [SignPath Foundation](https://signpath.org).
-
----
-
 ## 🔒 Privacy Policy
 
 Art Wallpaper is committed to user privacy. The application:
