@@ -258,6 +258,8 @@ class WallpaperManager(
                     artworkProvider.cleanupCacheFiles(artwork.second.id)
                     logger.info("Wallpaper updated: ${artwork.second.title}")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.error("Failed to update wallpaper after retries", e)
                 throw e
@@ -303,6 +305,8 @@ class WallpaperManager(
                 if (!currentActiveSettings.isFirstRun) {
                     checkAndUpdateIfNeeded()
                 }
+            } catch (e: CancellationException) {
+                // Normal during shutdown/cancellation; do not log as error
             } catch (e: Exception) {
                 logger.error("Error during wallpaper update check", e)
             }
@@ -345,7 +349,13 @@ class WallpaperManager(
         ) {
             logger.info("Update needed - haven't updated today and we're at/past scheduled time $scheduledTime")
             scope.launch {
-                updateWallpaper()
+                try {
+                    updateWallpaper()
+                } catch (e: CancellationException) {
+                    // Normal during job cancellation
+                } catch (e: Exception) {
+                    logger.error("Error during scheduled wallpaper update", e)
+                }
             }
         } else {
             val nextUpdate = if (now.isBefore(scheduledTime)) {
