@@ -1,19 +1,21 @@
-name: macOS Interactive Debug
+name: macOS Automated Verification & Diagnostics
 
 on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch to inspect'
+        description: 'Branch to verify'
         required: true
         default: 'master'
 
 jobs:
-  interactive-macos:
-    name: Interactive macOS Runner
+  verify-macos:
+    name: macOS Automated End-to-End Verification
     runs-on: macos-latest
+    timeout-minutes: 20
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
@@ -30,10 +32,94 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Pre-build App Distribution
+      - name: Download & Verify Gradle Distribution
+        shell: bash
+        run: |
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && break || (echo "Gradle attempt $i failed, retrying in 5s..." && sleep 5)
+          done
+
+      - name: Run unit & integration tests
+        run: ./gradlew test
+
+      - name: Build macOS Application Bundle
         run: ./gradlew createDistributable
 
-      - name: Launch Interactive Terminal (SSH / Web Shell)
-        uses: mxschmitt/action-tmate@v3
+      - name: Inspect App Bundle & Runtime Architecture
+        shell: bash
+        run: |
+          APP_PATH=$(find build/compose/binaries/main -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::No .app bundle generated!"
+            exit 1
+          fi
+          echo "=== App Bundle Path ==="
+          echo "$APP_PATH"
+          
+          echo "=== Native Binary Architecture ==="
+          file "$APP_PATH/Contents/MacOS/Art Wallpaper"
+          
+          echo "=== Info.plist Lint ==="
+          plutil -lint "$APP_PATH/Contents/Info.plist"
+          
+          echo "=== Bundled JLink JRE Modules ==="
+          JAVA_BIN=$(find "$APP_PATH/Contents" -name "java" -type f | head -n 1)
+          if [ -n "$JAVA_BIN" ]; then
+            echo "Found bundled java binary at: $JAVA_BIN"
+            chmod +x "$JAVA_BIN" || true
+            "$JAVA_BIN" --list-modules | head -n 25
+          else
+            echo "Warning: bundled java binary not found"
+          fi
+
+      - name: Execute Native Binary Smoke Test
+        shell: bash
+        run: |
+          APP_PATH=$(find build/compose/binaries/main -name "*.app" | head -n 1)
+          chmod +x "$APP_PATH/Contents/MacOS/Art Wallpaper" || true
+          
+          echo "--- Testing --version flag ---"
+          "$APP_PATH/Contents/MacOS/Art Wallpaper" --version
+          
+          echo "--- Testing --smoke-test flag ---"
+          "$APP_PATH/Contents/MacOS/Art Wallpaper" --smoke-test
+
+      - name: Package macOS DMG
+        run: ./gradlew packageDmg
+
+      - name: Verify DMG Mount & File System Integrity
+        shell: bash
+        run: |
+          DMG_PATH=$(find build/compose/binaries/main -name "*.dmg" | head -n 1)
+          if [ -z "$DMG_PATH" ]; then
+            echo "::error::No .dmg file generated!"
+            exit 1
+          fi
+          echo "Found DMG at: $DMG_PATH"
+          
+          echo "--- Mounting DMG with hdiutil ---"
+          MOUNT_OUTPUT=$(hdiutil attach "$DMG_PATH" -nobrowse -readonly)
+          echo "$MOUNT_OUTPUT"
+          
+          MOUNT_POINT=$(echo "$MOUNT_OUTPUT" | grep "/Volumes/" | awk -F '\t' '{print $NF}' | xargs)
+          echo "Mounted at: $MOUNT_POINT"
+          
+          if [ -d "$MOUNT_POINT" ]; then
+            echo "Contents of DMG volume:"
+            ls -la "$MOUNT_POINT"
+            
+            echo "--- Unmounting DMG ---"
+            hdiutil detach "$MOUNT_POINT" -force
+            echo "DMG mounted and unmounted successfully! Verification complete."
+          else
+            echo "::error::Mount point $MOUNT_POINT not accessible!"
+            exit 1
+          fi
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          detached: false
+          name: macos-verification-test-reports
+          path: build/reports/tests/test/
+          retention-days: 7
