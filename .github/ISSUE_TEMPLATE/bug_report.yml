@@ -11,8 +11,8 @@ body:
     id: version
     attributes:
       label: "Art Wallpaper Version"
-      description: "Which version are you running? (e.g. v4.1.6)"
-      placeholder: "v4.1.6"
+      description: "Which version are you running? (e.g. v4.1.7)"
+      placeholder: "v4.1.7"
     validations:
       required: true
 

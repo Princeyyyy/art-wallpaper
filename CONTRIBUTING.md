@@ -141,7 +141,7 @@ To package native platform bundles:
 ### 4. Single Source of Truth for Versioning
 - Version numbers are defined exclusively in `gradle.properties`:
   ```properties
-  appVersion=4.1.6
+  appVersion=4.1.7
   ```
 - Never hardcode version strings in source files. Source code dynamically reads `AppInfo.version` from generated properties.
 

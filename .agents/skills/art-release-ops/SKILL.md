@@ -33,7 +33,7 @@ Art Wallpaper enforces a **single source of truth** versioning architecture:
 The version is governed by `appVersion`:
 ```properties
 # ArtWallpaper Build Properties
-appVersion=4.1.6
+appVersion=4.1.7
 appGroup=com.prince.artwallpaper
 ```
 
@@ -44,13 +44,13 @@ Ensure all documentation, CI workflows, and unit tests reflect the new version:
    workflow_dispatch:
      inputs:
        version:
-         description: 'Release version (semver format e.g. 4.1.6)'
+         description: 'Release version (semver format e.g. 4.1.7)'
          required: true
-         default: '4.1.6'
+         default: '4.1.7'
    ```
 2. `README.md`:
-   - Update header: `<h1 align="center">ArtWallpaper Manager v4.1.6</h1>`.
-   - Update badge: `Release-v4.1.6`.
+   - Update header: `<h1 align="center">ArtWallpaper Manager v4.1.7</h1>`.
+   - Update badge: `Release-v4.1.7`.
 3. `src/test/kotlin/UpdateManagerTest.kt`:
    - Verify that semver comparison test suites assert the new version as newer than preceding releases.
 
@@ -74,7 +74,7 @@ Official installers for Windows (`.msi`) and macOS (`.dmg`) are built and publis
 1. Navigate to: **[GitHub Actions > Release](https://github.com/Princeyyyy/art-wallpaper/actions/workflows/release.yml)**.
 2. Click **Run workflow**.
 3. Select branch: `master`.
-4. Enter target version (e.g., `4.1.6`).
+4. Enter target version (e.g., `4.1.7`).
 5. Click **Run workflow**.
 
 ---
@@ -84,7 +84,7 @@ Official installers for Windows (`.msi`) and macOS (`.dmg`) are built and publis
 ```
 ┌────────────────────────────────────────────────────────┐
 │                      0. prepare                        │
-│ - Validate semver format (e.g. 4.1.6)                  │
+│ - Validate semver format (e.g. 4.1.7)                  │
 │ - Verify actor is repository owner                     │
 └───────────────────────────┬────────────────────────────┘
                             │
@@ -106,10 +106,10 @@ Official installers for Windows (`.msi`) and macOS (`.dmg`) are built and publis
 │                   2. publish-release                   │
 │ - scripts/generate_release_notes.py (Gemini / fallback)│
 │ - Strictly ZERO emojis in generated release text       │
-│ - Create GitHub Release v4.1.6                         │
-│ - Attach ArtWallpaper-4.1.6-Windows.msi + .sha256      │
-│ - Attach ArtWallpaper-4.1.6-macOS.dmg + .sha256        │
-│ - Push git tag v4.1.6                                  │
+│ - Create GitHub Release v4.1.7                         │
+│ - Attach ArtWallpaper-4.1.7-Windows.msi + .sha256      │
+│ - Attach ArtWallpaper-4.1.7-macOS.dmg + .sha256        │
+│ - Push git tag v4.1.7                                  │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -168,6 +168,6 @@ If a critical issue is identified in a newly deployed release:
    ```
 2. Implement the fix and write a reproducing test in `src/test/kotlin/`.
 3. Verify all tests pass: `./gradlew test`.
-4. Bump patch version in `gradle.properties` (e.g. `4.1.6`).
+4. Bump patch version in `gradle.properties` (e.g. `4.1.7`).
 5. Open PR, review, squash and merge into `master`.
 6. Trigger the GitHub Actions release workflow for the new patch version.
