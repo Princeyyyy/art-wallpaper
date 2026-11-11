@@ -1,10 +1,12 @@
 package service
 
+import ArtworkMetadata
 import ArtworkProvider
 import ArtworkStorageManager
 import WallpaperFitMode
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
 import java.time.Duration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -146,6 +148,16 @@ class ServiceController(
 
     suspend fun reprocessWallpaper(fitMode: WallpaperFitMode) {
         wallpaperManager.reprocessCurrentWallpaper(fitMode)
+    }
+
+    fun getStoredArtworks(): List<Pair<Path, ArtworkMetadata>> {
+        return artworkStorage.getStoredArtworks()
+    }
+
+    suspend fun selectStoredArtwork(path: Path, metadata: ArtworkMetadata) {
+        withContext(Dispatchers.IO) {
+            wallpaperManager.setWallpaperManually(path, metadata)
+        }
     }
 
     private fun startCleanupJob() {

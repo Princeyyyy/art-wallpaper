@@ -1,10 +1,16 @@
 package service
 
 import AppInfo
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -17,6 +23,8 @@ import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
+import java.util.Locale
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.io.path.createDirectories
 import kotlin.io.path.outputStream
 
@@ -53,7 +61,7 @@ sealed class UpdateStatus {
     data class Error(val message: String) : UpdateStatus()
 }
 
-class UpdateManager(
+open class UpdateManager(
     private val currentVersion: String = AppInfo.version,
     private val repoOwner: String = "Princeyyyy",
     private val repoName: String = "art-wallpaper"
@@ -69,6 +77,7 @@ class UpdateManager(
     private val _status = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
     val status: StateFlow<UpdateStatus> = _status.asStateFlow()
 
+    private val lastNotifiedVersion = AtomicReference<String?>(null)
     private val updatesDir = Path.of(System.getProperty("user.home"), ".artwallpaper", "updates")
 
     init {
@@ -79,7 +88,7 @@ class UpdateManager(
     /**
      * Checks GitHub Releases API for a newer version than currentVersion.
      */
-    suspend fun checkForUpdates(silent: Boolean = false): UpdateStatus = withContext(Dispatchers.IO) {
+    open suspend fun checkForUpdates(silent: Boolean = false): UpdateStatus = withContext(Dispatchers.IO) {
         if (!silent) _status.value = UpdateStatus.Checking
 
         try {
@@ -96,7 +105,9 @@ class UpdateManager(
 
             if (response.statusCode() == 404) {
                 val state = UpdateStatus.UpToDate(currentVersion)
-                _status.value = state
+                if (!silent || _status.value !is UpdateStatus.Available) {
+                    _status.value = state
+                }
                 return@withContext state
             }
 
@@ -131,6 +142,8 @@ class UpdateManager(
                 logger.info("Application is up to date (v$currentVersion)")
                 return@withContext state
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logger.warn("Update check failed: ${e.message}")
             val state = UpdateStatus.Error(e.message ?: "Could not check for updates")
@@ -185,9 +198,55 @@ class UpdateManager(
             // Launch the installer
             install(destination)
 
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logger.error("Download and install error", e)
             _status.value = UpdateStatus.Error("Failed to download update: ${e.message}")
+        }
+    }
+
+    /**
+     * Marks [version] as notified and returns true only if it has not been notified yet in this session.
+     */
+    fun consumeNotificationForVersion(version: String): Boolean {
+        if (version.isBlank()) return false
+        while (true) {
+            val prev = lastNotifiedVersion.get()
+            if (prev == version) return false
+            if (lastNotifiedVersion.compareAndSet(prev, version)) return true
+        }
+    }
+
+    /**
+     * Periodically polls GitHub releases in the background and fires [onNewUpdate] once per newly discovered version.
+     */
+    fun startBackgroundPolling(
+        scope: CoroutineScope,
+        intervalMillis: Long = Duration.ofHours(6).toMillis(),
+        initialDelayMillis: Long = 8_000L,
+        isPollingEnabled: () -> Boolean = { true },
+        onNewUpdate: (UpdateStatus.Available) -> Unit
+    ): Job {
+        return scope.launch {
+            if (initialDelayMillis > 0L) {
+                delay(initialDelayMillis)
+            }
+            while (isActive) {
+                try {
+                    if (isPollingEnabled()) {
+                        val result = checkForUpdates(silent = true)
+                        if (result is UpdateStatus.Available && consumeNotificationForVersion(result.latestVersion)) {
+                            onNewUpdate(result)
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logger.warn("Background release check failed: ${e.message}")
+                }
+                delay(intervalMillis.coerceAtLeast(1_000L))
+            }
         }
     }
 
@@ -216,6 +275,12 @@ class UpdateManager(
     }
 
     companion object {
+        fun formatAssetSizeMb(asset: GithubAsset?): String? {
+            if (asset == null || asset.size <= 0L) return null
+            val mb = asset.size.toDouble() / (1024.0 * 1024.0)
+            return String.format(Locale.US, "%.1f MB", mb)
+        }
+
         /**
          * Deletes obsolete installer files (.msi / .dmg) from ~/.artwallpaper/updates
          * to prevent disk bloat.

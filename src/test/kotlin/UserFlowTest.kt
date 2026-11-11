@@ -225,4 +225,21 @@ class UserFlowTest {
         assertTrue(history.isInHistory("art-110"))
         assertTrue(history.isInHistory("art-50"))
     }
+
+    @Test
+    fun `museum citation, permalink, and release notes helpers format accurately`() {
+        val metWork = makeMetadata("436535", "Wheat Field with Cypresses")
+        assertEquals(
+            "Wheat Field with Cypresses — Van Gogh (1889), met",
+            buildArtworkCitation(metWork)
+        )
+        assertEquals(
+            "https://www.metmuseum.org/art/collection/search/436535",
+            buildMetMuseumUrl(metWork)
+        )
+        assertNull(buildMetMuseumUrl(makeMetadata("non-numeric-id", "Custom Work")))
+
+        val parsed = parseReadableReleaseNotes("## What's New\n### **Highlights**\n- Crisp `icons` across OSes\n\n")
+        assertEquals(listOf("What's New", "Highlights", "- Crisp icons across OSes"), parsed)
+    }
 }

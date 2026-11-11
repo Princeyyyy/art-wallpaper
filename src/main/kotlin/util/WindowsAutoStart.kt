@@ -10,4 +10,6 @@ object WindowsAutoStart {
     fun disable() = delegate.disable()
 
     fun isEnabled(): Boolean = delegate.isEnabled()
+
+    fun refreshIfNeeded() = delegate.refreshIfNeeded()
 }

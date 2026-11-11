@@ -37,6 +37,8 @@ data class Settings(
     val hasEnabledAutoStart: Boolean = true,
     val isFirstRun: Boolean = true,
     val notificationsEnabled: Boolean = true,
+    val autoCheckUpdates: Boolean = true,
+    val dismissedUpdateVersion: String? = null,
     val hasSetUpdateTime: Boolean = true,
     val themeMode: AppTheme = AppTheme.SYSTEM,
     val wallpaperFitMode: WallpaperFitMode = WallpaperFitMode.AMBIENT_BLUR

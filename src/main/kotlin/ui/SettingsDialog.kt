@@ -9,12 +9,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,10 +34,14 @@ fun SettingsDialog(
     onSettingsChange: (Settings) -> Unit,
     serviceController: ServiceController? = null,
     updateManager: service.UpdateManager = remember { service.UpdateManager() },
+    onOpenUpdateDetails: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
+    val isMac = remember { MacPlatform.isMac }
+    val osNameLabel = if (isMac) "macOS" else "Windows"
     var isAutoStartEnabled by remember { mutableStateOf(WindowsAutoStart.isEnabled()) }
     var isNotificationsEnabled by remember { mutableStateOf(settings.notificationsEnabled) }
+    var isAutoCheckUpdates by remember { mutableStateOf(settings.autoCheckUpdates) }
     var currentThemeMode by remember { mutableStateOf(settings.themeMode) }
     var showUninstallConfirmation by remember { mutableStateOf(false) }
     var deleteUserDataOnUninstall by remember { mutableStateOf(true) }
@@ -52,7 +60,7 @@ fun SettingsDialog(
         Surface(
             modifier = Modifier
                 .width(460.dp)
-                .heightIn(max = 600.dp)
+                .heightIn(max = 620.dp)
                 .scale(scale),
             shape = RoundedCornerShape(12.dp),
             color = ArtColors.Surface,
@@ -78,9 +86,14 @@ fun SettingsDialog(
                     )
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(28.dp).pointerHoverIcon(PointerIcon.Hand)
                     ) {
-                        Text("x", color = ArtColors.PaperMuted, style = MaterialTheme.typography.subtitle1)
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = ArtColors.PaperMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
 
@@ -99,7 +112,7 @@ fun SettingsDialog(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SettingsSectionLabel("APPEARANCE")
                         Text(
-                            "Choose your gallery ambiance or follow Windows theme automatically.",
+                            "Choose your gallery ambiance or follow $osNameLabel appearance automatically.",
                             style = MaterialTheme.typography.caption,
                             color = ArtColors.PaperMuted
                         )
@@ -182,11 +195,11 @@ fun SettingsDialog(
 
                     // ── Section 4: System Integration ─────────────────────────────
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SettingsSectionLabel("WINDOWS INTEGRATION")
+                        SettingsSectionLabel(if (isMac) "MACOS INTEGRATION" else "WINDOWS INTEGRATION")
 
                         SettingsRow(
-                            label = "Start with Windows",
-                            description = "Launch automatically into system tray at login",
+                            label = if (isMac) "Launch at login" else "Start with Windows",
+                            description = if (isMac) "Launch quietly into the menu bar when you sign in" else "Launch automatically into system tray at login",
                             checked = isAutoStartEnabled,
                             onCheckedChange = { enabled ->
                                 try {
@@ -222,13 +235,32 @@ fun SettingsDialog(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SettingsSectionLabel("SOFTWARE UPDATES")
 
+                        SettingsRow(
+                            label = "New release alerts",
+                            description = "Check in the background and notify once when a new version is published",
+                            checked = isAutoCheckUpdates,
+                            onCheckedChange = { enabled ->
+                                isAutoCheckUpdates = enabled
+                                onSettingsChange(
+                                    settings.copy(
+                                        autoCheckUpdates = enabled,
+                                        dismissedUpdateVersion = if (enabled) null else settings.dismissedUpdateVersion
+                                    )
+                                )
+                            }
+                        )
+
                         val updateStatus by updateManager.status.collectAsState()
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             backgroundColor = ArtColors.SurfaceVariant,
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, ArtColors.CardBorder)
+                            border = BorderStroke(
+                                1.dp,
+                                if (updateStatus is service.UpdateStatus.Available) ArtColors.GalleryGold.copy(alpha = 0.6f)
+                                else ArtColors.CardBorder
+                            )
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -248,10 +280,13 @@ fun SettingsDialog(
                                         Spacer(Modifier.height(2.dp))
                                         Text(
                                             when (val s = updateStatus) {
-                                                is service.UpdateStatus.Idle -> "Silent in-app updater active"
+                                                is service.UpdateStatus.Idle -> "Background release watcher ready"
                                                 is service.UpdateStatus.Checking -> "Checking GitHub releases..."
                                                 is service.UpdateStatus.UpToDate -> "You are on the latest release"
-                                                is service.UpdateStatus.Available -> "New version v${s.latestVersion} is ready to install!"
+                                                is service.UpdateStatus.Available -> {
+                                                    val sizeSuffix = service.UpdateManager.formatAssetSizeMb(s.asset)?.let { " ($it)" } ?: ""
+                                                    "New version v${s.latestVersion} is ready$sizeSuffix"
+                                                }
                                                 is service.UpdateStatus.Downloading -> "Downloading installer (${(s.progress * 100).toInt()}%)..."
                                                 is service.UpdateStatus.ReadyToInstall -> "Launching installer..."
                                                 is service.UpdateStatus.Error -> "Status: ${s.message}"
@@ -263,16 +298,34 @@ fun SettingsDialog(
 
                                     when (val s = updateStatus) {
                                         is service.UpdateStatus.Available -> {
-                                            PulsingButton(
-                                                onClick = {
-                                                    s.asset?.let { asset ->
-                                                        coroutineScope.launch {
-                                                            updateManager.downloadAndInstall(asset)
-                                                        }
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                if (onOpenUpdateDetails != null) {
+                                                    TextButton(
+                                                        onClick = {
+                                                            onDismiss()
+                                                            onOpenUpdateDetails()
+                                                        },
+                                                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                                                    ) {
+                                                        Text("NOTES", color = ArtColors.GalleryGold, style = MaterialTheme.typography.button)
                                                     }
                                                 }
-                                            ) {
-                                                Text("INSTALL", style = MaterialTheme.typography.button)
+                                                PulsingButton(
+                                                    onClick = {
+                                                        s.asset?.let { asset ->
+                                                            coroutineScope.launch {
+                                                                updateManager.downloadAndInstall(asset)
+                                                            }
+                                                        } ?: run {
+                                                            onOpenUpdateDetails?.invoke()
+                                                        }
+                                                    }
+                                                ) {
+                                                    Text("INSTALL", style = MaterialTheme.typography.button)
+                                                }
                                             }
                                         }
                                         is service.UpdateStatus.Downloading -> {
@@ -296,6 +349,7 @@ fun SettingsDialog(
                                                         updateManager.checkForUpdates(silent = false)
                                                     }
                                                 },
+                                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                                                 colors = ButtonDefaults.outlinedButtonColors(
                                                     backgroundColor = Color.Transparent,
                                                     contentColor = ArtColors.GalleryGold
@@ -359,6 +413,7 @@ fun SettingsDialog(
 
                                     OutlinedButton(
                                         onClick = { showUninstallConfirmation = !showUninstallConfirmation },
+                                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                                         colors = ButtonDefaults.outlinedButtonColors(
                                             backgroundColor = Color.Transparent,
                                             contentColor = Color(0xFFEF5350)
@@ -392,6 +447,7 @@ fun SettingsDialog(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clip(RoundedCornerShape(6.dp))
+                                                .pointerHoverIcon(PointerIcon.Hand)
                                                 .clickable { deleteUserDataOnUninstall = !deleteUserDataOnUninstall }
                                                 .background(ArtColors.Surface)
                                                 .padding(10.dp),
@@ -414,8 +470,9 @@ fun SettingsDialog(
                                                     color = ArtColors.PaperWhite
                                                 )
                                                 val sizeText = if (dataSizeMb > 0) " (~$dataSizeMb MB)" else ""
+                                                val storagePathLabel = if (isMac) "~/.artwallpaper$sizeText" else "%USERPROFILE%\\.artwallpaper$sizeText"
                                                 Text(
-                                                    "Location: %USERPROFILE%\\.artwallpaper$sizeText",
+                                                    "Location: $storagePathLabel",
                                                     style = MaterialTheme.typography.caption,
                                                     color = ArtColors.PaperMuted
                                                 )
@@ -428,7 +485,8 @@ fun SettingsDialog(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             TextButton(
-                                                onClick = { showUninstallConfirmation = false }
+                                                onClick = { showUninstallConfirmation = false },
+                                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
                                             ) {
                                                 Text("KEEP APP", color = ArtColors.PaperMuted)
                                             }
@@ -437,6 +495,7 @@ fun SettingsDialog(
                                                 onClick = {
                                                     service.UninstallManager.performUninstall(deleteUserDataOnUninstall)
                                                 },
+                                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                                                 colors = ButtonDefaults.buttonColors(
                                                     backgroundColor = Color(0xFFD32F2F),
                                                     contentColor = Color.White
@@ -461,7 +520,7 @@ fun SettingsDialog(
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                     ) {
                         Image(
-                            painter = painterResource("icons/48x48.png"),
+                            painter = painterResource("icons/128x128.png"),
                             contentDescription = "ArtWallpaper Logo",
                             modifier = Modifier
                                 .size(36.dp)
@@ -512,7 +571,10 @@ private fun ThemePill(
     val bgColor = if (selected) ArtColors.SurfaceVariant else ArtColors.Surface
 
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         color = bgColor,
         border = BorderStroke(if (selected) 1.5.dp else 1.dp, borderColor)
@@ -535,8 +597,6 @@ private fun ThemePill(
         }
     }
 }
-
-
 
 @Composable
 private fun SettingsSectionLabel(text: String) {
@@ -575,6 +635,7 @@ private fun SettingsRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
             colors = SwitchDefaults.colors(
                 checkedThumbColor = ArtColors.GalleryGold,
                 checkedTrackColor = ArtColors.GalleryGold.copy(alpha = 0.45f),
@@ -617,6 +678,7 @@ fun TimePickerSection(
 
         OutlinedButton(
             onClick = { showPicker = true },
+            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
             colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = ArtColors.GalleryGold,
                 backgroundColor = Color.Transparent
@@ -696,7 +758,10 @@ fun TimePickerDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                    ) {
                         Text("CANCEL", color = ArtColors.PaperMuted)
                     }
                     Spacer(Modifier.width(8.dp))
@@ -726,7 +791,7 @@ fun NumberPicker(
                 val next = if (value + 1 > range.last) range.first else value + 1
                 onValueChange(next)
             },
-            modifier = Modifier.size(32.dp)
+            modifier = Modifier.size(32.dp).pointerHoverIcon(PointerIcon.Hand)
         ) {
             Text("+", color = ArtColors.GalleryGold, style = MaterialTheme.typography.h6)
         }
@@ -751,7 +816,7 @@ fun NumberPicker(
                 val prev = if (value - 1 < range.first) range.last else value - 1
                 onValueChange(prev)
             },
-            modifier = Modifier.size(32.dp)
+            modifier = Modifier.size(32.dp).pointerHoverIcon(PointerIcon.Hand)
         ) {
             Text("-", color = ArtColors.GalleryGold, style = MaterialTheme.typography.h6)
         }

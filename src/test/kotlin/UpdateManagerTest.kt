@@ -1,3 +1,10 @@
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import service.GithubAsset
 import service.GithubRelease
@@ -6,6 +13,7 @@ import service.UpdateStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class UpdateManagerTest {
@@ -82,5 +90,97 @@ class UpdateManagerTest {
     fun `initial update manager status is Idle`() {
         val manager = UpdateManager(currentVersion = "4.0.2")
         assertEquals(UpdateStatus.Idle, manager.status.value)
+    }
+
+    @Test
+    fun `consumeNotificationForVersion notifies once per distinct version`() {
+        val manager = UpdateManager(currentVersion = "4.0.2")
+        assertFalse(manager.consumeNotificationForVersion(""))
+        assertTrue(manager.consumeNotificationForVersion("4.1.0"))
+        assertFalse(manager.consumeNotificationForVersion("4.1.0"))
+        assertTrue(manager.consumeNotificationForVersion("4.2.0"))
+        assertFalse(manager.consumeNotificationForVersion("4.2.0"))
+    }
+
+    @Test
+    fun `formatAssetSizeMb formats installer sizes accurately`() {
+        assertNull(UpdateManager.formatAssetSizeMb(null))
+        assertNull(UpdateManager.formatAssetSizeMb(GithubAsset("empty.msi", 0L, "https://example.com")))
+        val formatted = UpdateManager.formatAssetSizeMb(
+            GithubAsset("ArtWallpaper-4.2.0-Windows.msi", 45_000_000L, "https://example.com")
+        )
+        assertEquals("42.9 MB", formatted)
+    }
+
+    @Test
+    fun `startBackgroundPolling notifies once per new version and stops cleanly`() = runBlocking {
+        var checkCount = 0
+        var activeVersion = "4.2.0"
+        val notifiedVersions = mutableListOf<String>()
+        val twoChecksObserved = CompletableDeferred<Unit>()
+
+        val fakeManager = object : UpdateManager(currentVersion = "4.1.0") {
+            override suspend fun checkForUpdates(silent: Boolean): UpdateStatus {
+                checkCount += 1
+                if (checkCount >= 2 && !twoChecksObserved.isCompleted) {
+                    twoChecksObserved.complete(Unit)
+                }
+                return UpdateStatus.Available(
+                    latestVersion = activeVersion,
+                    releaseNotes = "Release notes for $activeVersion",
+                    asset = null,
+                    releaseUrl = "https://github.com/Princeyyyy/art-wallpaper/releases"
+                )
+            }
+        }
+
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val job = fakeManager.startBackgroundPolling(
+            scope = scope,
+            intervalMillis = 1_000L,
+            initialDelayMillis = 0L,
+            isPollingEnabled = { true },
+            onNewUpdate = { available -> notifiedVersions.add(available.latestVersion) }
+        )
+
+        twoChecksObserved.await()
+        job.cancel()
+        scope.cancel()
+
+        assertTrue(checkCount >= 2)
+        assertEquals(listOf("4.2.0"), notifiedVersions)
+    }
+
+    @Test
+    fun `startBackgroundPolling respects disabled polling preference`() = runBlocking {
+        var checkCount = 0
+        val fakeManager = object : UpdateManager(currentVersion = "4.1.0") {
+            override suspend fun checkForUpdates(silent: Boolean): UpdateStatus {
+                checkCount += 1
+                return UpdateStatus.UpToDate("4.1.0")
+            }
+        }
+
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val job = fakeManager.startBackgroundPolling(
+            scope = scope,
+            intervalMillis = 1_000L,
+            initialDelayMillis = 10L,
+            isPollingEnabled = { false },
+            onNewUpdate = {}
+        )
+        delay(80L)
+        job.cancel()
+        scope.cancel()
+
+        assertEquals(0, checkCount)
+    }
+
+    @Test
+    fun `legacy settings JSON decodes with autoCheckUpdates enabled by default`() {
+        val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+        val legacy = json.decodeFromString<Settings>("""{"changeIntervalHours":24,"updateTimeHour":8}""")
+        assertTrue(legacy.autoCheckUpdates)
+        assertNull(legacy.dismissedUpdateVersion)
     }
 }

@@ -23,7 +23,12 @@ export function FluidAtmosphereCanvas({
   externalVelocityX?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const velocityRef = useRef(externalVelocityX);
   const { resolvedTheme } = useTheme();
+
+  useEffect(() => {
+    velocityRef.current = externalVelocityX;
+  }, [externalVelocityX]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -91,8 +96,8 @@ export function FluidAtmosphereCanvas({
 
       ctx.clearRect(0, 0, width, height);
 
-      // Current stroll push
-      const strollDrift = externalVelocityX * 0.15;
+      // Current stroll push (read from ref so canvas loop stays unbroken)
+      const strollDrift = velocityRef.current * 0.15;
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -156,7 +161,7 @@ export function FluidAtmosphereCanvas({
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("mousemove", handleMouseMove);
     };
-  }, [resolvedTheme, externalVelocityX]);
+  }, [resolvedTheme]);
 
   return (
     <canvas

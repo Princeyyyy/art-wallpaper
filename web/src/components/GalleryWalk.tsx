@@ -202,6 +202,7 @@ export function GalleryWalk({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragStartX = useRef(0);
+  const dragOffsetRef = useRef(0);
   const lastDragX = useRef(0);
   const lastDragTime = useRef(0);
   const velocityRef = useRef(0);
@@ -219,27 +220,39 @@ export function GalleryWalk({
     }
   }, [activeWing, filteredArtworks.length, currentIndex]);
 
+  // Cancel any pending momentum frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
+
   // Fluid momentum loop for inertia drag
   const stepMomentum = useCallback(() => {
     if (Math.abs(velocityRef.current) > 0.05) {
       velocityRef.current *= 0.92; // fluid friction damping
-      setDragOffset((prev) => prev + velocityRef.current);
+      dragOffsetRef.current += velocityRef.current;
+      setDragOffset(dragOffsetRef.current);
       setFluidVelocity(velocityRef.current);
       animationFrameRef.current = requestAnimationFrame(stepMomentum);
     } else {
       velocityRef.current = 0;
+      animationFrameRef.current = null;
       setFluidVelocity(0);
 
       // Snap to nearest artwork card if dragged past threshold
-      setDragOffset((prev) => {
-        const threshold = 80;
-        if (prev > threshold) {
-          setCurrentIndex((idx) => (idx > 0 ? idx - 1 : filteredArtworks.length - 1));
-        } else if (prev < -threshold) {
-          setCurrentIndex((idx) => (idx < filteredArtworks.length - 1 ? idx + 1 : 0));
-        }
-        return 0;
-      });
+      const finalOffset = dragOffsetRef.current;
+      dragOffsetRef.current = 0;
+      setDragOffset(0);
+
+      const threshold = 80;
+      if (finalOffset > threshold) {
+        setCurrentIndex((idx) => (idx > 0 ? idx - 1 : filteredArtworks.length - 1));
+      } else if (finalOffset < -threshold) {
+        setCurrentIndex((idx) => (idx < filteredArtworks.length - 1 ? idx + 1 : 0));
+      }
     }
   }, [filteredArtworks.length]);
 
@@ -248,12 +261,14 @@ export function GalleryWalk({
     setIsDragging(true);
     setIsAutoWalking(false);
     dragStartX.current = e.clientX;
+    dragOffsetRef.current = 0;
     lastDragX.current = e.clientX;
     lastDragTime.current = performance.now();
     velocityRef.current = 0;
 
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
   };
 
@@ -272,7 +287,9 @@ export function GalleryWalk({
     lastDragX.current = e.clientX;
     lastDragTime.current = now;
 
-    setDragOffset(e.clientX - dragStartX.current);
+    const nextOffset = e.clientX - dragStartX.current;
+    dragOffsetRef.current = nextOffset;
+    setDragOffset(nextOffset);
   };
 
   // Pointer drag end / release
@@ -294,6 +311,7 @@ export function GalleryWalk({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
         setCurrentIndex((prev) => (prev > 0 ? prev - 1 : filteredArtworks.length - 1));
       } else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {

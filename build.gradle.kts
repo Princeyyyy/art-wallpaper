@@ -101,6 +101,8 @@ compose.desktop {
                 bundleID = appGroup
                 iconFile.set(project.file("src/main/resources/icons/icon.icns"))
                 packageVersion = appVersion
+                dockName = "Art Wallpaper"
+                appCategory = "public.app-category.lifestyle"
 
                 val signIdentity = project.findProperty("macSignIdentity")?.toString()
                 if (!signIdentity.isNullOrBlank()) {
@@ -110,9 +112,11 @@ compose.desktop {
                     }
                 }
 
-                // Standard macOS application presentation and Retina / High-DPI support
+                // Menu-bar agent presentation (LSUIElement hides app from Dock/Cmd+Tab) + Retina support
                 infoPlist {
                     extraKeysRawXml = """
+                        <key>LSUIElement</key>
+                        <true/>
                         <key>NSSupportsAutomaticGraphicsSwitching</key>
                         <true/>
                         <key>NSHighResolutionCapable</key>

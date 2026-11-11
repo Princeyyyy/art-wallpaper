@@ -22,6 +22,8 @@ val logger = LoggerFactory.getLogger("MainKt")
 
 fun main(args: Array<String>) {
     setupGlobalExceptionHandler()
+    // Configure macOS agent (no Dock/Cmd+Tab) and template tray rendering before AWT loads.
+    MacPlatform.configureDesktopEnvironment()
     WindowsPlatform.registerAppUserModelId("com.prince.artwallpaper")
 
 
@@ -123,7 +125,10 @@ private fun setupApplication(
     onSetWakeCallback: (() -> Unit) -> Unit
 ) {
     var windowVisibilityCallback: ((Boolean) -> Unit)? = null
+    var updateDialogCallback: (() -> Unit)? = null
     var activeAwtWindow: java.awt.Window? = null
+    val appBgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val updateManager = service.UpdateManager()
 
     onSetWakeCallback {
         javax.swing.SwingUtilities.invokeLater {
@@ -143,15 +148,52 @@ private fun setupApplication(
         serviceController = controller,
         onShowWindow = {
             windowVisibilityCallback?.invoke(true)
+            activeAwtWindow?.let { win ->
+                win.toFront()
+                WindowsPlatform.bringToFront(win)
+            }
+            if (MacPlatform.isMac) {
+                MacPlatform.activateApp()
+            }
             true
+        },
+        updateManager = updateManager,
+        onOpenUpdateDialog = {
+            windowVisibilityCallback?.invoke(true)
+            updateDialogCallback?.invoke()
+            activeAwtWindow?.let { win ->
+                win.toFront()
+                WindowsPlatform.bringToFront(win)
+            }
+            if (MacPlatform.isMac) {
+                MacPlatform.activateApp()
+            }
         }
     )
     systemTray.show()
+
+    // Background polling for new GitHub releases; notifies once per newly discovered release
+    val updatePollingJob = updateManager.startBackgroundPolling(
+        scope = appBgScope,
+        initialDelayMillis = 8_000L,
+        isPollingEnabled = {
+            val live = Settings.currentSettings.value
+            !live.isFirstRun && live.autoCheckUpdates
+        },
+        onNewUpdate = { available ->
+            val live = Settings.currentSettings.value
+            if (live.dismissedUpdateVersion != available.latestVersion) {
+                systemTray.displayUpdateNotification(available)
+            }
+        }
+    )
 
     // Setup shutdown hook
     Runtime.getRuntime().addShutdownHook(Thread {
         kotlinx.coroutines.runBlocking {
             try {
+                updatePollingJob.cancel()
+                appBgScope.cancel()
                 controller.cleanup()
                 singleInstanceManager.cleanup()
                 logger.info("Application shutdown completed")
@@ -161,10 +203,12 @@ private fun setupApplication(
         }
     })
 
-    // Configure auto-start if not already enabled
+    // Configure auto-start if not already enabled and migrate legacy macOS LaunchAgent plists
     if (!settings.hasEnabledAutoStart && !settings.isFirstRun) {
         WindowsAutoStart.enable()
         settings.copy(hasEnabledAutoStart = true).save()
+    } else if (MacPlatform.isMac) {
+        WindowsAutoStart.refreshIfNeeded()
     }
 
     // Start the service only if needed
@@ -176,10 +220,14 @@ private fun setupApplication(
 
     application {
         var isWindowVisible by remember { mutableStateOf(!startMinimized) }
+        var openUpdateDialogRequested by remember { mutableStateOf(false) }
 
-        // Set the callback to control window visibility
+        // Set the callback to control window visibility and update modal deep-links
         windowVisibilityCallback = { visible ->
             isWindowVisible = visible
+        }
+        updateDialogCallback = {
+            openUpdateDialogRequested = true
         }
 
         val currentSettings by Settings.currentSettings.collectAsState()
@@ -206,11 +254,6 @@ private fun setupApplication(
                     val updated = currentSettings.copy(isFirstRun = false)
                     Settings.updateCurrentSettings(updated)
                     wallpaperManager.updateSettings(updated)
-                } else {
-                    systemTray.displayNotification(
-                        "Art Wallpaper is still running",
-                        "The application has been minimized to the system tray. Right click the tray icon to reopen."
-                    )
                 }
             },
             title = "Art Wallpaper",
@@ -224,11 +267,14 @@ private fun setupApplication(
         ) {
             val appScope = rememberCoroutineScope()
 
-            // ── Windows 11: sync native title bar to our dark/light state ─────
-            // DWMWA_USE_IMMERSIVE_DARK_MODE flips the Win32 caption colour to match.
-            LaunchedEffect(window) {
+            // ── Windows 11 / macOS: sync native title bar and foreground activation ─────
+            LaunchedEffect(window, isWindowVisible) {
                 activeAwtWindow = window
                 if (isWindowVisible) {
+                    launch(Dispatchers.IO) {
+                        wallpaperManager.syncWithActiveDesktopWallpaper()
+                    }
+                    window.toFront()
                     WindowsPlatform.bringToFront(window)
                     if (MacPlatform.isMac) {
                         MacPlatform.activateApp()
@@ -247,6 +293,9 @@ private fun setupApplication(
                 serviceController = controller,
                 settings = currentSettings,
                 isDark = isDark,
+                updateManager = updateManager,
+                openUpdateDialog = openUpdateDialogRequested,
+                onUpdateDialogConsumed = { openUpdateDialogRequested = false },
                 onSettingsChange = { newSettings ->
                     val oldSettings = currentSettings
                     Settings.updateCurrentSettings(newSettings)
@@ -273,6 +322,9 @@ fun App(
     serviceController: ServiceController,
     settings: Settings,
     isDark: Boolean = true,
+    updateManager: service.UpdateManager? = null,
+    openUpdateDialog: Boolean = false,
+    onUpdateDialogConsumed: () -> Unit = {},
     onSettingsChange: (Settings) -> Unit
 ) {
     // ArtWallpaperTheme now receives the live OS dark/light state
@@ -289,7 +341,10 @@ fun App(
                 serviceController = serviceController,
                 settings = settings,
                 onSettingsChange = onSettingsChange,
-                coroutineScope = scope
+                coroutineScope = scope,
+                updateManager = updateManager,
+                openUpdateDialog = openUpdateDialog,
+                onUpdateDialogConsumed = onUpdateDialogConsumed
             )
         }
     }

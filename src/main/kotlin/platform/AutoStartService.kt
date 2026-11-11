@@ -6,6 +6,7 @@ import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.exists
+import kotlin.io.path.readText
 import kotlin.io.path.writeText
 
 /**
@@ -15,6 +16,8 @@ interface AutoStartService {
     fun enable()
     fun disable()
     fun isEnabled(): Boolean
+    /** Refreshes existing auto-start registration when format upgrades are needed. */
+    fun refreshIfNeeded() {}
 
     companion object {
         fun create(): AutoStartService {
@@ -122,6 +125,21 @@ class MacAutoStartService(
             }
             return "/Applications/Art Wallpaper.app/Contents/MacOS/Art Wallpaper"
         }
+
+        fun resolveAppBundlePath(executableOrBundlePath: String = resolveRunningExecutablePath()): String {
+            val marker = ".app/Contents/MacOS/"
+            val idx = executableOrBundlePath.indexOf(marker)
+            if (idx >= 0) {
+                return executableOrBundlePath.substring(0, idx + 4)
+            }
+            if (executableOrBundlePath.endsWith(".app")) {
+                return executableOrBundlePath
+            }
+            return "/Applications/Art Wallpaper.app"
+        }
+
+        private fun escapeXml(value: String): String =
+            value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     }
 
     override fun enable() {
@@ -155,17 +173,39 @@ class MacAutoStartService(
 
     override fun isEnabled(): Boolean = plistFile.exists()
 
+    override fun refreshIfNeeded() {
+        if (!plistFile.exists()) return
+        try {
+            val existing = plistFile.readText()
+            val expected = generatePlist()
+            if (!existing.contains("<string>/usr/bin/open</string>") || existing != expected) {
+                plistFile.writeText(expected)
+                logger.info("Updated macOS LaunchAgent plist to LaunchServices launcher at $plistFile")
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to refresh macOS LaunchAgent plist", e)
+        }
+    }
+
     fun generatePlist(): String {
+        val safeBundleId = escapeXml(bundleId)
+        val safeBundlePath = escapeXml(resolveAppBundlePath(appExecutablePath))
         return """
             <?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
             <plist version="1.0">
             <dict>
                 <key>Label</key>
-                <string>$bundleId</string>
+                <string>$safeBundleId</string>
+                <key>AssociatedBundleIdentifiers</key>
+                <string>$safeBundleId</string>
                 <key>ProgramArguments</key>
                 <array>
-                    <string>$appExecutablePath</string>
+                    <string>/usr/bin/open</string>
+                    <string>-g</string>
+                    <string>-a</string>
+                    <string>$safeBundlePath</string>
+                    <string>--args</string>
                     <string>--minimized</string>
                     <string>--autostart</string>
                 </array>
