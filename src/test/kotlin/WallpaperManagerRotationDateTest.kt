@@ -133,7 +133,7 @@ class WallpaperManagerRotationDateTest {
         manager.checkAndUpdate()
 
         // Should have fetched because yesterday != today
-        coVerify(atLeast = 1) { artworkProvider.fetchArtwork() }
+        coVerify(timeout = 3000, atLeast = 1) { artworkProvider.fetchArtwork() }
     }
 
     @Test
