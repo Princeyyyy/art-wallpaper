@@ -198,7 +198,12 @@ class UpdateManagerTest {
         assertTrue(script.contains("msiexec.exe /i \"!MSI_PATH!\" /passive /norestart"))
         assertTrue(script.contains("tasklist /FI \"IMAGENAME eq Art Wallpaper.exe\""))
         assertTrue(script.contains("del \"!MSI_PATH!\""))
-        assertTrue(script.contains("start \"\" \"!EXE_PATH!\""))
+        // Canonical LOCALAPPDATA path is the primary relaunch target
+        assertTrue(script.contains("%LOCALAPPDATA%\\Art Wallpaper\\Art Wallpaper.exe"))
+        // start /wait ensures CMD blocks until msiexec completes
+        assertTrue(script.contains("start \"ArtWallpaperInstaller\" /wait msiexec.exe"))
+        // taskkill force-terminates any lingering instance before install
+        assertTrue(script.contains("taskkill /F /IM \"Art Wallpaper.exe\""))
     }
 
     @Test
@@ -211,7 +216,12 @@ class UpdateManagerTest {
         assertTrue(script.contains("-nobrowse -readonly -quiet"))
         assertTrue(script.contains("ditto \"${'$'}SOURCE_APP\" \"${'$'}DEST_APP\""))
         assertTrue(script.contains("hdiutil detach"))
-        assertTrue(script.contains("open \"${'$'}DEST_APP\""))
+        assertTrue(script.contains("open "))
+        // Extended 10-second wait and force-kill before replacing bundle
+        assertTrue(script.contains("{1..10}"))
+        assertTrue(script.contains("pkill -f \"Art Wallpaper\""))
+        // Canonical /Applications path preferred for relaunch
+        assertTrue(script.contains("/Applications/Art Wallpaper.app"))
     }
 
     @Test

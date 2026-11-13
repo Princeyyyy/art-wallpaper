@@ -58,6 +58,7 @@ sealed class UpdateStatus {
     ) : UpdateStatus()
     data class Downloading(val progress: Float) : UpdateStatus()
     data class ReadyToInstall(val installerPath: Path) : UpdateStatus()
+    object Installing : UpdateStatus()
     data class Error(val message: String) : UpdateStatus()
 }
 
@@ -252,10 +253,14 @@ open class UpdateManager(
 
     /**
      * Seamlessly applies the update in the background without setup wizards and restarts the application.
+     * Transitions to [UpdateStatus.Installing] first so the UI can display a message before the process exits.
      */
     fun install(installerPath: Path) {
         val os = System.getProperty("os.name", "").lowercase()
         try {
+            _status.value = UpdateStatus.Installing
+            // Give the UI one render cycle to display the Installing state before the process exits.
+            Thread.sleep(600)
             if (os.contains("windows")) {
                 launchWindowsSilentUpdate(installerPath)
             } else if (os.contains("mac")) {
@@ -290,7 +295,7 @@ open class UpdateManager(
 
         val pb = ProcessBuilder(
             "cmd.exe", "/c",
-            "start \"\" /b \"${scriptFile.toAbsolutePath()}\" \"${installerPath.toAbsolutePath()}\" \"${targetExe.toAbsolutePath()}\""
+            "start \"ArtWallpaperUpdate\" /min \"${scriptFile.toAbsolutePath()}\" \"${installerPath.toAbsolutePath()}\" \"${targetExe.toAbsolutePath()}\""
         )
         pb.directory(updatesDir.toFile())
         pb.start()
@@ -379,15 +384,23 @@ open class UpdateManager(
         }
 
         fun generateWindowsUpdateScript(installerPath: Path, targetExe: Path): String {
+            val safeMsiPath = installerPath.toAbsolutePath().toString().replace("/", "\\")
+            val safeExePath = targetExe.toAbsolutePath().toString().replace("/", "\\")
             return """
                 @echo off
                 setlocal enabledelayedexpansion
 
                 set "MSI_PATH=%~1"
-                set "EXE_PATH=%~2"
+                if "!MSI_PATH!"=="" (
+                    for %%f in ("%~dp0ArtWallpaper-*.msi") do set "MSI_PATH=%%~ff"
+                )
+                if "!MSI_PATH!"=="" set "MSI_PATH=$safeMsiPath"
 
-                rem Wait up to 5 seconds for Art Wallpaper.exe to exit cleanly
-                for /l %%i in (1,1,5) do (
+                set "EXE_PATH=%~2"
+                if "!EXE_PATH!"=="" set "EXE_PATH=$safeExePath"
+
+                rem Wait up to 10 seconds for Art Wallpaper.exe to exit cleanly
+                for /l %%i in (1,1,10) do (
                     tasklist /FI "IMAGENAME eq Art Wallpaper.exe" 2>nul | find /i "Art Wallpaper.exe" >nul
                     if !ERRORLEVEL! EQU 0 (
                         timeout /t 1 /nobreak >nul 2>&1 || ping 127.0.0.1 -n 2 >nul
@@ -395,37 +408,38 @@ open class UpdateManager(
                         goto :proc_done
                     )
                 )
+                rem Force terminate any lingering instance so files are unlocked for replacement
+                taskkill /F /IM "Art Wallpaper.exe" >nul 2>&1
                 :proc_done
 
-                rem Run Windows Installer in passive mode: displays a clean progress bar, zero wizard screens, no user prompts
-                msiexec.exe /i "!MSI_PATH!" /passive /norestart
+                rem Run Windows Installer in passive mode and WAIT for it to finish!
+                start "ArtWallpaperInstaller" /wait msiexec.exe /i "!MSI_PATH!" /passive /norestart
                 set "MSI_EXIT=!ERRORLEVEL!"
 
                 rem Exit code 0 is Success, 3010 is Success with reboot recommended
                 if !MSI_EXIT! EQU 0 (
-                    if not "!EXE_PATH!"=="" (
+                    rem Prefer the canonical install location; fall back to the path recorded at launch time
+                    if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
+                        start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
+                    ) else if not "!EXE_PATH!"=="" (
                         if exist "!EXE_PATH!" (
                             start "" "!EXE_PATH!"
-                        ) else if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
-                            start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
                         )
-                    ) else if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
-                        start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
                     )
+                    rem Clean up installer file only on success
+                    del "!MSI_PATH!" >nul 2>&1
                 ) else if !MSI_EXIT! EQU 3010 (
-                    if not "!EXE_PATH!"=="" (
+                    rem Prefer the canonical install location; fall back to the path recorded at launch time
+                    if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
+                        start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
+                    ) else if not "!EXE_PATH!"=="" (
                         if exist "!EXE_PATH!" (
                             start "" "!EXE_PATH!"
-                        ) else if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
-                            start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
                         )
-                    ) else if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
-                        start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
                     )
+                    rem Clean up installer file only on success
+                    del "!MSI_PATH!" >nul 2>&1
                 )
-
-                rem Clean up installer file
-                del "!MSI_PATH!" >nul 2>&1
 
                 rem Self-delete helper batch script
                 (goto) 2>nul & del "%~f0"
@@ -440,14 +454,18 @@ open class UpdateManager(
                 DMG_PATH="${'$'}1"
                 TARGET_APP="${'$'}2"
 
-                # Wait up to 5 seconds for Art Wallpaper to exit cleanly
-                for i in {1..5}; do
+                # Wait up to 10 seconds for Art Wallpaper to exit cleanly
+                for i in {1..10}; do
                     if pgrep -f "Art Wallpaper" >/dev/null 2>&1; then
                         sleep 1
                     else
                         break
                     fi
                 done
+
+                # Force-kill any remaining instance so app bundle files are unlocked for replacement
+                pkill -f "Art Wallpaper" 2>/dev/null || true
+                sleep 1
 
                 # Create temporary mount point
                 MOUNT_DIR=${'$'}(mktemp -d -t art_mount_XXXXXX)
@@ -475,8 +493,12 @@ open class UpdateManager(
                     hdiutil detach "${'$'}MOUNT_DIR" -quiet || hdiutil detach "${'$'}MOUNT_DIR" -force -quiet
                     rmdir "${'$'}MOUNT_DIR" 2>/dev/null || true
 
-                    # Relaunch the newly updated app
-                    open "${'$'}DEST_APP"
+                    # Relaunch the newly updated app — prefer canonical /Applications path, fall back to DEST_APP
+                    if [ -d "/Applications/Art Wallpaper.app" ]; then
+                        open "/Applications/Art Wallpaper.app"
+                    else
+                        open "${'$'}DEST_APP"
+                    fi
                 else
                     hdiutil detach "${'$'}MOUNT_DIR" -quiet || hdiutil detach "${'$'}MOUNT_DIR" -force -quiet
                     rmdir "${'$'}MOUNT_DIR" 2>/dev/null || true

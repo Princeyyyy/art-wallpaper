@@ -345,7 +345,8 @@ fun MainScreen(
                     // ── Dismissible Update Banner ──────────────────────────────────
                     val activeUpdate = updateStatus as? service.UpdateStatus.Available
                     val downloadingUpdate = updateStatus as? service.UpdateStatus.Downloading
-                    val showUpdateBanner = (activeUpdate != null && currentSettings.dismissedUpdateVersion != activeUpdate.latestVersion) || downloadingUpdate != null
+                    val installingUpdate = updateStatus is service.UpdateStatus.Installing
+                    val showUpdateBanner = (activeUpdate != null && currentSettings.dismissedUpdateVersion != activeUpdate.latestVersion) || downloadingUpdate != null || installingUpdate
 
                     if (showUpdateBanner) {
                         Surface(
@@ -357,7 +358,24 @@ fun MainScreen(
                             color = ArtColors.GalleryGold.copy(alpha = 0.12f),
                             border = BorderStroke(1.dp, ArtColors.GalleryGold.copy(alpha = 0.55f))
                         ) {
-                            if (downloadingUpdate != null) {
+                            if (installingUpdate) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = ArtColors.GalleryGold,
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Text(
+                                        "Installing update... Art Wallpaper will restart automatically.",
+                                        style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
+                                        color = ArtColors.PaperWhite
+                                    )
+                                }
+                            } else if (downloadingUpdate != null) {
                                 Column(
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1140,6 +1158,31 @@ private fun UpdateDetailsDialog(
                             )
                             Text(
                                 "Art Wallpaper will update and restart automatically once the download completes.",
+                                style = MaterialTheme.typography.caption,
+                                color = ArtColors.PaperMuted,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    is service.UpdateStatus.Installing -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                color = ArtColors.GalleryGold,
+                                modifier = Modifier.size(32.dp),
+                                strokeWidth = 3.dp
+                            )
+                            Text(
+                                "Installing update...",
+                                style = MaterialTheme.typography.subtitle2,
+                                color = ArtColors.GalleryGold
+                            )
+                            Text(
+                                "Art Wallpaper will close and restart automatically when the installation is complete.",
                                 style = MaterialTheme.typography.caption,
                                 color = ArtColors.PaperMuted,
                                 textAlign = TextAlign.Center

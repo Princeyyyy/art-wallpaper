@@ -333,6 +333,10 @@ class SystemTrayMenu(
                                 updateMenuItem?.label = "Downloading Update (${(status.progress * 100).toInt()}%)..."
                                 updateMenuItem?.isEnabled = true
                             }
+                            is UpdateStatus.Installing -> {
+                                updateMenuItem?.label = "Installing Update..."
+                                updateMenuItem?.isEnabled = false
+                            }
                             else -> {
                                 latestAvailableVersion = null
                                 updateMenuItem?.label = "Check for Updates..."

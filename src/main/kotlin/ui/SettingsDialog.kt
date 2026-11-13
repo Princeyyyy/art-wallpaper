@@ -302,6 +302,7 @@ fun SettingsDialog(
                                                 }
                                                 is service.UpdateStatus.Downloading -> "Downloading installer (${(s.progress * 100).toInt()}%)..."
                                                 is service.UpdateStatus.ReadyToInstall -> "Launching installer..."
+                                                is service.UpdateStatus.Installing -> "Installing update... restarting shortly"
                                                 is service.UpdateStatus.Error -> "Status: ${s.message}"
                                             },
                                             style = MaterialTheme.typography.caption,
@@ -348,6 +349,13 @@ fun SettingsDialog(
                                                 strokeWidth = 2.dp
                                             )
                                         }
+                                        is service.UpdateStatus.Installing -> {
+                                            CircularProgressIndicator(
+                                                color = ArtColors.GalleryGold,
+                                                modifier = Modifier.size(24.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
                                         is service.UpdateStatus.Checking -> {
                                             CircularProgressIndicator(
                                                 color = ArtColors.GalleryGold,
@@ -380,6 +388,14 @@ fun SettingsDialog(
                                     val progress = (updateStatus as service.UpdateStatus.Downloading).progress
                                     LinearProgressIndicator(
                                         progress = progress,
+                                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                                        color = ArtColors.GalleryGold,
+                                        backgroundColor = ArtColors.DividerLine
+                                    )
+                                }
+
+                                if (updateStatus is service.UpdateStatus.Installing) {
+                                    LinearProgressIndicator(
                                         modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                                         color = ArtColors.GalleryGold,
                                         backgroundColor = ArtColors.DividerLine
