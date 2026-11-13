@@ -9,6 +9,7 @@ import java.nio.file.Path
  */
 interface WallpaperService {
     fun setWallpaper(imagePath: Path): Result<Unit>
+    fun setLockScreenWallpaper(imagePath: Path): Result<Unit> = Result.success(Unit)
     fun getCurrentWallpaper(): Path? = null
 
     companion object {
@@ -78,6 +79,50 @@ class WindowsWallpaperService : WallpaperService {
         }
 
         logger.info("Windows wallpaper set successfully")
+    }
+
+    override fun setLockScreenWallpaper(imagePath: Path): Result<Unit> = runCatching {
+        val absolutePath = imagePath.toAbsolutePath().toString()
+        require(imagePath.exists()) { "Lock screen image file does not exist: $absolutePath" }
+        logger.info("Setting Windows lock screen wallpaper: $absolutePath")
+
+        val script = """
+            ${'$'}ErrorActionPreference = 'Stop'
+            ${'$'}imgPath = ${'$'}env:ART_LOCK_IMAGE_PATH
+            [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime] | Out-Null
+            [Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
+            ${'$'}op1 = [Windows.Storage.StorageFile]::GetFileFromPathAsync(${'$'}imgPath)
+            while (${'$'}op1.Status -eq 'Started') { Start-Sleep -Milliseconds 25 }
+            if (${'$'}op1.Status -ne 'Completed') { throw "GetFileFromPathAsync failed: ${'$'}(${'$'}op1.Status)" }
+            ${'$'}file = ${'$'}op1.GetResults()
+            ${'$'}op2 = [Windows.System.UserProfile.LockScreen]::SetImageFileAsync(${'$'}file)
+            while (${'$'}op2.Status -eq 'Started') { Start-Sleep -Milliseconds 25 }
+            if (${'$'}op2.Status -ne 'Completed') { throw "SetImageFileAsync failed: ${'$'}(${'$'}op2.Status)" }
+        """.trimIndent()
+
+        val pb = ProcessBuilder(
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle", "Hidden",
+            "-ExecutionPolicy", "Bypass",
+            "-Command", script
+        )
+        pb.environment()["ART_LOCK_IMAGE_PATH"] = absolutePath
+        pb.redirectErrorStream(true)
+
+        val process = pb.start()
+        val output = process.inputStream.bufferedReader().readText().trim()
+        val finished = process.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)
+        if (!finished) {
+            process.destroyForcibly()
+            throw RuntimeException("Timed out setting Windows lock screen wallpaper")
+        }
+        val exitCode = process.exitValue()
+        if (exitCode != 0) {
+            throw RuntimeException("Windows lock screen update failed (exit $exitCode): $output")
+        }
+        logger.info("Windows lock screen wallpaper set successfully")
     }
 
     override fun getCurrentWallpaper(): Path? {

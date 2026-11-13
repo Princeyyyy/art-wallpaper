@@ -1,7 +1,7 @@
 package service
 
+import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.net.NetworkInterface
 import java.net.Socket
 import java.net.URI
 import java.net.http.HttpClient
@@ -18,51 +18,51 @@ class ConnectivityChecker(
         .connectTimeout(Duration.ofSeconds(3))
         .build()
 
+    /**
+     * Returns true only when the Met Museum API host can actually be resolved and reached.
+     *
+     * An "interface is up" check is intentionally NOT treated as online: after waking from sleep,
+     * on captive portals, or with always-up virtual adapters (Hyper-V, VPN, WSL), interfaces report
+     * as connected while DNS fails, which previously caused UnresolvedAddressException storms.
+     */
     fun isNetworkAvailable(): Boolean {
-        // Fast Probe 1: Socket probe on HTTPS port 443 (Cloudflare / Google)
-        try {
-            Socket().use { socket ->
-                socket.connect(InetSocketAddress("1.1.1.1", 443), 2000)
-                return true
-            }
-        } catch (_: Exception) {}
+        val host = try {
+            URI.create(endpointUri).host
+        } catch (_: Exception) {
+            null
+        } ?: return false
 
-        try {
-            Socket().use { socket ->
-                socket.connect(InetSocketAddress("8.8.8.8", 443), 2000)
-                return true
-            }
-        } catch (_: Exception) {}
+        // Probe 1: DNS must resolve the API host (the exact step that fails when offline).
+        val addresses = try {
+            InetAddress.getAllByName(host)
+        } catch (e: Exception) {
+            logger.debug("DNS probe failed for $host: ${e.message}")
+            return false
+        }
 
-        // Fast Probe 2: HTTP GET with 3s timeout to Met Museum API endpoint
-        try {
+        // Probe 2: TCP connect to the resolved API host on HTTPS port.
+        for (address in addresses.take(2)) {
+            try {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(address, 443), 3000)
+                    return true
+                }
+            } catch (e: Exception) {
+                logger.debug("TCP probe failed for $address: ${e.message}")
+            }
+        }
+
+        // Probe 3: HTTP request (covers environments where raw sockets are filtered).
+        return try {
             val req = HttpRequest.newBuilder()
                 .uri(URI.create(endpointUri))
-                .timeout(Duration.ofSeconds(3))
+                .timeout(Duration.ofSeconds(4))
                 .GET()
                 .build()
             val resp = client.send(req, HttpResponse.BodyHandlers.discarding())
-            if (resp.statusCode() in 200..399) {
-                return true
-            }
+            resp.statusCode() in 200..499
         } catch (e: Exception) {
             logger.debug("Endpoint probe failed: ${e.message}")
-        }
-
-        // Fast Probe 3: Check if network interfaces are active and connected
-        return try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            var hasActiveInterface = false
-            while (interfaces.hasMoreElements()) {
-                val iface = interfaces.nextElement()
-                if (iface.isUp && !iface.isLoopback && !iface.isPointToPoint && iface.inetAddresses.hasMoreElements()) {
-                    hasActiveInterface = true
-                    break
-                }
-            }
-            hasActiveInterface
-        } catch (e: Exception) {
-            logger.debug("Network interface query failed: ${e.message}")
             false
         }
     }

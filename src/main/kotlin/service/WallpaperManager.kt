@@ -29,6 +29,8 @@ import kotlin.io.path.exists
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
 import kotlin.io.path.nameWithoutExtension
+import MacPlatform
+import exception.NetworkErrors
 import exception.NetworkUnavailableException
 
 class WallpaperManager(
@@ -275,6 +277,7 @@ class WallpaperManager(
 
                     // FIX #3: Call setWallpaper once and handle success in one place.
                     wallpaperService.setWallpaper(storedPath).getOrThrow()
+                    syncLockScreenIfEnabled(storedPath)
 
                     val now = System.currentTimeMillis()
                     lastSuccessfulArtwork = storedPath to artwork.second
@@ -292,7 +295,11 @@ class WallpaperManager(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                logger.error("Failed to update wallpaper after retries", e)
+                if (NetworkErrors.isNetworkFailure(e)) {
+                    logger.warn("Wallpaper update skipped - network unreachable (${NetworkErrors.describe(e)})")
+                } else {
+                    logger.error("Failed to update wallpaper after retries", e)
+                }
                 throw e
             }
         }
@@ -385,7 +392,11 @@ class WallpaperManager(
                 } catch (e: CancellationException) {
                     // Normal during job cancellation
                 } catch (e: Exception) {
-                    logger.error("Error during scheduled wallpaper update", e)
+                    if (NetworkErrors.isNetworkFailure(e)) {
+                        logger.warn("Scheduled wallpaper update deferred - network unreachable (${NetworkErrors.describe(e)})")
+                    } else {
+                        logger.error("Error during scheduled wallpaper update", e)
+                    }
                 }
             }
         } else {
@@ -400,6 +411,7 @@ class WallpaperManager(
 
     fun setWallpaperManually(path: Path, metadata: ArtworkMetadata) {
         wallpaperService.setWallpaper(path).onSuccess {
+            syncLockScreenIfEnabled(path)
             val now = System.currentTimeMillis()
             lastUpdateTime = now
             lastScheduledUpdateTime = now
@@ -433,12 +445,30 @@ class WallpaperManager(
         val reprocessed = processor.processImage(path, fitMode)
         val storedPath = artworkStorage.saveArtwork(reprocessed, metadata)
         wallpaperService.setWallpaper(storedPath).getOrThrow()
+        syncLockScreenIfEnabled(storedPath)
         _currentArtwork.value = storedPath to metadata
         val now = System.currentTimeMillis()
         lastUpdateTime = now
         saveState(metadata, now, lastScheduledUpdateTime)
         logger.info("Wallpaper reprocessed with fit mode $fitMode: ${metadata.title}")
         storedPath
+    }
+
+    private fun syncLockScreenIfEnabled(imagePath: Path) {
+        if (MacPlatform.isMac || !settings.syncLockScreen) return
+        wallpaperService.setLockScreenWallpaper(imagePath).onFailure { error ->
+            logger.warn("Lock screen sync failed: ${error.message}")
+        }
+    }
+
+    suspend fun syncLockScreenWithCurrentWallpaper(): Result<Unit> {
+        if (MacPlatform.isMac) return Result.success(Unit)
+        return withContext(Dispatchers.IO) {
+            val currentPath = _currentArtwork.value?.first?.takeIf { it.exists() }
+                ?: wallpaperService.getCurrentWallpaper()?.takeIf { it.exists() }
+                ?: return@withContext Result.failure(IllegalStateException("No active wallpaper available to sync to lock screen"))
+            wallpaperService.setLockScreenWallpaper(currentPath)
+        }
     }
 }
 
@@ -453,7 +483,12 @@ class RetryPolicy(
         repeat(maxAttempts - 1) { attempt ->
             try {
                 return block()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                if (NetworkErrors.isNetworkFailure(e)) {
+                    throw e
+                }
                 currentDelay = (currentDelay * factor).toLong().coerceAtMost(maxDelay)
                 delay(currentDelay)
             }

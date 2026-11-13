@@ -6,7 +6,7 @@
   <img src="src/main/resources/icons/128x128.png" alt="ArtWallpaper Logo" width="64" height="64" />
 </p>
 
-<h1 align="center">ArtWallpaper Manager v4.1.7</h1>
+<h1 align="center">ArtWallpaper Manager v4.2.0</h1>
 
 <p align="center">
   <strong>Transform your Windows and macOS desktop into a daily museum gallery.</strong><br>
@@ -18,7 +18,7 @@
   <a href="#-features"><img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011%20%7C%20macOS-0078D6?logo=windows&logoColor=white" alt="Platform" /></a>
   <a href="#-features"><img src="https://img.shields.io/badge/UI-Compose%20Desktop-4285F4?logo=jetpackcompose&logoColor=white" alt="Compose Desktop" /></a>
   <a href="#-features"><img src="https://img.shields.io/badge/Language-Kotlin%202.1-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin" /></a>
-  <a href="https://github.com/Princeyyyy/art-wallpaper/releases"><img src="https://img.shields.io/badge/Release-v4.1.7-C8A97E" alt="Release" /></a>
+  <a href="https://github.com/Princeyyyy/art-wallpaper/releases"><img src="https://img.shields.io/badge/Release-v4.2.0-C8A97E" alt="Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey" alt="License" /></a>
 </p>
 

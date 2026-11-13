@@ -1,3 +1,6 @@
 package exception
 
-class NetworkUnavailableException : Exception("Network is not available")
+class NetworkUnavailableException(
+    message: String = "Network is not available",
+    cause: Throwable? = null
+) : Exception(message, cause)
