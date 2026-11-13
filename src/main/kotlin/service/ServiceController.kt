@@ -39,13 +39,15 @@ class ServiceController(
 
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
 
-    // Wake on a lightweight 1-minute wall-clock tick so OS sleep / macOS App Nap
-    // never stalls the 30-minute check window after the machine wakes up.
+    // Adaptive tick strategy:
+    //   - 15 minutes when more than 1 hour from the scheduled rotation time.
+    //   - 1 minute when within 1 hour, to catch the rotation window precisely.
+    // This eliminates ~93% of CPU wakeups versus a fixed 1-minute tick while
+    // still responding promptly when the scheduled hour approaches.
     private fun startPeriodicCheck() {
         checkJob?.cancel()
         checkJob = serviceScope.launch {
             val checkInterval = Duration.ofMinutes(30).toMillis()
-            val tickInterval = Duration.ofMinutes(1).toMillis()
             while (isActive) {
                 val now = System.currentTimeMillis()
                 val lastCheck = lastCheckTime.get()
@@ -62,7 +64,20 @@ class ServiceController(
                         logger.error("Error during periodic wallpaper check", e)
                     }
                 }
-                delay(tickInterval)
+
+                // Calculate time until next scheduled rotation and choose tick interval.
+                val activeSettings = wallpaperManager.currentActiveSettings
+                val nowLocal = java.time.LocalDateTime.now()
+                val scheduledToday = java.time.LocalDateTime.of(
+                    nowLocal.toLocalDate(),
+                    java.time.LocalTime.of(activeSettings.updateTimeHour, activeSettings.updateTimeMinute)
+                )
+                val nextScheduled = if (nowLocal.isBefore(scheduledToday)) scheduledToday else scheduledToday.plusDays(1)
+                val minutesUntilNext = java.time.Duration.between(nowLocal, nextScheduled).toMinutes()
+                val tickMs = if (minutesUntilNext > 60) Duration.ofMinutes(15).toMillis()
+                             else Duration.ofMinutes(1).toMillis()
+
+                delay(tickMs)
             }
         }
     }

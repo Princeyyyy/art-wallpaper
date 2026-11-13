@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
@@ -48,10 +49,11 @@ class WallpaperManager(
     private var lastSuccessfulArtwork: Pair<Path, ArtworkMetadata>? = null
     private var lastUpdateTime: Long = 0
     private var lastScheduledUpdateTime: Long = 0
+    private var lastRotationDate: String? = null
     private val _currentArtwork = MutableStateFlow<Pair<Path, ArtworkMetadata>?>(null)
     val currentArtwork: StateFlow<Pair<Path, ArtworkMetadata>?> = _currentArtwork.asStateFlow()
 
-    private val currentActiveSettings: Settings
+    internal val currentActiveSettings: Settings
         get() = Settings.currentSettings.value.takeIf { !it.isFirstRun || settings.isFirstRun } ?: settings
 
     fun updateSettings(newSettings: Settings) {
@@ -74,27 +76,41 @@ class WallpaperManager(
     private data class SavedState(
         val metadata: ArtworkMetadata,
         val lastUpdateTime: Long,
-        val lastScheduledUpdateTime: Long
+        val lastScheduledUpdateTime: Long,
+        val lastRotationDate: String? = null
     )
 
     init {
         // Load last saved state on construction.
+        // CRITICAL: Load persisted state FIRST so lastRotationDate, lastUpdateTime, and
+        // lastScheduledUpdateTime are populated before syncWithActiveDesktopWallpaper()
+        // calls saveState(). Without this order, saveState() would overwrite these fields
+        // with 0 / null and trigger spurious mid-day rotations.
         try {
-            // Priority 1: Synchronize directly with what the OS desktop wallpaper actually displays
-            var restored = syncWithActiveDesktopWallpaper()
+            var restored = false
 
-            // Priority 2: If OS wallpaper wasn't an artwork, load from wallpaper_state.json
-            if (!restored && stateFile.exists()) {
-                val savedState = Json.decodeFromString<SavedState>(stateFile.readText())
-                lastUpdateTime = savedState.lastUpdateTime
-                lastScheduledUpdateTime = savedState.lastScheduledUpdateTime
+            // Priority 1: Restore from wallpaper_state.json to recover timing fields
+            if (stateFile.exists()) {
+                try {
+                    val savedState = Json.decodeFromString<SavedState>(stateFile.readText())
+                    lastUpdateTime = savedState.lastUpdateTime
+                    lastScheduledUpdateTime = savedState.lastScheduledUpdateTime
+                    lastRotationDate = savedState.lastRotationDate
 
-                val storedPath = artworkStorage.getArtworkPath(savedState.metadata.id)
-                if (storedPath != null && storedPath.exists()) {
-                    _currentArtwork.value = storedPath to savedState.metadata
-                    lastSuccessfulArtwork = storedPath to savedState.metadata
-                    restored = true
+                    val storedPath = artworkStorage.getArtworkPath(savedState.metadata.id)
+                    if (storedPath != null && storedPath.exists()) {
+                        _currentArtwork.value = storedPath to savedState.metadata
+                        lastSuccessfulArtwork = storedPath to savedState.metadata
+                        restored = true
+                    }
+                } catch (parseEx: Exception) {
+                    logger.warn("Wallpaper state file unparseable, starting fresh: ${parseEx.message}")
                 }
+            }
+
+            // Priority 2: Synchronize with what the OS desktop actually shows (preserving timing)
+            if (syncWithActiveDesktopWallpaper()) {
+                restored = true
             }
 
             // Priority 3: Fallback to the latest stored artwork on disk or history
@@ -102,7 +118,7 @@ class WallpaperManager(
                 recoverLatestArtworkFromStorage()
             }
         } catch (e: Exception) {
-            logger.warn("Wallpaper state file unparseable, starting fresh: ${e.message}")
+            logger.warn("Wallpaper state init failed, starting fresh: ${e.message}")
             recoverLatestArtworkFromStorage()
         }
     }
@@ -206,6 +222,7 @@ class WallpaperManager(
                 lastSuccessfulArtwork = storedPath to state.metadata
                 lastUpdateTime = state.lastUpdateTime
                 lastScheduledUpdateTime = state.lastScheduledUpdateTime
+                lastRotationDate = state.lastRotationDate
             } else {
                 recoverLatestArtworkFromStorage()
             }
@@ -280,15 +297,17 @@ class WallpaperManager(
                     syncLockScreenIfEnabled(storedPath)
 
                     val now = System.currentTimeMillis()
+                    val rotationDate = LocalDate.now().toString()
                     lastSuccessfulArtwork = storedPath to artwork.second
                     _currentArtwork.value = storedPath to artwork.second
                     lastScheduledUpdateTime = now
                     lastUpdateTime = now
+                    lastRotationDate = rotationDate
 
                     // Add to history so it isn't repeated
                     historyManager.addToHistory(artwork.second)
 
-                    saveState(artwork.second, now, now)
+                    saveState(artwork.second, now, now, rotationDate)
                     artworkProvider.cleanupCacheFiles(artwork.second.id)
                     logger.info("Wallpaper updated: ${artwork.second.title}")
                 }
@@ -316,13 +335,19 @@ class WallpaperManager(
         }
     }
 
-    private fun saveState(metadata: ArtworkMetadata, updateTime: Long, scheduledUpdateTime: Long) {
+    private fun saveState(
+        metadata: ArtworkMetadata,
+        updateTime: Long,
+        scheduledUpdateTime: Long,
+        rotationDate: String? = lastRotationDate
+    ) {
         try {
             stateFile.parent.createDirectories()
             val state = SavedState(
                 metadata = metadata,
                 lastUpdateTime = updateTime,
-                lastScheduledUpdateTime = scheduledUpdateTime
+                lastScheduledUpdateTime = scheduledUpdateTime,
+                lastRotationDate = rotationDate
             )
             stateFile.writeText(Json.encodeToString(state))
             logger.info("Saved state for artwork: ${metadata.title}")
@@ -359,33 +384,28 @@ class WallpaperManager(
 
     fun checkAndUpdate() {
         val now = LocalDateTime.now()
-        val today = now.toLocalDate()
+        val todayStr = LocalDate.now().toString() // yyyy-MM-dd exact calendar-day anchor
         val activeSettings = currentActiveSettings
         val scheduledTime = LocalDateTime.of(
-            today,
+            now.toLocalDate(),
             LocalTime.of(activeSettings.updateTimeHour, activeSettings.updateTimeMinute)
         )
 
-        // Safety guard: if a wallpaper was set in the last 15 minutes, never auto-update!
+        // Guard 1: Already rotated today — at most one scheduled update per calendar day.
+        if (lastRotationDate == todayStr) {
+            logger.info("Skipping periodic check: wallpaper already rotated today ($todayStr)")
+            return
+        }
+
+        // Guard 2: Wallpaper was set within the last 15 minutes (manual or just rotated).
         val nowMs = System.currentTimeMillis()
         if (lastUpdateTime > 0 && (nowMs - lastUpdateTime) < Duration.ofMinutes(15).toMillis()) {
             logger.info("Skipping periodic check: wallpaper was updated recently (${(nowMs - lastUpdateTime) / 1000}s ago)")
             return
         }
 
-        val lastUpdateDate = if (lastScheduledUpdateTime > 0) {
-            LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(lastScheduledUpdateTime),
-                ZoneId.systemDefault()
-            ).toLocalDate()
-        } else {
-            null
-        }
-
-        if ((now.isAfter(scheduledTime) || now.isEqual(scheduledTime)) &&
-            (lastUpdateDate == null || !today.isEqual(lastUpdateDate))
-        ) {
-            logger.info("Update needed - haven't updated today and we're at/past scheduled time $scheduledTime")
+        if (now.isAfter(scheduledTime) || now.isEqual(scheduledTime)) {
+            logger.info("Update needed - haven't rotated today and we are at/past scheduled time $scheduledTime")
             scope.launch {
                 try {
                     updateWallpaper()
@@ -400,12 +420,7 @@ class WallpaperManager(
                 }
             }
         } else {
-            val nextUpdate = if (now.isBefore(scheduledTime)) {
-                scheduledTime
-            } else {
-                scheduledTime.plusDays(1)
-            }
-            logger.info("No update needed - next update scheduled for $nextUpdate")
+            logger.info("No update needed - next update scheduled for $scheduledTime")
         }
     }
 
@@ -413,11 +428,13 @@ class WallpaperManager(
         wallpaperService.setWallpaper(path).onSuccess {
             syncLockScreenIfEnabled(path)
             val now = System.currentTimeMillis()
+            val rotationDate = LocalDate.now().toString()
             lastUpdateTime = now
             lastScheduledUpdateTime = now
+            lastRotationDate = rotationDate
             _currentArtwork.value = path to metadata
             lastSuccessfulArtwork = path to metadata
-            saveState(metadata, now, now)
+            saveState(metadata, now, now, rotationDate)
             scope.launch {
                 historyManager.addToHistory(metadata)
             }

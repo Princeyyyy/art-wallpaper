@@ -23,34 +23,64 @@ import org.jetbrains.skia.Image as SkiaImage
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.exists
+import kotlin.io.path.extension
+import kotlin.io.path.nameWithoutExtension
 import kotlin.io.path.readBytes
 import kotlin.io.path.getLastModifiedTime
 
 // ── In-Memory Bitmap Cache for Instant UI Rendering ─────────────────────────
 
+/**
+ * Bounded LRU bitmap cache.
+ *
+ * Replaces the previous ConcurrentHashMap + clear() strategy which would
+ * evict all entries on the 9th insertion (causing repeated full 4K decodes).
+ * This cache retains up to [maxSize] bitmaps, evicting the least-recently-used
+ * entry when the limit is reached, capping heap consumption at ~24 * 0.4MB
+ * (thumbnail) or ~24 * 33MB (full 4K). Thumbnail paths are kept separate via
+ * [rememberArtworkThumbnail] which downsizes to 400px before storing here.
+ */
 object ArtworkBitmapCache {
-    private val memoryCache = ConcurrentHashMap<String, Pair<Long, ImageBitmap>>()
+    private const val MAX_SIZE = 24
+    // LinkedHashMap in accessOrder=true mode acts as an LRU cache.
+    private val lruMap = object : LinkedHashMap<String, Pair<Long, ImageBitmap>>(MAX_SIZE + 1, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, ImageBitmap>>?): Boolean =
+            size > MAX_SIZE
+    }
+    private val lock = java.util.concurrent.locks.ReentrantReadWriteLock()
 
     fun get(path: Path): ImageBitmap? {
-        val entry = memoryCache[path.toAbsolutePath().toString()] ?: return null
-        val currentMod = try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
-        return if (entry.first == currentMod) entry.second else null
+        val key = path.toAbsolutePath().toString()
+        lock.readLock().lock()
+        try {
+            val entry = lruMap[key] ?: return null
+            val currentMod = try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
+            return if (entry.first == currentMod) entry.second else null
+        } finally {
+            lock.readLock().unlock()
+        }
     }
 
     fun put(path: Path, bitmap: ImageBitmap) {
-        if (memoryCache.size > 8) {
-            memoryCache.clear() // Prevent memory bloat; keep recent few in RAM
-        }
+        val key = path.toAbsolutePath().toString()
         val currentMod = try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
-        memoryCache[path.toAbsolutePath().toString()] = currentMod to bitmap
+        lock.writeLock().lock()
+        try {
+            lruMap[key] = currentMod to bitmap
+        } finally {
+            lock.writeLock().unlock()
+        }
     }
 
     fun invalidate(path: Path) {
-        memoryCache.remove(path.toAbsolutePath().toString())
+        val key = path.toAbsolutePath().toString()
+        lock.writeLock().lock()
+        try { lruMap.remove(key) } finally { lock.writeLock().unlock() }
     }
 
     fun clear() {
-        memoryCache.clear()
+        lock.writeLock().lock()
+        try { lruMap.clear() } finally { lock.writeLock().unlock() }
     }
 }
 
@@ -75,6 +105,64 @@ fun rememberArtworkBitmap(path: Path?): ImageBitmap? {
                     val bytes = path.readBytes()
                     SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap().also {
                         ArtworkBitmapCache.put(path, it)
+                    }
+                } else null
+            } catch (e: Exception) {
+                null
+            }
+        }
+        bitmap = loaded
+    }
+
+    return bitmap
+}
+
+/**
+ * Loads a downsampled thumbnail bitmap for gallery and collection grid use.
+ *
+ * Decodes the image and scales it so its longest side is at most [maxDimension]
+ * pixels before storing in the shared [ArtworkBitmapCache]. This avoids keeping
+ * full 4K frames (33MB each) in heap for small UI cards, reducing gallery heap
+ * usage by ~98% compared to [rememberArtworkBitmap].
+ *
+ * Use [rememberArtworkBitmap] only for the full-screen exhibition card where
+ * the entire resolution is visible.
+ */
+@Composable
+fun rememberArtworkThumbnail(path: Path?, maxDimension: Int = 400): ImageBitmap? {
+    if (path == null) return null
+
+    val thumbKey = remember(path, maxDimension) {
+        // Use a distinct cache key so thumbnail and full bitmaps don't collide.
+        val dir = path.parent
+        val name = path.nameWithoutExtension
+        val ext = path.extension
+        dir?.resolve("${name}_thumb${maxDimension}.$ext") ?: path
+    }
+
+    val fileModTime = remember(path) {
+        try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
+    }
+
+    var bitmap by remember(thumbKey, fileModTime) { mutableStateOf(ArtworkBitmapCache.get(thumbKey)) }
+
+    LaunchedEffect(thumbKey, fileModTime) {
+        val loaded = withContext(Dispatchers.IO) {
+            try {
+                if (path.exists()) {
+                    val skiaImg = SkiaImage.makeFromEncoded(path.readBytes())
+                    val srcW = skiaImg.width
+                    val srcH = skiaImg.height
+                    val scale = maxDimension.toFloat() / maxOf(srcW, srcH)
+                    if (scale >= 1f) {
+                        // Image is already small enough — decode directly
+                        skiaImg.toComposeImageBitmap().also { ArtworkBitmapCache.put(thumbKey, it) }
+                    } else {
+                        val dstW = (srcW * scale).toInt().coerceAtLeast(1)
+                        val dstH = (srcH * scale).toInt().coerceAtLeast(1)
+                        val surface = org.jetbrains.skia.Surface.makeRasterN32Premul(dstW, dstH)
+                        surface.canvas.drawImageRect(skiaImg, org.jetbrains.skia.Rect.makeWH(dstW.toFloat(), dstH.toFloat()))
+                        surface.makeImageSnapshot().toComposeImageBitmap().also { ArtworkBitmapCache.put(thumbKey, it) }
                     }
                 } else null
             } catch (e: Exception) {

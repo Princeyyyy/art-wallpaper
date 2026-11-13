@@ -494,8 +494,10 @@ fun MainScreen(
                                         Image(
                                             bitmap = bitmap,
                                             contentDescription = metadata.title,
+                                            // ContentScale.Fit preserves the authentic walnut moulding frame
+                                            // edges that ContentScale.Crop clips on wide landscapes / tall portraits.
                                             modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
+                                            contentScale = ContentScale.Fit
                                         )
                                     } else {
                                         Box(
@@ -512,17 +514,19 @@ fun MainScreen(
                                         }
                                     }
 
-                                    // Gallery Exhibition Placard (Semi-transparent scrim overlay)
+                                    // Gallery Exhibition Placard (3-stop scrim prevents text-contrast
+                                    // collisions on bright/pastel paintings while remaining elegant on darks)
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .align(Alignment.BottomCenter)
                                             .background(
                                                 Brush.verticalGradient(
-                                                    colors = listOf(
-                                                        Color.Transparent,
-                                                        Color(0x99000000),
-                                                        Color(0xEB0A0A0C)
+                                                    colorStops = arrayOf(
+                                                        0.00f to Color.Transparent,
+                                                        0.35f to Color(0x55000000),
+                                                        0.70f to Color(0xBB0A0A0C),
+                                                        1.00f to Color(0xF00A0A0C)
                                                     )
                                                 )
                                             )
@@ -1437,7 +1441,9 @@ private fun CollectionBrowserDialog(
                         ) {
                             items(itemsList, key = { it.second.id }) { (path, meta) ->
                                 val isActive = meta.id == activeArtworkId
-                                val thumb = rememberArtworkBitmap(path)
+                                // Use downsampled thumbnail (400px max) to avoid loading full 4K
+                                // frames for small grid cells -- reduces heap by ~98% per card.
+                                val thumb = rememberArtworkThumbnail(path, maxDimension = 400)
 
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
