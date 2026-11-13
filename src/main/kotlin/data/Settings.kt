@@ -9,6 +9,9 @@ import kotlinx.serialization.serializer
 import java.time.Duration
 import kotlin.io.path.*
 
+// Fix #11 (Medium): Mark Settings as @Immutable so Compose compiler skips unnecessary
+// recompositions of deep composable subtrees when settings remain unchanged.
+@androidx.compose.runtime.Immutable
 @Serializable
 enum class AppTheme {
     SYSTEM,
@@ -20,11 +23,17 @@ enum class AppTheme {
  * Wallpaper presentation mode.
  * Ambient Blur Mat is the permanent, de facto museum standard across all displays.
  */
+// Fix #11 (Medium): Mark Settings as @Immutable so Compose compiler skips unnecessary
+// recompositions of deep composable subtrees when settings remain unchanged.
+@androidx.compose.runtime.Immutable
 @Serializable
 enum class WallpaperFitMode {
     AMBIENT_BLUR
 }
 
+// Fix #11 (Medium): Mark Settings as @Immutable so Compose compiler skips unnecessary
+// recompositions of deep composable subtrees when settings remain unchanged.
+@androidx.compose.runtime.Immutable
 @Serializable
 data class Settings(
     val changeIntervalHours: Int = 24,

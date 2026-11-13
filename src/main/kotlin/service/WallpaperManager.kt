@@ -190,6 +190,20 @@ class WallpaperManager(
             return
         }
 
+        // Fix #8 (Medium): If in-memory state is already active and populated, avoid redundant disk reads
+        if (_currentArtwork.value != null && lastUpdateTime > 0) {
+            if (shouldUpdate(lastUpdateTime)) {
+                logger.info("Update needed - last update was too long ago")
+                updateWallpaper()
+            } else {
+                logger.info(
+                    "No update needed - last update was " +
+                        "${Duration.ofMillis(now - lastUpdateTime).toHours()} hours ago"
+                )
+            }
+            return
+        }
+
         val state = loadState()
 
         if (state == null) {
@@ -274,56 +288,56 @@ class WallpaperManager(
         } ?: nextUpdate
     }
 
-    // FIX #2: updateMutex.withLock() suspends without blocking a thread,
-    // safe to use in a suspend function.
+    // Fix #9 (Medium): Replaced non-atomic isLocked TOCTOU pre-check with tryLock(),
+    // which atomically acquires or skips — eliminating race condition between check and acquisition.
+    // Fix #9 (Medium): Replaced non-atomic isLocked TOCTOU pre-check with tryLock(),
+    // which atomically acquires or skips — eliminating race condition between check and acquisition.
     private suspend fun updateWallpaper(forceUpdate: Boolean = false) {
-        if (updateMutex.isLocked) {
+        if (!updateMutex.tryLock()) {
             logger.info("Update already in progress, skipping")
             return
         }
 
-        updateMutex.withLock {
-            try {
-                updateRetryPolicy.execute {
-                    if (!connectivityChecker.isNetworkAvailable()) {
-                        throw NetworkUnavailableException()
-                    }
-
-                    val artwork = artworkProvider.fetchArtwork().getOrThrow()
-                    val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
-
-                    // FIX #3: Call setWallpaper once and handle success in one place.
-                    wallpaperService.setWallpaper(storedPath).getOrThrow()
-                    syncLockScreenIfEnabled(storedPath)
-
-                    val now = System.currentTimeMillis()
-                    val rotationDate = LocalDate.now().toString()
-                    lastSuccessfulArtwork = storedPath to artwork.second
-                    _currentArtwork.value = storedPath to artwork.second
-                    lastScheduledUpdateTime = now
-                    lastUpdateTime = now
-                    lastRotationDate = rotationDate
-
-                    // Add to history so it isn't repeated
-                    historyManager.addToHistory(artwork.second)
-
-                    saveState(artwork.second, now, now, rotationDate)
-                    artworkProvider.cleanupCacheFiles(artwork.second.id)
-                    logger.info("Wallpaper updated: ${artwork.second.title}")
+        try {
+            updateRetryPolicy.execute {
+                if (!connectivityChecker.isNetworkAvailable()) {
+                    throw NetworkUnavailableException()
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (NetworkErrors.isNetworkFailure(e)) {
-                    logger.warn("Wallpaper update skipped - network unreachable (${NetworkErrors.describe(e)})")
-                } else {
-                    logger.error("Failed to update wallpaper after retries", e)
-                }
-                throw e
+
+                val artwork = artworkProvider.fetchArtwork().getOrThrow()
+                val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
+
+                wallpaperService.setWallpaper(storedPath).getOrThrow()
+                syncLockScreenIfEnabled(storedPath)
+
+                val now = System.currentTimeMillis()
+                val rotationDate = LocalDate.now().toString()
+                lastSuccessfulArtwork = storedPath to artwork.second
+                _currentArtwork.value = storedPath to artwork.second
+                lastScheduledUpdateTime = now
+                lastUpdateTime = now
+                lastRotationDate = rotationDate
+
+                // Add to history so it isn't repeated
+                historyManager.addToHistory(artwork.second)
+
+                saveState(artwork.second, now, now, rotationDate)
+                artworkProvider.cleanupCacheFiles(artwork.second.id)
+                logger.info("Wallpaper updated: ${artwork.second.title}")
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (NetworkErrors.isNetworkFailure(e)) {
+                logger.warn("Wallpaper update skipped - network unreachable (${NetworkErrors.describe(e)})")
+            } else {
+                logger.error("Failed to update wallpaper after retries", e)
+            }
+            throw e
+        } finally {
+            updateMutex.unlock()
         }
     }
-
     private fun loadState(): SavedState? {
         return try {
             if (stateFile.exists()) {
@@ -335,27 +349,32 @@ class WallpaperManager(
         }
     }
 
+    // Fix #2 (High): saveState dispatches blocking disk I/O to Dispatchers.IO asynchronously
+    // without blocking Dispatchers.Default or caller threads.
     private fun saveState(
         metadata: ArtworkMetadata,
         updateTime: Long,
         scheduledUpdateTime: Long,
         rotationDate: String? = lastRotationDate
     ) {
-        try {
-            stateFile.parent.createDirectories()
-            val state = SavedState(
-                metadata = metadata,
-                lastUpdateTime = updateTime,
-                lastScheduledUpdateTime = scheduledUpdateTime,
-                lastRotationDate = rotationDate
-            )
-            stateFile.writeText(Json.encodeToString(state))
-            logger.info("Saved state for artwork: ${metadata.title}")
-        } catch (e: Exception) {
-            logger.error("Failed to save wallpaper state", e)
+        scope.launch(Dispatchers.IO) {
+            try {
+                stateFile.parent.createDirectories()
+                val state = SavedState(
+                    metadata = metadata,
+                    lastUpdateTime = updateTime,
+                    lastScheduledUpdateTime = scheduledUpdateTime,
+                    lastRotationDate = rotationDate
+                )
+                stateFile.writeText(Json.encodeToString(state))
+                logger.info("Saved state for artwork: ${metadata.title}")
+            } catch (e: CancellationException) {
+                // Ignore during shutdown
+            } catch (e: Exception) {
+                logger.error("Failed to save wallpaper state", e)
+            }
         }
     }
-
     suspend fun start() {
         if (job != null) {
             logger.info("Wallpaper manager already running")

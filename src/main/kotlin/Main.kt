@@ -57,7 +57,12 @@ fun main(args: Array<String>) {
 
     try {
         // Clean up obsolete installer packages on startup
-        service.UpdateManager.cleanupOldInstallers()
+        // Fix #12 (Low): Defer installer cleanup to a background IO coroutine rather than blocking startup
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                service.UpdateManager.cleanupOldInstallers()
+            } catch (_: Exception) {}
+        }
 
         val settings = Settings.loadSavedSettings()
         val startMinimized = args.contains("--minimized") && !settings.isFirstRun
@@ -214,9 +219,10 @@ private fun setupApplication(
         WindowsAutoStart.refreshIfNeeded()
     }
 
-    // Start the service only if needed
+    // Fix #5 (Medium): Start service asynchronously on background dispatcher; do NOT block
+    // the main AWT thread with runBlocking before application initialization.
     if (shouldStartService) {
-        runBlocking {
+        appBgScope.launch {
             controller.startService()
         }
     }

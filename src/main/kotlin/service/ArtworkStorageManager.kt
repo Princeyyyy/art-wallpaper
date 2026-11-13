@@ -2,8 +2,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.nio.file.Path
 import kotlin.io.path.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 class ArtworkStorageManager(
@@ -12,7 +10,9 @@ class ArtworkStorageManager(
 ) {
     private val artworksDir = baseDir.resolve("artworks")
     private val metadataDir = baseDir.resolve("metadata")
-    private var cachedArtworks: List<Pair<Path, ArtworkMetadata>>? = null
+    // Fix #1 (Critical): @Volatile ensures cross-thread visibility; synchronized double-checked
+    // locking serializes concurrent cache rebuilds without lock overhead on cache hits.
+    @Volatile private var cachedArtworks: List<Pair<Path, ArtworkMetadata>>? = null
     private val logger = LoggerFactory.getLogger(ArtworkStorageManager::class.java)
 
     init {
@@ -30,13 +30,17 @@ class ArtworkStorageManager(
         metadataDir.resolve("${metadata.id}.json")
             .writeText(Json.encodeToString(metadata))
         
-        cachedArtworks = null
+        synchronized(this) {
+            cachedArtworks = null
+        }
         cleanup()
         return targetPath
     }
 
     fun getStoredArtworks(): List<Pair<Path, ArtworkMetadata>> {
-        return cachedArtworks ?: loadStoredArtworks().also { cachedArtworks = it }
+        return cachedArtworks ?: synchronized(this) {
+            cachedArtworks ?: loadStoredArtworks().also { cachedArtworks = it }
+        }
     }
 
     fun getLatestStoredArtwork(): Pair<Path, ArtworkMetadata>? {
@@ -87,7 +91,9 @@ class ArtworkStorageManager(
                     logger.info("Cleaned up old artwork: ${metadata.title}")
                 }
                 
-                cachedArtworks = null // Invalidate cache
+                synchronized(this) {
+                    cachedArtworks = null // Invalidate cache
+                }
             }
         } catch (e: Exception) {
             logger.error("Failed to cleanup old artworks", e)
@@ -130,4 +136,4 @@ class ArtworkStorageManager(
     private fun getMetadataPath(artworkPath: Path): Path {
         return metadataDir.resolve("${artworkPath.nameWithoutExtension}.json")
     }
-} 
+}

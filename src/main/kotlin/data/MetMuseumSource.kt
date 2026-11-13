@@ -91,7 +91,9 @@ class MetMuseumSource(
     )
 
     private sealed class CandidateOutcome {
-        data class Success(val candidateId: Int, val artwork: ArtworkResponse, val imageBytes: ByteArray) : CandidateOutcome()
+        // Fix #6 (Medium): Stream image bytes directly to disk temporary files rather than
+        // buffering up to 60MB of raw byte arrays in JVM heap during parallel candidate races.
+        data class Success(val candidateId: Int, val artwork: ArtworkResponse, val imageFile: Path) : CandidateOutcome()
         data class PermanentFailure(val candidateId: Int, val reason: String) : CandidateOutcome()
         data class TransientFailure(val candidateId: Int, val error: Exception) : CandidateOutcome()
         data class NetworkFailure(val error: Exception) : CandidateOutcome()
@@ -185,6 +187,7 @@ class MetMuseumSource(
         val channel = Channel<CandidateOutcome>(Channel.UNLIMITED)
         val jobs = mutableListOf<Job>()
         val permanentFailures = mutableListOf<String>()
+        val downloadedFiles = mutableListOf<Path>()
         var lastError: Exception? = null
         var winner: Pair<Path, ArtworkMetadata>? = null
 
@@ -226,6 +229,7 @@ class MetMuseumSource(
                         lastError = outcome.error
                     }
                     is CandidateOutcome.Success -> {
+                        downloadedFiles.add(outcome.imageFile)
                         // Cancel losing in-flight requests before running image processing on the winner.
                         jobs.forEach { it.cancel() }
                         try {
@@ -247,6 +251,9 @@ class MetMuseumSource(
         } finally {
             jobs.forEach { it.cancel() }
             channel.close()
+            for (file in downloadedFiles) {
+                try { file.deleteIfExists() } catch (_: Exception) {}
+            }
             if (permanentFailures.isNotEmpty()) {
                 failedArtworkStore.markFailedBatch(permanentFailures)
             }
@@ -255,16 +262,32 @@ class MetMuseumSource(
         BatchRaceResult(winner, lastError)
     }
 
+    // Fix #7 (Medium): Sample candidate IDs using index selection without copying or shuffling
+    // the full 10,000+ element list, reducing GC allocations on every candidate batch.
     private fun sampleCandidateIds(ids: List<Int>, count: Int): List<Int> {
-        if (ids.size <= count) return ids.shuffled()
-        if (ids.size <= count * 2) return ids.shuffled().take(count)
-        val pickedIndices = LinkedHashSet<Int>(count)
-        while (pickedIndices.size < count) {
-            pickedIndices.add(Random.nextInt(ids.size))
+        if (ids.isEmpty()) return emptyList()
+        val sampleSize = count.coerceAtMost(ids.size)
+        val selected = ArrayList<Int>(sampleSize)
+        val seen = HashSet<Int>(sampleSize * 2)
+        var attempts = 0
+        val maxAttempts = sampleSize * 5
+        while (selected.size < sampleSize && attempts < maxAttempts) {
+            val idx = Random.nextInt(ids.size)
+            if (seen.add(idx)) {
+                selected.add(ids[idx])
+            }
+            attempts++
         }
-        return pickedIndices.map { ids[it] }
+        if (selected.size < sampleSize) {
+            for (i in ids.indices) {
+                if (seen.add(i)) {
+                    selected.add(ids[i])
+                    if (selected.size == sampleSize) break
+                }
+            }
+        }
+        return selected
     }
-
     private suspend fun getDepartmentObjectIds(departmentId: Int): List<Int> = withContext(Dispatchers.IO) {
         val cached = departmentCache[departmentId]
         if (cached != null && cached.isNotEmpty()) {
@@ -374,24 +397,24 @@ class MetMuseumSource(
             return CandidateOutcome.TransientFailure(objectId, IllegalStateException("Image HTTP $imgStatus"))
         }
         val bytes = imageResponse.body()
-        if (bytes.isEmpty()) {
+        if (bytes == null || bytes.isEmpty()) {
             return CandidateOutcome.PermanentFailure(objectId, "empty image body")
         }
 
-        return CandidateOutcome.Success(objectId, artwork, bytes)
-    }
+        cacheDir.createDirectories()
+        val tempCandidateFile = kotlin.io.path.createTempFile(cacheDir, "cand-raw-$objectId-", ".jpg")
+        tempCandidateFile.writeBytes(bytes)
 
+        return CandidateOutcome.Success(objectId, artwork, tempCandidateFile)
+    }
     private fun processWinningCandidate(outcome: CandidateOutcome.Success): Pair<Path, ArtworkMetadata> {
         val artwork = outcome.artwork
-        cacheDir.createDirectories()
-        val tempFile = kotlin.io.path.createTempFile(cacheDir, "artwork-${outcome.candidateId}-", ".jpg")
-        tempFile.writeBytes(outcome.imageBytes)
+        val tempFile = outcome.imageFile
 
         try {
             val fitMode = Settings.currentSettings.value.wallpaperFitMode
             val processedFile = imageProcessor.processImage(tempFile, fitMode)
             tempFile.deleteIfExists()
-
             val metadata = ArtworkMetadata(
                 id = artwork.objectID.toString(),
                 title = artwork.title.ifBlank { "Untitled" },

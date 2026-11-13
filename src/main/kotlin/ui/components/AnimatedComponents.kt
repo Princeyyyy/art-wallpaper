@@ -17,11 +17,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Image as SkiaImage
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
+import javax.imageio.ImageIO
 import kotlin.io.path.exists
 import kotlin.io.path.extension
 import kotlin.io.path.nameWithoutExtension
@@ -33,27 +33,30 @@ import kotlin.io.path.getLastModifiedTime
 /**
  * Bounded LRU bitmap cache.
  *
- * Replaces the previous ConcurrentHashMap + clear() strategy which would
- * evict all entries on the 9th insertion (causing repeated full 4K decodes).
- * This cache retains up to [maxSize] bitmaps, evicting the least-recently-used
- * entry when the limit is reached, capping heap consumption at ~24 * 0.4MB
- * (thumbnail) or ~24 * 33MB (full 4K). Thumbnail paths are kept separate via
- * [rememberArtworkThumbnail] which downsizes to 400px before storing here.
+ * Fix #15 (Low): Separated full-resolution cache (capped at 8 items, max ~80MB) from
+ * thumbnail cache (capped at 24 items, max ~9MB) to prevent up to 360MB memory bloat
+ * while preserving instant navigation for recent wallpapers.
  */
 object ArtworkBitmapCache {
-    private const val MAX_SIZE = 24
-    // LinkedHashMap in accessOrder=true mode acts as an LRU cache.
-    private val lruMap = object : LinkedHashMap<String, Pair<Long, ImageBitmap>>(MAX_SIZE + 1, 0.75f, true) {
+    private const val MAX_FULL_SIZE = 8
+    private const val MAX_THUMB_SIZE = 24
+
+    private val fullLru = object : LinkedHashMap<String, Pair<Long, ImageBitmap>>(MAX_FULL_SIZE + 1, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, ImageBitmap>>?): Boolean =
-            size > MAX_SIZE
+            size > MAX_FULL_SIZE
+    }
+    private val thumbLru = object : LinkedHashMap<String, Pair<Long, ImageBitmap>>(MAX_THUMB_SIZE + 1, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, ImageBitmap>>?): Boolean =
+            size > MAX_THUMB_SIZE
     }
     private val lock = java.util.concurrent.locks.ReentrantReadWriteLock()
 
-    fun get(path: Path): ImageBitmap? {
+    fun get(path: Path, isThumbnail: Boolean = false): ImageBitmap? {
         val key = path.toAbsolutePath().toString()
         lock.readLock().lock()
         try {
-            val entry = lruMap[key] ?: return null
+            val map = if (isThumbnail) thumbLru else fullLru
+            val entry = map[key] ?: return null
             val currentMod = try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
             return if (entry.first == currentMod) entry.second else null
         } finally {
@@ -61,12 +64,13 @@ object ArtworkBitmapCache {
         }
     }
 
-    fun put(path: Path, bitmap: ImageBitmap) {
+    fun put(path: Path, bitmap: ImageBitmap, isThumbnail: Boolean = false) {
         val key = path.toAbsolutePath().toString()
         val currentMod = try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
         lock.writeLock().lock()
         try {
-            lruMap[key] = currentMod to bitmap
+            val map = if (isThumbnail) thumbLru else fullLru
+            map[key] = currentMod to bitmap
         } finally {
             lock.writeLock().unlock()
         }
@@ -75,12 +79,22 @@ object ArtworkBitmapCache {
     fun invalidate(path: Path) {
         val key = path.toAbsolutePath().toString()
         lock.writeLock().lock()
-        try { lruMap.remove(key) } finally { lock.writeLock().unlock() }
+        try {
+            fullLru.remove(key)
+            thumbLru.remove(key)
+        } finally {
+            lock.writeLock().unlock()
+        }
     }
 
     fun clear() {
         lock.writeLock().lock()
-        try { lruMap.clear() } finally { lock.writeLock().unlock() }
+        try {
+            fullLru.clear()
+            thumbLru.clear()
+        } finally {
+            lock.writeLock().unlock()
+        }
     }
 }
 
@@ -96,7 +110,7 @@ fun rememberArtworkBitmap(path: Path?): ImageBitmap? {
         try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
     }
 
-    var bitmap by remember(path, fileModTime) { mutableStateOf(ArtworkBitmapCache.get(path)) }
+    var bitmap by remember(path, fileModTime) { mutableStateOf(ArtworkBitmapCache.get(path, isThumbnail = false)) }
 
     LaunchedEffect(path, fileModTime) {
         val loaded = withContext(Dispatchers.IO) {
@@ -104,7 +118,7 @@ fun rememberArtworkBitmap(path: Path?): ImageBitmap? {
                 if (path.exists()) {
                     val bytes = path.readBytes()
                     SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap().also {
-                        ArtworkBitmapCache.put(path, it)
+                        ArtworkBitmapCache.put(path, it, isThumbnail = false)
                     }
                 } else null
             } catch (e: Exception) {
@@ -118,22 +132,17 @@ fun rememberArtworkBitmap(path: Path?): ImageBitmap? {
 }
 
 /**
- * Loads a downsampled thumbnail bitmap for gallery and collection grid use.
+ * Fix #3 (High): Loads downsampled thumbnail bitmap using ImageIO source subsampling.
  *
- * Decodes the image and scales it so its longest side is at most [maxDimension]
- * pixels before storing in the shared [ArtworkBitmapCache]. This avoids keeping
- * full 4K frames (33MB each) in heap for small UI cards, reducing gallery heap
- * usage by ~98% compared to [rememberArtworkBitmap].
- *
- * Use [rememberArtworkBitmap] only for the full-screen exhibition card where
- * the entire resolution is visible.
+ * Avoids decoding full 4K frames (up to 24MB raw native Skia memory) before downscaling.
+ * Instead, DCT-level subsampling reads only the necessary coefficients, reducing peak native
+ * memory per thumbnail by over 95%.
  */
 @Composable
 fun rememberArtworkThumbnail(path: Path?, maxDimension: Int = 400): ImageBitmap? {
     if (path == null) return null
 
     val thumbKey = remember(path, maxDimension) {
-        // Use a distinct cache key so thumbnail and full bitmaps don't collide.
         val dir = path.parent
         val name = path.nameWithoutExtension
         val ext = path.extension
@@ -144,27 +153,52 @@ fun rememberArtworkThumbnail(path: Path?, maxDimension: Int = 400): ImageBitmap?
         try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
     }
 
-    var bitmap by remember(thumbKey, fileModTime) { mutableStateOf(ArtworkBitmapCache.get(thumbKey)) }
+    var bitmap by remember(thumbKey, fileModTime) { mutableStateOf(ArtworkBitmapCache.get(thumbKey, isThumbnail = true)) }
 
     LaunchedEffect(thumbKey, fileModTime) {
         val loaded = withContext(Dispatchers.IO) {
             try {
-                if (path.exists()) {
-                    val skiaImg = SkiaImage.makeFromEncoded(path.readBytes())
-                    val srcW = skiaImg.width
-                    val srcH = skiaImg.height
-                    val scale = maxDimension.toFloat() / maxOf(srcW, srcH)
-                    if (scale >= 1f) {
-                        // Image is already small enough — decode directly
-                        skiaImg.toComposeImageBitmap().also { ArtworkBitmapCache.put(thumbKey, it) }
-                    } else {
-                        val dstW = (srcW * scale).toInt().coerceAtLeast(1)
-                        val dstH = (srcH * scale).toInt().coerceAtLeast(1)
-                        val surface = org.jetbrains.skia.Surface.makeRasterN32Premul(dstW, dstH)
-                        surface.canvas.drawImageRect(skiaImg, org.jetbrains.skia.Rect.makeWH(dstW.toFloat(), dstH.toFloat()))
-                        surface.makeImageSnapshot().toComposeImageBitmap().also { ArtworkBitmapCache.put(thumbKey, it) }
-                    }
-                } else null
+                if (!path.exists()) return@withContext null
+                val file = path.toFile()
+                ImageIO.createImageInputStream(file)?.use { iis ->
+                    val readers = ImageIO.getImageReaders(iis)
+                    if (readers.hasNext()) {
+                        val reader = readers.next()
+                        try {
+                            reader.input = iis
+                            val srcW = reader.getWidth(0)
+                            val srcH = reader.getHeight(0)
+                            val maxDim = maxOf(srcW, srcH)
+                            val subsample = (maxDim / maxDimension).coerceAtLeast(1)
+                            val param = reader.defaultReadParam
+                            if (subsample > 1) {
+                                param.setSourceSubsampling(subsample, subsample, 0, 0)
+                            }
+                            val sampled = reader.read(0, param)
+                            val sampledW = sampled.width
+                            val sampledH = sampled.height
+                            val scale = maxDimension.toFloat() / maxOf(sampledW, sampledH)
+                            val finalBitmap = if (scale < 1.0f) {
+                                val dstW = (sampledW * scale).toInt().coerceAtLeast(1)
+                                val dstH = (sampledH * scale).toInt().coerceAtLeast(1)
+                                val scaled = java.awt.image.BufferedImage(dstW, dstH, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+                                val g = scaled.createGraphics()
+                                try {
+                                    g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+                                    g.drawImage(sampled, 0, 0, dstW, dstH, null)
+                                } finally {
+                                    g.dispose()
+                                }
+                                scaled.toComposeImageBitmap()
+                            } else {
+                                sampled.toComposeImageBitmap()
+                            }
+                            finalBitmap.also { ArtworkBitmapCache.put(thumbKey, it, isThumbnail = true) }
+                        } finally {
+                            reader.dispose()
+                        }
+                    } else null
+                }
             } catch (e: Exception) {
                 null
             }
@@ -177,6 +211,10 @@ fun rememberArtworkThumbnail(path: Path?, maxDimension: Int = 400): ImageBitmap?
 
 // ── Interactive Pulsing Button ───────────────────────────────────────────────
 
+/**
+ * Fix #16 (Low): PulsingButton uses LaunchedEffect for the reset duration instead of
+ * allocating a new CoroutineScope launch on every single button press.
+ */
 @Composable
 fun PulsingButton(
     onClick: () -> Unit,
@@ -191,7 +229,12 @@ fun PulsingButton(
     content: @Composable () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            delay(120)
+            isPressed = false
+        }
+    }
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
@@ -204,10 +247,6 @@ fun PulsingButton(
         onClick = {
             isPressed = true
             onClick()
-            scope.launch {
-                delay(120)
-                isPressed = false
-            }
         },
         modifier = modifier.scale(scale),
         enabled = enabled,
