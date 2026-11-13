@@ -337,7 +337,7 @@ fun SettingsDialog(
                                                         }
                                                     }
                                                 ) {
-                                                    Text("INSTALL", style = MaterialTheme.typography.button)
+                                                    Text("UPDATE", style = MaterialTheme.typography.button)
                                                 }
                                             }
                                         }

@@ -322,7 +322,7 @@ class SystemTrayMenu(
                         when (status) {
                             is UpdateStatus.Available -> {
                                 latestAvailableVersion = status.latestVersion
-                                updateMenuItem?.label = "Install Update (v${status.latestVersion})..."
+                                updateMenuItem?.label = "Update to v${status.latestVersion}..."
                                 updateMenuItem?.isEnabled = true
                             }
                             is UpdateStatus.Checking -> {

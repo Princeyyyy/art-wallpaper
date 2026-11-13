@@ -187,4 +187,47 @@ class UpdateManagerTest {
         assertTrue(legacy.autoCheckUpdates)
         assertNull(legacy.dismissedUpdateVersion)
     }
+
+    @Test
+    fun `generateWindowsUpdateScript produces passive non-interactive msiexec commands`() {
+        val msi = java.nio.file.Path.of("C:\\test\\ArtWallpaper-4.3.0.msi")
+        val exe = java.nio.file.Path.of("C:\\Users\\User\\AppData\\Local\\Art Wallpaper\\Art Wallpaper.exe")
+        val script = UpdateManager.generateWindowsUpdateScript(msi, exe)
+
+        assertTrue(script.contains("msiexec.exe /i \"!MSI_PATH!\" /passive /norestart"))
+        assertTrue(script.contains("tasklist /FI \"IMAGENAME eq Art Wallpaper.exe\""))
+        assertTrue(script.contains("del \"!MSI_PATH!\""))
+        assertTrue(script.contains("start \"\" \"!EXE_PATH!\""))
+    }
+
+    @Test
+    fun `generateMacUpdateScript produces silent non-interactive hdiutil and ditto commands`() {
+        val dmg = java.nio.file.Path.of("/tmp/ArtWallpaper-4.3.0.dmg")
+        val app = java.nio.file.Path.of("/Applications/Art Wallpaper.app")
+        val script = UpdateManager.generateMacUpdateScript(dmg, app)
+
+        assertTrue(script.contains("hdiutil attach \"${'$'}DMG_PATH\""))
+        assertTrue(script.contains("-nobrowse -readonly -quiet"))
+        assertTrue(script.contains("ditto \"${'$'}SOURCE_APP\" \"${'$'}DEST_APP\""))
+        assertTrue(script.contains("hdiutil detach"))
+        assertTrue(script.contains("open \"${'$'}DEST_APP\""))
+    }
+
+    @Test
+    fun `resolveWindowsExecutable falls back correctly`() {
+        val resolved = UpdateManager.resolveWindowsExecutable(
+            command = null,
+            localAppData = "C:\\CustomAppData\\Local"
+        )
+        assertEquals("C:\\CustomAppData\\Local\\Art Wallpaper\\Art Wallpaper.exe", resolved.toString())
+    }
+
+    @Test
+    fun `resolveMacAppBundle resolves path or falls back`() {
+        val resolved = UpdateManager.resolveMacAppBundle(
+            command = "/Applications/Art Wallpaper.app/Contents/MacOS/Art Wallpaper",
+            homeDir = "/Users/testuser"
+        )
+        assertEquals("/Applications/Art Wallpaper.app", resolved.toString().replace('\\', '/'))
+    }
 }

@@ -251,30 +251,243 @@ open class UpdateManager(
     }
 
     /**
-     * Launches the native installer and terminates the application cleanly.
+     * Seamlessly applies the update in the background without setup wizards and restarts the application.
      */
     fun install(installerPath: Path) {
         val os = System.getProperty("os.name", "").lowercase()
         try {
             if (os.contains("windows")) {
-                logger.info("Launching Windows MSI installer: $installerPath")
-                // Start msiexec detached via cmd start so the installer runs independently and app terminates
-                ProcessBuilder("cmd.exe", "/c", "start \"\" msiexec.exe /i \"${installerPath.toAbsolutePath()}\"").start()
-                Thread.sleep(800)
-                System.exit(0)
+                launchWindowsSilentUpdate(installerPath)
             } else if (os.contains("mac")) {
-                logger.info("Mounting macOS DMG installer: $installerPath")
-                ProcessBuilder("open", installerPath.toAbsolutePath().toString()).start()
-                Thread.sleep(1000)
+                launchMacSilentUpdate(installerPath)
+            } else {
+                logger.warn("Automatic silent install not supported on $os; launching default handler")
+                java.awt.Desktop.getDesktop().open(installerPath.toFile())
+                Thread.sleep(800)
                 System.exit(0)
             }
         } catch (e: Exception) {
-            logger.error("Failed to launch installer", e)
+            logger.error("Failed to launch silent installer", e)
             _status.value = UpdateStatus.Error("Could not launch installer: ${e.message}")
         }
     }
 
+    /**
+     * Prepares and starts a detached helper script on Windows that waits for Art Wallpaper to exit,
+     * invokes msiexec in passive mode (clean progress bar, zero wizard screens/prompts), and relaunches
+     * the updated application binary.
+     */
+    fun launchWindowsSilentUpdate(
+        installerPath: Path,
+        targetExe: Path = resolveWindowsExecutable(),
+        exitProcess: () -> Unit = { System.exit(0) }
+    ) {
+        logger.info("Preparing silent Windows update for: $installerPath -> target: $targetExe")
+        val scriptContent = generateWindowsUpdateScript(installerPath, targetExe)
+        updatesDir.createDirectories()
+        val scriptFile = updatesDir.resolve("apply_update.bat")
+        Files.writeString(scriptFile, scriptContent)
+
+        val pb = ProcessBuilder(
+            "cmd.exe", "/c",
+            "start \"\" /b \"${scriptFile.toAbsolutePath()}\" \"${installerPath.toAbsolutePath()}\" \"${targetExe.toAbsolutePath()}\""
+        )
+        pb.directory(updatesDir.toFile())
+        pb.start()
+        logger.info("Launched silent Windows update script. Terminating application to apply update.")
+        try {
+            Thread.sleep(600)
+        } catch (_: InterruptedException) {}
+        exitProcess()
+    }
+
+    /**
+     * Prepares and starts a detached helper script on macOS that waits for Art Wallpaper to exit,
+     * mounts the DMG silently without opening Finder (-nobrowse -readonly), copies the updated .app bundle
+     * using ditto (preserving code signatures and permissions), unmounts the DMG, and relaunches the app.
+     */
+    fun launchMacSilentUpdate(
+        installerPath: Path,
+        targetApp: Path = resolveMacAppBundle(),
+        exitProcess: () -> Unit = { System.exit(0) }
+    ) {
+        logger.info("Preparing silent macOS update for: $installerPath -> target: $targetApp")
+        val scriptContent = generateMacUpdateScript(installerPath, targetApp)
+        updatesDir.createDirectories()
+        val scriptFile = updatesDir.resolve("apply_update.sh")
+        Files.writeString(scriptFile, scriptContent)
+        scriptFile.toFile().setExecutable(true, false)
+
+        val pb = ProcessBuilder(
+            "/bin/bash", scriptFile.toAbsolutePath().toString(),
+            installerPath.toAbsolutePath().toString(),
+            targetApp.toAbsolutePath().toString()
+        )
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD)
+        pb.redirectError(ProcessBuilder.Redirect.DISCARD)
+        pb.directory(updatesDir.toFile())
+        pb.start()
+        logger.info("Launched silent macOS update script. Terminating application to apply update.")
+        try {
+            Thread.sleep(600)
+        } catch (_: InterruptedException) {}
+        exitProcess()
+    }
+
     companion object {
+        fun resolveWindowsExecutable(command: String? = null, localAppData: String? = null): Path {
+            val cmd = command ?: runCatching { ProcessHandle.current().info().command().orElse(null) }.getOrNull()
+            if (!cmd.isNullOrBlank()) {
+                val path = Path.of(cmd)
+                if (Files.isRegularFile(path) && path.fileName.toString().equals("Art Wallpaper.exe", ignoreCase = true)) {
+                    return path
+                }
+            }
+
+            val appData = localAppData ?: System.getenv("LOCALAPPDATA")
+            if (!appData.isNullOrBlank()) {
+                val primary = Path.of(appData, "Art Wallpaper", "Art Wallpaper.exe")
+                if (Files.isRegularFile(primary)) return primary
+                val programs = Path.of(appData, "Programs", "Art Wallpaper", "Art Wallpaper.exe")
+                if (Files.isRegularFile(programs)) return programs
+            }
+
+            val fallbackBase = appData ?: System.getProperty("user.home", ".")
+            return Path.of(fallbackBase, "Art Wallpaper", "Art Wallpaper.exe")
+        }
+
+        fun resolveMacAppBundle(command: String? = null, homeDir: String? = null): Path {
+            val cmd = command ?: runCatching { ProcessHandle.current().info().command().orElse(null) }.getOrNull()
+            if (!cmd.isNullOrBlank()) {
+                var current: Path? = Path.of(cmd)
+                while (current != null) {
+                    if (current.fileName?.toString()?.endsWith(".app", ignoreCase = true) == true) {
+                        return current
+                    }
+                    current = current.parent
+                }
+            }
+
+            val defaultApps = Path.of("/Applications", "Art Wallpaper.app")
+            if (Files.exists(defaultApps)) return defaultApps
+
+            val home = homeDir ?: System.getProperty("user.home", ".")
+            val userApps = Path.of(home, "Applications", "Art Wallpaper.app")
+            if (Files.exists(userApps)) return userApps
+
+            return defaultApps
+        }
+
+        fun generateWindowsUpdateScript(installerPath: Path, targetExe: Path): String {
+            return """
+                @echo off
+                setlocal enabledelayedexpansion
+
+                set "MSI_PATH=%~1"
+                set "EXE_PATH=%~2"
+
+                rem Wait up to 5 seconds for Art Wallpaper.exe to exit cleanly
+                for /l %%i in (1,1,5) do (
+                    tasklist /FI "IMAGENAME eq Art Wallpaper.exe" 2>nul | find /i "Art Wallpaper.exe" >nul
+                    if !ERRORLEVEL! EQU 0 (
+                        timeout /t 1 /nobreak >nul 2>&1 || ping 127.0.0.1 -n 2 >nul
+                    ) else (
+                        goto :proc_done
+                    )
+                )
+                :proc_done
+
+                rem Run Windows Installer in passive mode: displays a clean progress bar, zero wizard screens, no user prompts
+                msiexec.exe /i "!MSI_PATH!" /passive /norestart
+                set "MSI_EXIT=!ERRORLEVEL!"
+
+                rem Exit code 0 is Success, 3010 is Success with reboot recommended
+                if !MSI_EXIT! EQU 0 (
+                    if not "!EXE_PATH!"=="" (
+                        if exist "!EXE_PATH!" (
+                            start "" "!EXE_PATH!"
+                        ) else if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
+                            start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
+                        )
+                    ) else if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
+                        start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
+                    )
+                ) else if !MSI_EXIT! EQU 3010 (
+                    if not "!EXE_PATH!"=="" (
+                        if exist "!EXE_PATH!" (
+                            start "" "!EXE_PATH!"
+                        ) else if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
+                            start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
+                        )
+                    ) else if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
+                        start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
+                    )
+                )
+
+                rem Clean up installer file
+                del "!MSI_PATH!" >nul 2>&1
+
+                rem Self-delete helper batch script
+                (goto) 2>nul & del "%~f0"
+            """.trimIndent()
+        }
+
+        fun generateMacUpdateScript(installerPath: Path, targetApp: Path): String {
+            return """
+                #!/bin/bash
+                set -e
+
+                DMG_PATH="${'$'}1"
+                TARGET_APP="${'$'}2"
+
+                # Wait up to 5 seconds for Art Wallpaper to exit cleanly
+                for i in {1..5}; do
+                    if pgrep -f "Art Wallpaper" >/dev/null 2>&1; then
+                        sleep 1
+                    else
+                        break
+                    fi
+                done
+
+                # Create temporary mount point
+                MOUNT_DIR=${'$'}(mktemp -d -t art_mount_XXXXXX)
+
+                # Attach DMG quietly with no Finder window
+                hdiutil attach "${'$'}DMG_PATH" -mountpoint "${'$'}MOUNT_DIR" -nobrowse -readonly -quiet
+
+                # Locate .app inside the mounted volume
+                SOURCE_APP=${'$'}(find "${'$'}MOUNT_DIR" -maxdepth 2 -name "*.app" -print -quit)
+
+                if [ -n "${'$'}SOURCE_APP" ] && [ -d "${'$'}SOURCE_APP" ]; then
+                    TARGET_DIR="${'$'}(dirname "${'$'}TARGET_APP")"
+                    APP_NAME="${'$'}(basename "${'$'}SOURCE_APP")"
+                    DEST_APP="${'$'}TARGET_DIR/${'$'}APP_NAME"
+
+                    # Copy bundle using ditto to preserve macOS code signatures and permissions
+                    if [ -w "${'$'}DEST_APP" ] || [ -w "${'$'}TARGET_DIR" ]; then
+                        rm -rf "${'$'}DEST_APP"
+                        ditto "${'$'}SOURCE_APP" "${'$'}DEST_APP"
+                    else
+                        osascript -e "do shell script \"rm -rf \\\"${'$'}DEST_APP\\\" && ditto \\\"${'$'}SOURCE_APP\\\" \\\"${'$'}DEST_APP\\\"\" with administrator privileges"
+                    fi
+
+                    # Detach DMG
+                    hdiutil detach "${'$'}MOUNT_DIR" -quiet || hdiutil detach "${'$'}MOUNT_DIR" -force -quiet
+                    rmdir "${'$'}MOUNT_DIR" 2>/dev/null || true
+
+                    # Relaunch the newly updated app
+                    open "${'$'}DEST_APP"
+                else
+                    hdiutil detach "${'$'}MOUNT_DIR" -quiet || hdiutil detach "${'$'}MOUNT_DIR" -force -quiet
+                    rmdir "${'$'}MOUNT_DIR" 2>/dev/null || true
+                fi
+
+                # Clean up DMG and script
+                rm -f "${'$'}DMG_PATH"
+                rm -f "${'$'}0"
+            """.trimIndent()
+        }
+
         fun formatAssetSizeMb(asset: GithubAsset?): String? {
             if (asset == null || asset.size <= 0L) return null
             val mb = asset.size.toDouble() / (1024.0 * 1024.0)
@@ -282,7 +495,7 @@ open class UpdateManager(
         }
 
         /**
-         * Deletes obsolete installer files (.msi / .dmg) from ~/.artwallpaper/updates
+         * Deletes obsolete installer files (.msi / .dmg) and temporary update scripts from ~/.artwallpaper/updates
          * to prevent disk bloat.
          */
         fun cleanupOldInstallers(updatesDir: Path = Path.of(System.getProperty("user.home"), ".artwallpaper", "updates")) {
@@ -292,14 +505,17 @@ open class UpdateManager(
                 Files.list(updatesDir).use { stream ->
                     stream.forEach { file ->
                         val name = file.fileName.toString()
-                        if (name.endsWith(".msi", ignoreCase = true) || name.endsWith(".dmg", ignoreCase = true)) {
+                        if (name.endsWith(".msi", ignoreCase = true) ||
+                            name.endsWith(".dmg", ignoreCase = true) ||
+                            name.startsWith("apply_update", ignoreCase = true)
+                        ) {
                             try {
                                 val sizeBytes = Files.size(file)
                                 val sizeMb = sizeBytes / (1024.0 * 1024.0)
                                 Files.deleteIfExists(file)
-                                logger.info("Cleaned up obsolete installer file: $name (freed ${"%.1f".format(sizeMb)} MB)")
+                                logger.info("Cleaned up obsolete update file: $name (freed ${"%.1f".format(sizeMb)} MB)")
                             } catch (e: Exception) {
-                                logger.warn("Could not delete obsolete installer $name: ${e.message}")
+                                logger.warn("Could not delete obsolete update file $name: ${e.message}")
                             }
                         }
                     }

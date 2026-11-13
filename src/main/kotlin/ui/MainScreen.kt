@@ -1112,7 +1112,7 @@ private fun UpdateDetailsDialog(
                             }
 
                             PulsingButton(onClick = { onInstall(updateStatus) }) {
-                                Text("INSTALL UPDATE", style = MaterialTheme.typography.button)
+                                Text("UPDATE & RESTART", style = MaterialTheme.typography.button)
                             }
                         }
                     }
@@ -1124,7 +1124,7 @@ private fun UpdateDetailsDialog(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text(
-                                "Downloading installer (${(updateStatus.progress * 100).toInt()}%)...",
+                                "Downloading update (${(updateStatus.progress * 100).toInt()}%)...",
                                 style = MaterialTheme.typography.subtitle2,
                                 color = ArtColors.GalleryGold
                             )
@@ -1135,7 +1135,7 @@ private fun UpdateDetailsDialog(
                                 backgroundColor = ArtColors.DividerLine
                             )
                             Text(
-                                "The installer will launch automatically as soon as the download completes.",
+                                "Art Wallpaper will update and restart automatically once the download completes.",
                                 style = MaterialTheme.typography.caption,
                                 color = ArtColors.PaperMuted,
                                 textAlign = TextAlign.Center
