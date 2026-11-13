@@ -852,8 +852,15 @@ fun MainScreen(
                     updateManager = resolvedUpdateManager,
                     onOpenUpdateDetails = { showUpdateDialog = true },
                     onSettingsChange = { newSettings ->
+                        val wasSyncLockScreen = currentSettings.syncLockScreen
                         Settings.updateCurrentSettings(newSettings)
+                        serviceController.wallpaperManager.updateSettings(newSettings)
                         onSettingsChange(newSettings)
+                        if (!MacPlatform.isMac && newSettings.syncLockScreen && !wasSyncLockScreen) {
+                            coroutineScope.launch(Dispatchers.IO) {
+                                serviceController.wallpaperManager.syncLockScreenWithCurrentWallpaper()
+                            }
+                        }
                         coroutineScope.launch {
                             delay(500)
                             serviceController.restartService()
@@ -1525,6 +1532,7 @@ fun GuidedOnboarding(
     var selectedMinute by remember { mutableStateOf(settings.updateTimeMinute) }
     var autoStartEnabled by remember { mutableStateOf(true) }
     var notificationsEnabled by remember { mutableStateOf(true) }
+    var syncLockScreenEnabled by remember { mutableStateOf(settings.syncLockScreen) }
     var isCurating by remember { mutableStateOf(false) }
     var curationStage by remember { mutableStateOf("Connecting to museum collection...") }
 
@@ -1593,8 +1601,10 @@ fun GuidedOnboarding(
                     3 -> OnboardingStep3Integration(
                         autoStart = autoStartEnabled,
                         notifications = notificationsEnabled,
+                        syncLockScreen = syncLockScreenEnabled,
                         onAutoStartChange = { autoStartEnabled = it },
-                        onNotificationsChange = { notificationsEnabled = it }
+                        onNotificationsChange = { notificationsEnabled = it },
+                        onSyncLockScreenChange = { syncLockScreenEnabled = it }
                     )
                     4 -> OnboardingStep4Curate(
                         isCurating = isCurating,
@@ -1610,6 +1620,11 @@ fun GuidedOnboarding(
                                         if (autoStartEnabled) {
                                             WindowsAutoStart.enable()
                                         }
+
+                                        val lockScreenPref = if (MacPlatform.isMac) false else syncLockScreenEnabled
+                                        serviceController.wallpaperManager.updateSettings(
+                                            Settings.currentSettings.value.copy(syncLockScreen = lockScreenPref)
+                                        )
 
                                         curationStage = "Selecting unvisited masterpiece..."
                                         serviceController.nextWallpaper()
@@ -1629,7 +1644,8 @@ fun GuidedOnboarding(
                                             hasSetUpdateTime = true,
                                             startWithSystem = autoStartEnabled,
                                             hasEnabledAutoStart = autoStartEnabled,
-                                            notificationsEnabled = notificationsEnabled
+                                            notificationsEnabled = notificationsEnabled,
+                                            syncLockScreen = lockScreenPref
                                         )
                                         withContext(Dispatchers.Main) {
                                             Settings.updateCurrentSettings(finalSettings)
@@ -1893,8 +1909,10 @@ private fun OnboardingStep2Schedule(
 private fun OnboardingStep3Integration(
     autoStart: Boolean,
     notifications: Boolean,
+    syncLockScreen: Boolean,
     onAutoStartChange: (Boolean) -> Unit,
-    onNotificationsChange: (Boolean) -> Unit
+    onNotificationsChange: (Boolean) -> Unit,
+    onSyncLockScreenChange: (Boolean) -> Unit
 ) {
     val isMac = MacPlatform.isMac
     val osLabel = if (isMac) "macOS" else "Windows"
@@ -1955,6 +1973,28 @@ private fun OnboardingStep3Integration(
                 )
             }
         )
+
+        if (!isMac) {
+            Spacer(Modifier.height(12.dp))
+
+            // Windows-only lock screen sync toggle card
+            OnboardingOptionCard(
+                title = "Sync Lock Screen Wallpaper",
+                description = "Automatically mirrors your framed artwork onto your Windows lock screen.",
+                selected = syncLockScreen,
+                onClick = { onSyncLockScreenChange(!syncLockScreen) },
+                trailingContent = {
+                    Switch(
+                        checked = syncLockScreen,
+                        onCheckedChange = onSyncLockScreenChange,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = ArtColors.GalleryGold,
+                            checkedTrackColor = ArtColors.GalleryGold.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+            )
+        }
 
         Spacer(Modifier.height(16.dp))
 

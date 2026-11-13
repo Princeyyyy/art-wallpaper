@@ -15,6 +15,9 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.awt.Desktop
+import java.awt.desktop.SystemSleepEvent
+import java.awt.desktop.SystemSleepListener
 
 class ServiceController(
     val wallpaperManager: WallpaperManager,
@@ -32,15 +35,17 @@ class ServiceController(
     private val restartScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var restartDebounceJob: Job? = null
     private val lastCheckTime = AtomicLong(0)
+    private var sleepListener: SystemSleepListener? = null
 
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
 
-    // Battery & CPU optimization: Sleep precisely until the next 30-minute interval
-    // rather than constantly polling every 5 minutes and waking CPU cores.
+    // Wake on a lightweight 1-minute wall-clock tick so OS sleep / macOS App Nap
+    // never stalls the 30-minute check window after the machine wakes up.
     private fun startPeriodicCheck() {
         checkJob?.cancel()
         checkJob = serviceScope.launch {
             val checkInterval = Duration.ofMinutes(30).toMillis()
+            val tickInterval = Duration.ofMinutes(1).toMillis()
             while (isActive) {
                 val now = System.currentTimeMillis()
                 val lastCheck = lastCheckTime.get()
@@ -51,15 +56,59 @@ class ServiceController(
                         logger.info("Running periodic check for wallpaper update")
                         wallpaperManager.checkAndUpdate()
                         lastCheckTime.set(System.currentTimeMillis())
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         logger.error("Error during periodic wallpaper check", e)
                     }
-                    delay(checkInterval)
-                } else {
-                    val waitTime = (checkInterval - elapsed).coerceAtLeast(10_000L)
-                    delay(waitTime)
+                }
+                delay(tickInterval)
+            }
+        }
+    }
+
+    fun triggerCheckIfRunning() {
+        if (!_isServiceRunning.value) return
+        serviceScope.launch {
+            try {
+                logger.info("Triggering wallpaper schedule check on wake/activation")
+                wallpaperManager.checkAndUpdate()
+                lastCheckTime.set(System.currentTimeMillis())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.error("Error during wake wallpaper check", e)
+            }
+        }
+    }
+
+    private fun registerSleepListener() {
+        if (sleepListener != null) return
+        try {
+            if (!Desktop.isDesktopSupported()) return
+            val desktop = Desktop.getDesktop()
+            val listener = object : SystemSleepListener {
+                override fun systemAboutToSleep(e: SystemSleepEvent?) {}
+                override fun systemAwoke(e: SystemSleepEvent?) {
+                    logger.info("System woke from sleep, checking wallpaper schedule")
+                    triggerCheckIfRunning()
                 }
             }
+            desktop.addAppEventListener(listener)
+            sleepListener = listener
+        } catch (e: Throwable) {
+            logger.debug("SystemSleepListener not supported on this platform/environment: ${e.message}")
+        }
+    }
+
+    private fun unregisterSleepListener() {
+        val listener = sleepListener ?: return
+        sleepListener = null
+        try {
+            if (Desktop.isDesktopSupported()) {
+                Desktop.getDesktop().removeAppEventListener(listener)
+            }
+        } catch (_: Throwable) {
         }
     }
 
@@ -82,6 +131,7 @@ class ServiceController(
 
             startPeriodicCheck()
             startCleanupJob()
+            registerSleepListener()
         }
     }
 
@@ -90,6 +140,7 @@ class ServiceController(
             mutex.withLock {
                 if (_isServiceRunning.value) {
                     try {
+                        unregisterSleepListener()
                         wallpaperManager.stop()
                         cleanupJob?.cancel()
                         checkJob?.cancel()
@@ -180,6 +231,7 @@ class ServiceController(
 
     suspend fun cleanup() {
         try {
+            unregisterSleepListener()
             if (_isServiceRunning.value) {
                 wallpaperManager.stop()
                 cleanupJob?.cancel()

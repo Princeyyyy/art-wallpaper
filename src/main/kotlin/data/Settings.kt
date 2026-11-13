@@ -41,7 +41,8 @@ data class Settings(
     val dismissedUpdateVersion: String? = null,
     val hasSetUpdateTime: Boolean = true,
     val themeMode: AppTheme = AppTheme.SYSTEM,
-    val wallpaperFitMode: WallpaperFitMode = WallpaperFitMode.AMBIENT_BLUR
+    val wallpaperFitMode: WallpaperFitMode = WallpaperFitMode.AMBIENT_BLUR,
+    val syncLockScreen: Boolean = false
 ) {
     @kotlinx.serialization.Transient
     private val logger = LoggerFactory.getLogger(Settings::class.java)

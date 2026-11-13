@@ -1,5 +1,9 @@
+import exception.NetworkUnavailableException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import service.RetryPolicy
+import java.net.ConnectException
+import java.nio.channels.UnresolvedAddressException
 import kotlin.test.*
 
 class RetryPolicyTest {
@@ -61,5 +65,44 @@ class RetryPolicyTest {
         }
         assertEquals(42, result)
         assertEquals(3, callCount)
+    }
+
+    @Test
+    fun `fast-fails on NetworkUnavailableException without retrying`() = runTest {
+        var callCount = 0
+        val policy = RetryPolicy(maxAttempts = 3, initialDelay = 0L, maxDelay = 0L, factor = 1.0)
+        assertFailsWith<NetworkUnavailableException> {
+            policy.execute {
+                callCount++
+                throw NetworkUnavailableException("DNS lookup failed")
+            }
+        }
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `fast-fails on UnresolvedAddressException chain without retrying`() = runTest {
+        var callCount = 0
+        val policy = RetryPolicy(maxAttempts = 3, initialDelay = 0L, maxDelay = 0L, factor = 1.0)
+        assertFailsWith<ConnectException> {
+            policy.execute {
+                callCount++
+                throw ConnectException().apply { initCause(UnresolvedAddressException()) }
+            }
+        }
+        assertEquals(1, callCount)
+    }
+
+    @Test
+    fun `rethrows CancellationException immediately without retrying`() = runTest {
+        var callCount = 0
+        val policy = RetryPolicy(maxAttempts = 3, initialDelay = 0L, maxDelay = 0L, factor = 1.0)
+        assertFailsWith<CancellationException> {
+            policy.execute {
+                callCount++
+                throw CancellationException("cancelled")
+            }
+        }
+        assertEquals(1, callCount)
     }
 }

@@ -133,6 +133,7 @@ private fun setupApplication(
     onSetWakeCallback {
         javax.swing.SwingUtilities.invokeLater {
             wallpaperManager.syncWithActiveDesktopWallpaper()
+            controller.triggerCheckIfRunning()
             windowVisibilityCallback?.invoke(true)
             activeAwtWindow?.let { win ->
                 WindowsPlatform.bringToFront(win)
@@ -147,6 +148,8 @@ private fun setupApplication(
     val systemTray = SystemTrayMenu(
         serviceController = controller,
         onShowWindow = {
+            wallpaperManager.syncWithActiveDesktopWallpaper()
+            controller.triggerCheckIfRunning()
             windowVisibilityCallback?.invoke(true)
             activeAwtWindow?.let { win ->
                 win.toFront()

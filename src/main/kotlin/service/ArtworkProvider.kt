@@ -1,4 +1,7 @@
 import data.ArtworkSource
+import exception.NetworkErrors
+import exception.NetworkUnavailableException
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import java.nio.file.Path
 import kotlin.io.path.*
@@ -11,6 +14,7 @@ import java.time.Duration
 class ArtworkProvider(
     client: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(30))
+        .followRedirects(HttpClient.Redirect.NORMAL)
         .build(),
     private val cacheDir: Path = Path.of(System.getProperty("user.home"), ".artwallpaper", "cache"),
     // FIX #7: artworksDir is now used by getRandomCachedArtwork() (was silently ignored before).
@@ -20,6 +24,7 @@ class ArtworkProvider(
     private val maxRetries: Int = 3
 ) {
     private val logger = LoggerFactory.getLogger(ArtworkProvider::class.java)
+    private val json = Json { ignoreUnknownKeys = true }
     private val source: ArtworkSource = MetMuseumSource(client, cacheDir, historyManager)
 
     init {
@@ -27,27 +32,44 @@ class ArtworkProvider(
         artworksDir.createDirectories()
     }
 
-    suspend fun fetchArtwork(): Result<Pair<Path, ArtworkMetadata>> = runCatching {
-        if (!connectivityChecker.isNetworkAvailable()) {
-            logger.info("Offline mode - using cached artwork")
-            return@runCatching getRandomCachedArtwork().getOrThrow()
-        }
-
-        var lastError: Exception? = null
-        repeat(maxRetries) { attempt ->
-            try {
-                return@runCatching source.fetchRandomArtwork().getOrThrow()
-            } catch (e: Exception) {
-                if (attempt < maxRetries - 1) {
-                    logger.warn("Fetch attempt ${attempt + 1}/$maxRetries failed (${e.message}); retrying...")
-                } else {
-                    logger.error("All $maxRetries fetch attempts failed", e)
-                }
-                lastError = e
+    suspend fun fetchArtwork(): Result<Pair<Path, ArtworkMetadata>> {
+        return try {
+            if (!connectivityChecker.isNetworkAvailable()) {
+                logger.info("Offline mode - using cached artwork")
+                return getRandomCachedArtwork()
             }
-        }
 
-        throw lastError ?: IllegalStateException("Failed to fetch artwork after $maxRetries attempts")
+            var lastError: Exception? = null
+            repeat(maxRetries) { attempt ->
+                try {
+                    return Result.success(source.fetchRandomArtwork().getOrThrow())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (NetworkErrors.isNetworkFailure(e)) {
+                        val reason = NetworkErrors.describe(e)
+                        logger.warn("Network unreachable ($reason); falling back to cached artwork")
+                        val cached = getRandomCachedArtwork()
+                        if (cached.isSuccess) {
+                            return cached
+                        }
+                        throw NetworkUnavailableException(reason, e)
+                    }
+                    if (attempt < maxRetries - 1) {
+                        logger.warn("Fetch attempt ${attempt + 1}/$maxRetries failed (${e.message}); retrying...")
+                    } else {
+                        logger.error("All $maxRetries fetch attempts failed", e)
+                    }
+                    lastError = e
+                }
+            }
+
+            throw lastError ?: IllegalStateException("Failed to fetch artwork after $maxRetries attempts")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     // FIX #17: Use artworksDir (the permanent store) for offline fallback, not cacheDir.
@@ -74,8 +96,7 @@ class ArtworkProvider(
             throw IllegalStateException("Metadata not found for cached artwork: $id")
         }
 
-        val metadata = Json { ignoreUnknownKeys = true }
-            .decodeFromString<ArtworkMetadata>(metadataPath.readText())
+        val metadata = json.decodeFromString<ArtworkMetadata>(metadataPath.readText())
         artworkPath to metadata
     }
 
@@ -84,6 +105,7 @@ class ArtworkProvider(
             logger.info("Starting cache cleanup")
             cacheDir.listDirectoryEntries().forEach { file ->
                 try {
+                    if (file.name.startsWith("dept_")) return@forEach
                     val artworkId = when {
                         file.name.startsWith("processed_artwork-") -> {
                             file.name.substringAfter("processed_artwork-")

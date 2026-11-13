@@ -41,6 +41,7 @@ fun SettingsDialog(
     val osNameLabel = if (isMac) "macOS" else "Windows"
     var isAutoStartEnabled by remember { mutableStateOf(WindowsAutoStart.isEnabled()) }
     var isNotificationsEnabled by remember { mutableStateOf(settings.notificationsEnabled) }
+    var isSyncLockScreen by remember { mutableStateOf(settings.syncLockScreen) }
     var isAutoCheckUpdates by remember { mutableStateOf(settings.autoCheckUpdates) }
     var currentThemeMode by remember { mutableStateOf(settings.themeMode) }
     var showUninstallConfirmation by remember { mutableStateOf(false) }
@@ -227,6 +228,18 @@ fun SettingsDialog(
                                 isNotificationsEnabled = enabled
                             }
                         )
+
+                        if (!isMac) {
+                            SettingsRow(
+                                label = "Sync lock screen wallpaper",
+                                description = "Keep your Windows lock screen in sync with your current artwork",
+                                checked = isSyncLockScreen,
+                                onCheckedChange = { enabled ->
+                                    isSyncLockScreen = enabled
+                                    onSettingsChange(settings.copy(syncLockScreen = enabled))
+                                }
+                            )
+                        }
                     }
 
                     Divider(color = ArtColors.DividerLine)
