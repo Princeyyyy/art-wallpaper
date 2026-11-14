@@ -11,20 +11,42 @@ import java.time.Duration
 import org.slf4j.LoggerFactory
 
 class ConnectivityChecker(
-    private val endpointUri: String = "https://collectionapi.metmuseum.org/public/collection/v1/departments"
+    private val endpointUri: String = "https://collectionapi.metmuseum.org/public/collection/v1/departments",
+    private val positiveCacheTtlMs: Long = 5_000L
 ) {
     private val logger = LoggerFactory.getLogger(ConnectivityChecker::class.java)
     private val client = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(2))
         .build()
 
+    @Volatile
+    private var lastSuccessTimeMs: Long = 0L
+
     /**
      * Returns true only when the Met Museum API host can actually be resolved and reached.
      *
      * Fix #4 (High): Replaced heavy full-body GET to the museum API with lightweight DNS/TCP
      * resolution and ultra-fast HEAD probe, cutting up to 5 seconds of latency per check.
+     * Includes a short 5-second positive cache so back-to-back checks from WallpaperManager
+     * and ArtworkProvider do not perform redundant TCP handshakes.
      */
     fun isNetworkAvailable(): Boolean {
+        val now = System.currentTimeMillis()
+        val lastOk = lastSuccessTimeMs
+        if (lastOk > 0L && (now - lastOk) in 0 until positiveCacheTtlMs) {
+            return true
+        }
+
+        val reachable = probeNetwork()
+        if (reachable) {
+            lastSuccessTimeMs = System.currentTimeMillis()
+        } else {
+            lastSuccessTimeMs = 0L
+        }
+        return reachable
+    }
+
+    private fun probeNetwork(): Boolean {
         val host = try {
             URI.create(endpointUri).host
         } catch (_: Exception) {

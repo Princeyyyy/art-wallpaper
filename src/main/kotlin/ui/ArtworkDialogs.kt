@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
@@ -202,13 +203,20 @@ internal fun UpdateDetailsDialog(
                     }
 
                     is service.UpdateStatus.Downloading -> {
+                        val sizeProgressText = if (updateStatus.totalBytes > 0L) {
+                            " (${service.UpdateManager.formatBytesMb(updateStatus.downloadedBytes)} / ${service.UpdateManager.formatBytesMb(updateStatus.totalBytes)})"
+                        } else if (updateStatus.downloadedBytes > 0L) {
+                            " (${service.UpdateManager.formatBytesMb(updateStatus.downloadedBytes)})"
+                        } else {
+                            ""
+                        }
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Text(
-                                "Downloading update (${(updateStatus.progress * 100).toInt()}%)...",
+                                "Downloading update: ${(updateStatus.progress * 100).toInt()}%$sizeProgressText",
                                 style = MaterialTheme.typography.subtitle2,
                                 color = ArtColors.GalleryGold
                             )
@@ -219,7 +227,7 @@ internal fun UpdateDetailsDialog(
                                 backgroundColor = ArtColors.DividerLine
                             )
                             Text(
-                                "Art Wallpaper will update and restart automatically once the download completes.",
+                                "Art Wallpaper will verify the package, install silently, and reopen automatically once the download completes.",
                                 style = MaterialTheme.typography.caption,
                                 color = ArtColors.PaperMuted,
                                 textAlign = TextAlign.Center
@@ -227,6 +235,7 @@ internal fun UpdateDetailsDialog(
                         }
                     }
 
+                    is service.UpdateStatus.ReadyToInstall,
                     is service.UpdateStatus.Installing -> {
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
@@ -239,12 +248,16 @@ internal fun UpdateDetailsDialog(
                                 strokeWidth = 3.dp
                             )
                             Text(
-                                "Installing update...",
+                                if (updateStatus is service.UpdateStatus.ReadyToInstall) {
+                                    "Installer verified — preparing silent update..."
+                                } else {
+                                    "Installing update & restarting..."
+                                },
                                 style = MaterialTheme.typography.subtitle2,
                                 color = ArtColors.GalleryGold
                             )
                             Text(
-                                "Art Wallpaper will close and restart automatically when the installation is complete.",
+                                "Art Wallpaper will close momentarily to apply the update and reopen automatically when finished.",
                                 style = MaterialTheme.typography.caption,
                                 color = ArtColors.PaperMuted,
                                 textAlign = TextAlign.Center
@@ -287,7 +300,7 @@ internal fun UpdateDetailsDialog(
 
                     is service.UpdateStatus.Error -> {
                         Text(
-                            "Could not retrieve release info: ${updateStatus.message}",
+                            updateStatus.message,
                             style = MaterialTheme.typography.body2,
                             color = ArtColors.PaperWhite
                         )
@@ -382,7 +395,9 @@ internal fun ArtworkDetailsDialog(
                                 .height(190.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .border(BorderStroke(1.dp, ArtColors.CardBorder), RoundedCornerShape(8.dp)),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            alignment = androidx.compose.ui.BiasAlignment(0f, -0.15f),
+                            filterQuality = FilterQuality.High
                         )
                     }
 
@@ -567,7 +582,8 @@ internal fun CollectionBrowserDialog(
                                                 bitmap = thumb,
                                                 contentDescription = meta.title,
                                                 modifier = Modifier.fillMaxSize(),
-                                                contentScale = ContentScale.Crop
+                                                contentScale = ContentScale.Crop,
+                                                filterQuality = FilterQuality.High
                                             )
                                         }
                                         Box(

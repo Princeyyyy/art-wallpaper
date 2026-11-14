@@ -8,13 +8,16 @@ import service.WallpaperManager
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
 import kotlin.io.path.writeBytes
 import kotlin.io.path.writeText
 import kotlin.test.*
 
 /**
- * Tests that [WallpaperManager.checkAndUpdate] enforces the per-calendar-day
- * rotation anchor (`lastRotationDate`), preventing spurious mid-day updates.
+ * Tests that [WallpaperManager] enforces accurate daily schedule rotation at the user's
+ * designated `updateTimeHour:updateTimeMinute`, supports changing schedules mid-day,
+ * and prevents spurious duplicate updates once a scheduled slot has completed.
  *
  * All tests use isolated temp directories — no writes to ~/.artwallpaper.
  */
@@ -93,7 +96,7 @@ class WallpaperManagerRotationDateTest {
         every { artworkStorage.getArtworkPath("state-file-id") } returns fakeImagePath
 
         // Write a state file with lastRotationDate = today before constructing the manager
-        val todayStr = java.time.LocalDate.now().toString()
+        val todayStr = LocalDate.now().toString()
         val stateFile = tempDir.resolve("wallpaper_state.json")
         stateFile.writeText(
             """{"metadata":{"id":"state-file-id","title":"Test","artist":"Artist","year":2023,"description":null,"source":"met","imageUrl":"https://example.com/state-file-id.jpg","fetchedAt":${Instant.now().epochSecond}},"lastUpdateTime":${System.currentTimeMillis()},"lastScheduledUpdateTime":${System.currentTimeMillis()},"lastRotationDate":"$todayStr"}"""
@@ -119,7 +122,7 @@ class WallpaperManagerRotationDateTest {
         every { wallpaperService.setWallpaper(any()) } returns Result.success(Unit)
 
         // Write state with yesterday's rotation date
-        val yesterdayStr = java.time.LocalDate.now().minusDays(1).toString()
+        val yesterdayStr = LocalDate.now().minusDays(1).toString()
         val stateFile = tempDir.resolve("wallpaper_state.json")
         stateFile.writeText(
             """{"metadata":{"id":"yesterday-id","title":"Test","artist":"Artist","year":2023,"description":null,"source":"met","imageUrl":"https://example.com/yesterday-id.jpg","fetchedAt":${Instant.now().epochSecond}},"lastUpdateTime":${System.currentTimeMillis() - 86400_000},"lastScheduledUpdateTime":${System.currentTimeMillis() - 86400_000},"lastRotationDate":"$yesterdayStr"}"""
@@ -133,6 +136,64 @@ class WallpaperManagerRotationDateTest {
         manager.checkAndUpdate()
 
         // Should have fetched because yesterday != today
+        coVerify(timeout = 3000, atLeast = 1) { artworkProvider.fetchArtwork() }
+    }
+
+    @Test
+    fun `checkAndUpdate rotates at scheduled time today even if less than 24 hours since yesterday rotation`() = runTest {
+        val meta = makeMetadata("less-than-24h-id")
+        val fakeImagePath = tempDir.resolve("less-than-24h-id.jpg")
+        fakeImagePath.writeBytes(ByteArray(16))
+
+        every { artworkStorage.getArtworkPath("less-than-24h-id") } returns fakeImagePath
+        every { connectivityChecker.isNetworkAvailable() } returns true
+        coEvery { artworkProvider.fetchArtwork() } returns Result.success(fakeImagePath to meta)
+        every { artworkStorage.saveArtwork(any(), any()) } returns fakeImagePath
+        every { wallpaperService.setWallpaper(any()) } returns Result.success(Unit)
+
+        // Simulate a rotation that happened only 6 hours ago on yesterday's date
+        val yesterdayStr = LocalDate.now().minusDays(1).toString()
+        val sixHoursAgo = System.currentTimeMillis() - (6L * 3600_000L)
+        val stateFile = tempDir.resolve("wallpaper_state.json")
+        stateFile.writeText(
+            """{"metadata":{"id":"less-than-24h-id","title":"Test","artist":"Artist","year":2023,"description":null,"source":"met","imageUrl":"https://example.com/less-than-24h-id.jpg","fetchedAt":${Instant.now().epochSecond}},"lastUpdateTime":$sixHoursAgo,"lastScheduledUpdateTime":$sixHoursAgo,"lastRotationDate":"$yesterdayStr"}"""
+        )
+
+        val manager = makeManager(Settings(
+            isFirstRun = false,
+            updateTimeHour = 0,
+            updateTimeMinute = 0
+        ))
+        manager.checkAndUpdate()
+
+        coVerify(timeout = 3000, atLeast = 1) { artworkProvider.fetchArtwork() }
+    }
+
+    @Test
+    fun `changing updateTimeHour or updateTimeMinute re-arms schedule for today`() = runTest {
+        val meta = makeMetadata("rearm-id")
+        val fakeImagePath = tempDir.resolve("rearm-id.jpg")
+        fakeImagePath.writeBytes(ByteArray(16))
+
+        every { connectivityChecker.isNetworkAvailable() } returns true
+        coEvery { artworkProvider.fetchArtwork() } returns Result.success(fakeImagePath to meta)
+        every { artworkStorage.saveArtwork(any(), any()) } returns fakeImagePath
+        every { wallpaperService.setWallpaper(any()) } returns Result.success(Unit)
+
+        val initialSettings = Settings(isFirstRun = false, updateTimeHour = 7, updateTimeMinute = 0)
+        val manager = makeManager(initialSettings)
+
+        // Mark today as rotated under the 07:00 schedule
+        manager.setWallpaperManually(fakeImagePath, meta)
+        manager.checkAndUpdate()
+        coVerify(exactly = 0) { artworkProvider.fetchArtwork() }
+
+        // User changes schedule to 00:00 (already due today)
+        val updatedSettings = initialSettings.copy(updateTimeHour = 0, updateTimeMinute = 0, hasSetUpdateTime = true)
+        manager.updateSettings(updatedSettings)
+
+        // Now checkAndUpdate must trigger immediately for the newly configured schedule slot
+        manager.checkAndUpdate()
         coVerify(timeout = 3000, atLeast = 1) { artworkProvider.fetchArtwork() }
     }
 

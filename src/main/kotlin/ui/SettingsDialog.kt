@@ -300,9 +300,14 @@ fun SettingsDialog(
                                                     val sizeSuffix = service.UpdateManager.formatAssetSizeMb(s.asset)?.let { " ($it)" } ?: ""
                                                     "New version v${s.latestVersion} is ready$sizeSuffix"
                                                 }
-                                                is service.UpdateStatus.Downloading -> "Downloading installer (${(s.progress * 100).toInt()}%)..."
-                                                is service.UpdateStatus.ReadyToInstall -> "Launching installer..."
-                                                is service.UpdateStatus.Installing -> "Installing update... restarting shortly"
+                                                is service.UpdateStatus.Downloading -> {
+                                                    val mbSuffix = if (s.totalBytes > 0L) {
+                                                        " (${service.UpdateManager.formatBytesMb(s.downloadedBytes)} / ${service.UpdateManager.formatBytesMb(s.totalBytes)})"
+                                                    } else ""
+                                                    "Downloading installer: ${(s.progress * 100).toInt()}%$mbSuffix"
+                                                }
+                                                is service.UpdateStatus.ReadyToInstall -> "Installer verified — launching silent update..."
+                                                is service.UpdateStatus.Installing -> "Installing update... restarting automatically"
                                                 is service.UpdateStatus.Error -> "Status: ${s.message}"
                                             },
                                             style = MaterialTheme.typography.caption,
@@ -331,7 +336,7 @@ fun SettingsDialog(
                                                     onClick = {
                                                         s.asset?.let { asset ->
                                                             coroutineScope.launch {
-                                                                updateManager.downloadAndInstall(asset)
+                                                                updateManager.downloadAndInstall(asset, s.latestVersion)
                                                             }
                                                         } ?: run {
                                                             onOpenUpdateDetails?.invoke()
@@ -342,20 +347,9 @@ fun SettingsDialog(
                                                 }
                                             }
                                         }
-                                        is service.UpdateStatus.Downloading -> {
-                                            CircularProgressIndicator(
-                                                color = ArtColors.GalleryGold,
-                                                modifier = Modifier.size(24.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                        }
-                                        is service.UpdateStatus.Installing -> {
-                                            CircularProgressIndicator(
-                                                color = ArtColors.GalleryGold,
-                                                modifier = Modifier.size(24.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                        }
+                                        is service.UpdateStatus.Downloading,
+                                        is service.UpdateStatus.ReadyToInstall,
+                                        is service.UpdateStatus.Installing,
                                         is service.UpdateStatus.Checking -> {
                                             CircularProgressIndicator(
                                                 color = ArtColors.GalleryGold,

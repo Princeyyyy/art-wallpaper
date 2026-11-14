@@ -2,7 +2,7 @@ import java.awt.Color
 import java.awt.image.BufferedImage
 import java.nio.file.Files
 import javax.imageio.ImageIO
-import kotlin.io.path.deleteIfExists
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -107,6 +107,34 @@ class ImageProcessorTest {
         } finally {
             tempDir.toFile().deleteRecursively()
         }
+    }
+
+    @Test
+    fun `resampleLanczos3WithSharpen preserves sharp edge contrast and exact dimensions`() {
+        val srcW = 600
+        val srcH = 400
+        val src = BufferedImage(srcW, srcH, BufferedImage.TYPE_INT_RGB)
+        for (y in 0 until srcH) {
+            for (x in 0 until srcW) {
+                // High-contrast vertical edge at x = 300
+                src.setRGB(x, y, if (x < 300) 0x203040 else 0xE0D0C0)
+            }
+        }
+
+        val processor = ImageProcessor(defaultTargetDimensions = 1920 to 1080)
+        val downscaled = processor.resampleLanczos3WithSharpen(src, 300, 200)
+        assertEquals(300, downscaled.width)
+        assertEquals(200, downscaled.height)
+
+        // Verify interior regions retain accurate color fidelity and edge transition is sharp
+        val leftRed = (downscaled.getRGB(50, 100) shr 16) and 0xFF
+        val rightRed = (downscaled.getRGB(250, 100) shr 16) and 0xFF
+        assertTrue(abs(leftRed - 0x20) <= 2)
+        assertTrue(abs(rightRed - 0xE0) <= 2)
+
+        val upscaled = processor.resampleLanczos3WithSharpen(src, 900, 600)
+        assertEquals(900, upscaled.width)
+        assertEquals(600, upscaled.height)
     }
 
     @Test

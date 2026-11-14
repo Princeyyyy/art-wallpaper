@@ -8,6 +8,7 @@ import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.time.Duration
+import java.time.LocalDateTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,47 +40,47 @@ class ServiceController(
 
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
 
-    // Adaptive tick strategy:
-    //   - 15 minutes when more than 1 hour from the scheduled rotation time.
-    //   - 1 minute when within 1 hour, to catch the rotation window precisely.
-    // This eliminates ~93% of CPU wakeups versus a fixed 1-minute tick while
-    // still responding promptly when the scheduled hour approaches.
+    /**
+     * Precision schedule ticker:
+     * - Evaluates [WallpaperManager.checkAndUpdate] on every wake cycle without any 30-minute suppression gate.
+     * - Sleeps up to 20 seconds when far from the target time (ensuring rapid recovery after OS Modern Standby
+     *   where monotonic clocks pause during sleep), and sleeps until the exact sub-second boundary (+250ms)
+     *   when approaching the designated rotation minute.
+     * - Retries every 15 seconds if a scheduled update was deferred due to transient network unavailability.
+     */
     private fun startPeriodicCheck() {
         checkJob?.cancel()
         checkJob = serviceScope.launch {
-            val checkInterval = Duration.ofMinutes(30).toMillis()
             while (isActive) {
-                val now = System.currentTimeMillis()
-                val lastCheck = lastCheckTime.get()
-                val elapsed = now - lastCheck
-
-                if (lastCheck == 0L || elapsed >= checkInterval) {
-                    try {
-                        logger.info("Running periodic check for wallpaper update")
-                        wallpaperManager.checkAndUpdate()
-                        lastCheckTime.set(System.currentTimeMillis())
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        logger.error("Error during periodic wallpaper check", e)
-                    }
+                try {
+                    wallpaperManager.checkAndUpdate()
+                    lastCheckTime.set(System.currentTimeMillis())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logger.error("Error during periodic wallpaper check", e)
                 }
 
-                // Calculate time until next scheduled rotation and choose tick interval.
-                val activeSettings = wallpaperManager.currentActiveSettings
-                val nowLocal = java.time.LocalDateTime.now()
-                val scheduledToday = java.time.LocalDateTime.of(
-                    nowLocal.toLocalDate(),
-                    java.time.LocalTime.of(activeSettings.updateTimeHour, activeSettings.updateTimeMinute)
-                )
-                val nextScheduled = if (nowLocal.isBefore(scheduledToday)) scheduledToday else scheduledToday.plusDays(1)
-                val minutesUntilNext = java.time.Duration.between(nowLocal, nextScheduled).toMinutes()
-                val tickMs = if (minutesUntilNext > 60) Duration.ofMinutes(15).toMillis()
-                             else Duration.ofMinutes(1).toMillis()
-
+                val tickMs = computeNextTickDelayMs()
                 delay(tickMs)
             }
         }
+    }
+
+    internal fun computeNextTickDelayMs(nowLocal: LocalDateTime = LocalDateTime.now()): Long {
+        if (wallpaperManager.isPendingScheduledRetry) {
+            return 15_000L
+        }
+        val msUntilNext = try {
+            val nextScheduled = wallpaperManager.getNextScheduledDateTime(nowLocal)
+            Duration.between(nowLocal, nextScheduled).toMillis()
+        } catch (_: Throwable) {
+            20_000L
+        }
+        if (msUntilNext <= 0L) {
+            return 5_000L
+        }
+        return (msUntilNext + 250L).coerceIn(1_000L, 20_000L)
     }
 
     fun triggerCheckIfRunning() {
@@ -139,9 +140,12 @@ class ServiceController(
                 return
             }
 
+            if (!serviceScope.isActive) {
+                serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            }
+
             wallpaperManager.start()
             _isServiceRunning.value = true
-            lastCheckTime.set(System.currentTimeMillis())
             logger.info("Service started successfully")
 
             startPeriodicCheck()
@@ -175,7 +179,7 @@ class ServiceController(
         restartDebounceJob?.cancel()
         restartDebounceJob = restartScope.launch {
             try {
-                delay(300) // Debounce rapid settings changes
+                delay(200) // Debounce rapid settings changes
                 if (_isServiceRunning.value) {
                     mutex.withLock {
                         wallpaperManager.stop()
@@ -183,7 +187,7 @@ class ServiceController(
                         checkJob?.cancel()
                         _isServiceRunning.value = false
                     }
-                    delay(150)
+                    delay(50)
                     serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
                     startService()
                 }
@@ -205,6 +209,8 @@ class ServiceController(
                 val storedPath = artworkStorage.saveArtwork(artwork.first, artwork.second)
                 wallpaperManager.setWallpaperManually(storedPath, artwork.second)
                 artworkStorage.cleanupOldArtworks()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 logger.warn("Could not set next wallpaper: ${e.message}")
                 throw e
@@ -237,6 +243,8 @@ class ServiceController(
                         artworkStorage.cleanupOldArtworks()
                         artworkStorage.cleanup()
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     logger.error("Error during scheduled artwork cleanup", e)
                 }

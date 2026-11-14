@@ -72,6 +72,14 @@ dependencies {
 
 tasks.test {
     useJUnit()
+    doFirst {
+        val byteBuddyAgent = classpath.files.firstOrNull {
+            it.name.startsWith("byte-buddy-agent-") && it.name.endsWith(".jar")
+        }
+        if (byteBuddyAgent != null) {
+            jvmArgs("-javaagent:${byteBuddyAgent.absolutePath}")
+        }
+    }
 }
 
 compose.desktop {

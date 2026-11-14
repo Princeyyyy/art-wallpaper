@@ -197,7 +197,8 @@ class LifecycleAndStressTest {
             artworkProvider = artworkProvider,
             artworkStorage = artworkStorage,
             historyManager = historyManager,
-            settings = Settings(isFirstRun = false)
+            settings = Settings(isFirstRun = false),
+            stateFile = tempDir.resolve("wallpaper_state.json")
         )
 
         // Launch 5 concurrent calls

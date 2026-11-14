@@ -49,7 +49,8 @@ class WindowsWallpaperService : WallpaperService {
 
         val absolutePath = imagePath.toAbsolutePath().toString()
 
-        // Set registry wallpaper style to Fill (10) and Tile to 0 to prevent Windows from stretching or tiling
+        // Set registry wallpaper style to Fill (10), Tile to 0, and JPEGImportQuality to 100
+        // (prevents Windows 10/11 from recompressing desktop wallpapers at 85% JPEG quality)
         try {
             com.sun.jna.platform.win32.Advapi32Util.registrySetStringValue(
                 com.sun.jna.platform.win32.WinReg.HKEY_CURRENT_USER,
@@ -62,6 +63,12 @@ class WindowsWallpaperService : WallpaperService {
                 "Control Panel\\Desktop",
                 "TileWallpaper",
                 "0"
+            )
+            com.sun.jna.platform.win32.Advapi32Util.registrySetIntValue(
+                com.sun.jna.platform.win32.WinReg.HKEY_CURRENT_USER,
+                "Control Panel\\Desktop",
+                "JPEGImportQuality",
+                100
             )
         } catch (e: Exception) {
             logger.warn("Could not set WallpaperStyle in Windows registry: ${e.message}")
@@ -89,15 +96,63 @@ class WindowsWallpaperService : WallpaperService {
         val script = """
             ${'$'}ErrorActionPreference = 'Stop'
             ${'$'}imgPath = ${'$'}env:ART_LOCK_IMAGE_PATH
-            [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime] | Out-Null
+            if (-not (Test-Path -LiteralPath ${'$'}imgPath)) {
+                throw "Lock screen image file not found: ${'$'}imgPath"
+            }
+
+            # 1. Disable Windows Spotlight lock screen override so custom picture mode is active
+            try {
+                ${'$'}cdm = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+                if (Test-Path ${'$'}cdm) {
+                    Set-ItemProperty -Path ${'$'}cdm -Name 'RotatingLockScreenEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                    Set-ItemProperty -Path ${'$'}cdm -Name 'RotatingLockScreenOverlayEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                    Set-ItemProperty -Path ${'$'}cdm -Name 'SubscribedContent-338387Enabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                }
+            } catch {}
+
+            # 2. Load WinRT interop extensions so COM IAsyncAction / IRandomAccessStream are properly awaited
+            Add-Type -AssemblyName System.Runtime.WindowsRuntime
             [Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
-            ${'$'}op1 = [Windows.Storage.StorageFile]::GetFileFromPathAsync(${'$'}imgPath)
-            while (${'$'}op1.Status -eq 'Started') { Start-Sleep -Milliseconds 25 }
-            if (${'$'}op1.Status -ne 'Completed') { throw "GetFileFromPathAsync failed: ${'$'}(${'$'}op1.Status)" }
-            ${'$'}file = ${'$'}op1.GetResults()
-            ${'$'}op2 = [Windows.System.UserProfile.LockScreen]::SetImageFileAsync(${'$'}file)
-            while (${'$'}op2.Status -eq 'Started') { Start-Sleep -Milliseconds 25 }
-            if (${'$'}op2.Status -ne 'Completed') { throw "SetImageFileAsync failed: ${'$'}(${'$'}op2.Status)" }
+            [Windows.Storage.Streams.IRandomAccessStream, Windows.Storage.Streams, ContentType = WindowsRuntime] | Out-Null
+
+            ${'$'}asTaskAction = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+                ${'$'}_.Name -eq 'AsTask' -and ${'$'}_.GetParameters().Count -eq 1 -and ${'$'}_.GetParameters()[0].ParameterType.Name -eq 'IAsyncAction'
+            })[0]
+
+            if (${'$'}null -eq ${'$'}asTaskAction) {
+                throw "Could not resolve System.WindowsRuntimeSystemExtensions.AsTask(IAsyncAction)"
+            }
+
+            # 3. Stream file directly via SetImageStreamAsync to bypass WinRT StorageFile broker path blocks
+            ${'$'}fs = [System.IO.File]::OpenRead(${'$'}imgPath)
+            try {
+                ${'$'}ras = [System.IO.WindowsRuntimeStreamExtensions]::AsRandomAccessStream(${'$'}fs)
+                try {
+                    ${'$'}asyncAction = [Windows.System.UserProfile.LockScreen]::SetImageStreamAsync(${'$'}ras)
+                    ${'$'}netTask = ${'$'}asTaskAction.Invoke(${'$'}null, @(${'$'}asyncAction))
+                    ${'$'}completed = ${'$'}netTask.Wait(15000)
+                    if (-not ${'$'}completed) {
+                        throw "SetImageStreamAsync timed out"
+                    }
+                    if (${'$'}netTask.IsFaulted -and ${'$'}null -ne ${'$'}netTask.Exception) {
+                        throw ${'$'}netTask.Exception.InnerException
+                    }
+                } finally {
+                    if (${'$'}null -ne ${'$'}ras) { ${'$'}ras.Dispose() }
+                }
+            } finally {
+                ${'$'}fs.Dispose()
+            }
+
+            # 4. Also update PersonalizationCSP if running with sufficient privileges (non-fatal)
+            try {
+                ${'$'}csp = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP'
+                if (Test-Path ${'$'}csp) {
+                    Set-ItemProperty -Path ${'$'}csp -Name 'LockScreenImagePath' -Value ${'$'}imgPath -Type String -ErrorAction SilentlyContinue
+                    Set-ItemProperty -Path ${'$'}csp -Name 'LockScreenImageUrl' -Value ${'$'}imgPath -Type String -ErrorAction SilentlyContinue
+                    Set-ItemProperty -Path ${'$'}csp -Name 'LockScreenImageStatus' -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                }
+            } catch {}
         """.trimIndent()
 
         val pb = ProcessBuilder(
@@ -113,7 +168,7 @@ class WindowsWallpaperService : WallpaperService {
 
         val process = pb.start()
         val output = process.inputStream.bufferedReader().readText().trim()
-        val finished = process.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)
+        val finished = process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)
         if (!finished) {
             process.destroyForcibly()
             throw RuntimeException("Timed out setting Windows lock screen wallpaper")

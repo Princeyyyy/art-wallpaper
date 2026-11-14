@@ -49,51 +49,47 @@ object ArtworkBitmapCache {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, ImageBitmap>>?): Boolean =
             size > MAX_THUMB_SIZE
     }
-    private val lock = java.util.concurrent.locks.ReentrantReadWriteLock()
+    private val lock = Any()
 
-    fun get(path: Path, isThumbnail: Boolean = false): ImageBitmap? {
+    fun get(path: Path, isThumbnail: Boolean = false, expectedModTime: Long = -1L): ImageBitmap? {
         val key = path.toAbsolutePath().toString()
-        lock.readLock().lock()
-        try {
+        val currentMod = if (expectedModTime >= 0L) {
+            expectedModTime
+        } else {
+            try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
+        }
+        synchronized(lock) {
             val map = if (isThumbnail) thumbLru else fullLru
             val entry = map[key] ?: return null
-            val currentMod = try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
             return if (entry.first == currentMod) entry.second else null
-        } finally {
-            lock.readLock().unlock()
         }
     }
 
-    fun put(path: Path, bitmap: ImageBitmap, isThumbnail: Boolean = false) {
+    fun put(path: Path, bitmap: ImageBitmap, isThumbnail: Boolean = false, modTime: Long = -1L) {
         val key = path.toAbsolutePath().toString()
-        val currentMod = try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
-        lock.writeLock().lock()
-        try {
+        val currentMod = if (modTime >= 0L) {
+            modTime
+        } else {
+            try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
+        }
+        synchronized(lock) {
             val map = if (isThumbnail) thumbLru else fullLru
             map[key] = currentMod to bitmap
-        } finally {
-            lock.writeLock().unlock()
         }
     }
 
     fun invalidate(path: Path) {
         val key = path.toAbsolutePath().toString()
-        lock.writeLock().lock()
-        try {
+        synchronized(lock) {
             fullLru.remove(key)
             thumbLru.remove(key)
-        } finally {
-            lock.writeLock().unlock()
         }
     }
 
     fun clear() {
-        lock.writeLock().lock()
-        try {
+        synchronized(lock) {
             fullLru.clear()
             thumbLru.clear()
-        } finally {
-            lock.writeLock().unlock()
         }
     }
 }
@@ -110,15 +106,18 @@ fun rememberArtworkBitmap(path: Path?): ImageBitmap? {
         try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
     }
 
-    var bitmap by remember(path, fileModTime) { mutableStateOf(ArtworkBitmapCache.get(path, isThumbnail = false)) }
+    var bitmap by remember(path, fileModTime) {
+        mutableStateOf(ArtworkBitmapCache.get(path, isThumbnail = false, expectedModTime = fileModTime))
+    }
 
     LaunchedEffect(path, fileModTime) {
+        if (bitmap != null) return@LaunchedEffect
         val loaded = withContext(Dispatchers.IO) {
             try {
                 if (path.exists()) {
                     val bytes = path.readBytes()
                     SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap().also {
-                        ArtworkBitmapCache.put(path, it, isThumbnail = false)
+                        ArtworkBitmapCache.put(path, it, isThumbnail = false, modTime = fileModTime)
                     }
                 } else null
             } catch (e: Exception) {
@@ -153,9 +152,12 @@ fun rememberArtworkThumbnail(path: Path?, maxDimension: Int = 400): ImageBitmap?
         try { if (path.exists()) path.getLastModifiedTime().toMillis() else 0L } catch (_: Exception) { 0L }
     }
 
-    var bitmap by remember(thumbKey, fileModTime) { mutableStateOf(ArtworkBitmapCache.get(thumbKey, isThumbnail = true)) }
+    var bitmap by remember(thumbKey, fileModTime) {
+        mutableStateOf(ArtworkBitmapCache.get(thumbKey, isThumbnail = true, expectedModTime = fileModTime))
+    }
 
     LaunchedEffect(thumbKey, fileModTime) {
+        if (bitmap != null) return@LaunchedEffect
         val loaded = withContext(Dispatchers.IO) {
             try {
                 if (!path.exists()) return@withContext null
@@ -193,7 +195,7 @@ fun rememberArtworkThumbnail(path: Path?, maxDimension: Int = 400): ImageBitmap?
                             } else {
                                 sampled.toComposeImageBitmap()
                             }
-                            finalBitmap.also { ArtworkBitmapCache.put(thumbKey, it, isThumbnail = true) }
+                            finalBitmap.also { ArtworkBitmapCache.put(thumbKey, it, isThumbnail = true, modTime = fileModTime) }
                         } finally {
                             reader.dispose()
                         }

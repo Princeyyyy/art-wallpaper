@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -150,6 +151,7 @@ fun MainScreen(
                 onComplete = {
                     val updated = Settings.currentSettings.value.copy(isFirstRun = false)
                     Settings.updateCurrentSettings(updated)
+                    serviceController.wallpaperManager.updateSettings(updated)
                     onSettingsChange(updated)
                     isFirstRun = false
                 },
@@ -231,7 +233,7 @@ fun MainScreen(
                                 }
                             }
 
-                            // Update Available / Downloading Pill
+                            // Update Available / Downloading / Installing / Error Pill
                             when (val uStatus = updateStatus) {
                                 is service.UpdateStatus.Available -> {
                                     Surface(
@@ -274,6 +276,43 @@ fun MainScreen(
                                             "Updating ${(uStatus.progress * 100).toInt()}%",
                                             style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Bold),
                                             color = ArtColors.GalleryGold,
+                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                }
+                                is service.UpdateStatus.ReadyToInstall,
+                                is service.UpdateStatus.Installing -> {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = ArtColors.GalleryGold.copy(alpha = 0.18f),
+                                        border = BorderStroke(1.dp, ArtColors.GalleryGold),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .pointerHoverIcon(PointerIcon.Hand)
+                                            .clickable { showUpdateDialog = true }
+                                    ) {
+                                        Text(
+                                            "Installing...",
+                                            style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Bold),
+                                            color = ArtColors.GalleryGold,
+                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                }
+                                is service.UpdateStatus.Error -> {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = Color(0xFFEF5350).copy(alpha = 0.15f),
+                                        border = BorderStroke(1.dp, Color(0xFFEF5350).copy(alpha = 0.7f)),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .pointerHoverIcon(PointerIcon.Hand)
+                                            .clickable { showUpdateDialog = true }
+                                    ) {
+                                        Text(
+                                            "Update Issue",
+                                            style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Bold),
+                                            color = Color(0xFFEF5350),
                                             modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
                                         )
                                     }
@@ -345,143 +384,214 @@ fun MainScreen(
                     // ── Dismissible Update Banner ──────────────────────────────────
                     val activeUpdate = updateStatus as? service.UpdateStatus.Available
                     val downloadingUpdate = updateStatus as? service.UpdateStatus.Downloading
+                    val readyToInstallUpdate = updateStatus as? service.UpdateStatus.ReadyToInstall
                     val installingUpdate = updateStatus is service.UpdateStatus.Installing
-                    val showUpdateBanner = (activeUpdate != null && currentSettings.dismissedUpdateVersion != activeUpdate.latestVersion) || downloadingUpdate != null || installingUpdate
+                    val errorUpdate = updateStatus as? service.UpdateStatus.Error
+                    val showUpdateBanner = (activeUpdate != null && currentSettings.dismissedUpdateVersion != activeUpdate.latestVersion) ||
+                        downloadingUpdate != null ||
+                        readyToInstallUpdate != null ||
+                        installingUpdate ||
+                        errorUpdate != null
 
                     if (showUpdateBanner) {
+                        val isErrorBanner = errorUpdate != null
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
                                 .padding(bottom = 10.dp),
                             shape = RoundedCornerShape(8.dp),
-                            color = ArtColors.GalleryGold.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, ArtColors.GalleryGold.copy(alpha = 0.55f))
+                            color = if (isErrorBanner) Color(0xFFEF5350).copy(alpha = 0.12f) else ArtColors.GalleryGold.copy(alpha = 0.12f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isErrorBanner) Color(0xFFEF5350).copy(alpha = 0.55f) else ArtColors.GalleryGold.copy(alpha = 0.55f)
+                            )
                         ) {
-                            if (installingUpdate) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    CircularProgressIndicator(
-                                        color = ArtColors.GalleryGold,
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Text(
-                                        "Installing update... Art Wallpaper will restart automatically.",
-                                        style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
-                                        color = ArtColors.PaperWhite
-                                    )
-                                }
-                            } else if (downloadingUpdate != null) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
+                            when {
+                                installingUpdate || readyToInstallUpdate != null -> {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(
+                                            color = ArtColors.GalleryGold,
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Text(
+                                            if (readyToInstallUpdate != null) {
+                                                "Update downloaded and verified. Preparing silent installation..."
+                                            } else {
+                                                "Installing update... Art Wallpaper will reopen automatically in a few seconds."
+                                            },
+                                            style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
+                                            color = ArtColors.PaperWhite
+                                        )
+                                    }
+                                }
+
+                                downloadingUpdate != null -> {
+                                    val sizeProgressText = if (downloadingUpdate.totalBytes > 0L) {
+                                        " (${service.UpdateManager.formatBytesMb(downloadingUpdate.downloadedBytes)} / ${service.UpdateManager.formatBytesMb(downloadingUpdate.totalBytes)})"
+                                    } else if (downloadingUpdate.downloadedBytes > 0L) {
+                                        " (${service.UpdateManager.formatBytesMb(downloadingUpdate.downloadedBytes)})"
+                                    } else {
+                                        ""
+                                    }
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "Downloading Art Wallpaper update: ${(downloadingUpdate.progress * 100).toInt()}%$sizeProgressText",
+                                                style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
+                                                color = ArtColors.PaperWhite
+                                            )
+                                            TextButton(
+                                                onClick = { showUpdateDialog = true },
+                                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Text("DETAILS", color = ArtColors.GalleryGold, style = MaterialTheme.typography.caption)
+                                            }
+                                        }
+                                        LinearProgressIndicator(
+                                            progress = downloadingUpdate.progress,
+                                            modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+                                            color = ArtColors.GalleryGold,
+                                            backgroundColor = ArtColors.DividerLine
+                                        )
+                                    }
+                                }
+
+                                errorUpdate != null -> {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            "Downloading Art Wallpaper update (${(downloadingUpdate.progress * 100).toInt()}%)...",
-                                            style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
-                                            color = ArtColors.PaperWhite
-                                        )
-                                        TextButton(
-                                            onClick = { showUpdateDialog = true },
-                                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("DETAILS", color = ArtColors.GalleryGold, style = MaterialTheme.typography.caption)
-                                        }
-                                    }
-                                    LinearProgressIndicator(
-                                        progress = downloadingUpdate.progress,
-                                        modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
-                                        color = ArtColors.GalleryGold,
-                                        backgroundColor = ArtColors.DividerLine
-                                    )
-                                }
-                            } else if (activeUpdate != null) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        val gold = ArtColors.GalleryGold
-                                        Canvas(modifier = Modifier.size(8.dp)) {
-                                            drawCircle(color = gold)
-                                        }
-                                        val sizeInfo = service.UpdateManager.formatAssetSizeMb(activeUpdate.asset)?.let { " · $it" } ?: ""
-                                        Text(
-                                            "Art Wallpaper v${activeUpdate.latestVersion} is ready$sizeInfo",
-                                            style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Medium),
+                                            errorUpdate.message,
+                                            style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium),
                                             color = ArtColors.PaperWhite,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f).padding(end = 8.dp)
                                         )
-                                    }
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        TextButton(
-                                            onClick = { showUpdateDialog = true },
-                                            modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
-                                            Text("What's New", color = ArtColors.GalleryGold, style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold))
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                val asset = activeUpdate.asset
-                                                if (asset != null) {
+                                            TextButton(
+                                                onClick = {
                                                     coroutineScope.launch {
-                                                        resolvedUpdateManager.downloadAndInstall(asset)
+                                                        resolvedUpdateManager.checkForUpdates(silent = false)
                                                     }
-                                                } else {
-                                                    try {
-                                                        uriHandler.openUri(activeUpdate.releaseUrl)
-                                                    } catch (e: Exception) {
-                                                        logger.warn("Could not open release URL", e)
-                                                    }
-                                                }
-                                            },
-                                            modifier = Modifier.height(28.dp).pointerHoverIcon(PointerIcon.Hand),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                backgroundColor = ArtColors.GalleryGold,
-                                                contentColor = if (ArtColors.isDark) Color(0xFF0E0E10) else Color.White
-                                            ),
-                                            shape = RoundedCornerShape(6.dp)
+                                                },
+                                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Text("RETRY", color = ArtColors.GalleryGold, style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Bold))
+                                            }
+                                            IconButton(
+                                                onClick = { resolvedUpdateManager.dismissError() },
+                                                modifier = Modifier.size(26.dp).pointerHoverIcon(PointerIcon.Hand)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Close,
+                                                    contentDescription = "Dismiss update error",
+                                                    tint = ArtColors.PaperMuted,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                activeUpdate != null -> {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            modifier = Modifier.weight(1f)
                                         ) {
-                                            Text("Update Now", style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Bold))
+                                            val gold = ArtColors.GalleryGold
+                                            Canvas(modifier = Modifier.size(8.dp)) {
+                                                drawCircle(color = gold)
+                                            }
+                                            val sizeInfo = service.UpdateManager.formatAssetSizeMb(activeUpdate.asset)?.let { " · $it" } ?: ""
+                                            Text(
+                                                "Art Wallpaper v${activeUpdate.latestVersion} is ready$sizeInfo",
+                                                style = MaterialTheme.typography.body2.copy(fontWeight = FontWeight.Medium),
+                                                color = ArtColors.PaperWhite,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
                                         }
 
-                                        IconButton(
-                                            onClick = {
-                                                val updated = currentSettings.copy(dismissedUpdateVersion = activeUpdate.latestVersion)
-                                                Settings.updateCurrentSettings(updated)
-                                                onSettingsChange(updated)
-                                            },
-                                            modifier = Modifier.size(26.dp).pointerHoverIcon(PointerIcon.Hand)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
-                                            Icon(
-                                                Icons.Default.Close,
-                                                contentDescription = "Dismiss update banner",
-                                                tint = ArtColors.PaperMuted,
-                                                modifier = Modifier.size(15.dp)
-                                            )
+                                            TextButton(
+                                                onClick = { showUpdateDialog = true },
+                                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Text("What's New", color = ArtColors.GalleryGold, style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold))
+                                            }
+
+                                            Button(
+                                                onClick = {
+                                                    val asset = activeUpdate.asset
+                                                    if (asset != null) {
+                                                        coroutineScope.launch {
+                                                            resolvedUpdateManager.downloadAndInstall(asset, activeUpdate.latestVersion)
+                                                        }
+                                                    } else {
+                                                        try {
+                                                            uriHandler.openUri(activeUpdate.releaseUrl)
+                                                        } catch (e: Exception) {
+                                                            logger.warn("Could not open release URL", e)
+                                                        }
+                                                    }
+                                                },
+                                                modifier = Modifier.height(28.dp).pointerHoverIcon(PointerIcon.Hand),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    backgroundColor = ArtColors.GalleryGold,
+                                                    contentColor = if (ArtColors.isDark) Color(0xFF0E0E10) else Color.White
+                                                ),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text("Update Now", style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Bold))
+                                            }
+
+                                            IconButton(
+                                                onClick = {
+                                                    val updated = currentSettings.copy(dismissedUpdateVersion = activeUpdate.latestVersion)
+                                                    Settings.updateCurrentSettings(updated)
+                                                    onSettingsChange(updated)
+                                                },
+                                                modifier = Modifier.size(26.dp).pointerHoverIcon(PointerIcon.Hand)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Close,
+                                                    contentDescription = "Dismiss update banner",
+                                                    tint = ArtColors.PaperMuted,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -501,6 +611,7 @@ fun MainScreen(
                     ) {
                         Crossfade(
                             targetState = currentArtwork,
+                            modifier = Modifier.fillMaxSize(),
                             animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
                         ) { targetArtwork ->
                             if (targetArtwork != null) {
@@ -512,10 +623,14 @@ fun MainScreen(
                                         Image(
                                             bitmap = bitmap,
                                             contentDescription = metadata.title,
-                                            // ContentScale.Fit preserves the authentic walnut moulding frame
-                                            // edges that ContentScale.Crop clips on wide landscapes / tall portraits.
+                                            // ContentScale.Crop guarantees the wallpaper spans 100% of the
+                                            // exhibition card width with zero side pillarbox bars, while
+                                            // alignment(0f, -0.15f) keeps the framed painting centered above
+                                            // the bottom curatorial placard overlay.
                                             modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Fit
+                                            contentScale = ContentScale.Crop,
+                                            alignment = androidx.compose.ui.BiasAlignment(0f, -0.15f),
+                                            filterQuality = FilterQuality.High
                                         )
                                     } else {
                                         Box(
@@ -801,24 +916,19 @@ fun MainScreen(
                                 onClick = {
                                     if (!isLoading) {
                                         isLoading = true
-                                        val previousTitle = currentArtwork?.second?.title
                                         logger.info("Manual wallpaper fetch requested")
 
                                         coroutineScope.launch(Dispatchers.Default) {
                                             try {
-                                                serviceController.nextWallpaper()
-
                                                 withTimeout(45_000L) {
-                                                    serviceController.wallpaperManager.currentArtwork.first { next ->
-                                                        next != null && next.second.title != previousTitle && next.first.exists()
-                                                    }
+                                                    serviceController.nextWallpaper()
                                                 }
                                             } catch (e: TimeoutCancellationException) {
                                                 withContext(Dispatchers.Main) {
                                                     errorMessage = "Network timed out. Please retry."
                                                 }
                                             } catch (e: CancellationException) {
-                                                // Normal coroutine cancellation
+                                                throw e
                                             } catch (e: Exception) {
                                                 withContext(Dispatchers.Main) {
                                                     errorMessage = "Failed to curate artwork: ${e.message}"
@@ -899,7 +1009,7 @@ fun MainScreen(
                     onInstall = { available ->
                         available.asset?.let { asset ->
                             coroutineScope.launch {
-                                resolvedUpdateManager.downloadAndInstall(asset)
+                                resolvedUpdateManager.downloadAndInstall(asset, available.latestVersion)
                             }
                         } ?: run {
                             try {

@@ -124,20 +124,7 @@ class MetMuseumSource(
                             continue
                         }
 
-                        var availableIds = objectIds.filter {
-                            !historyManager.isInHistory(it.toString()) && !failedArtworkStore.isFailed(it.toString())
-                        }
-                        if (availableIds.isEmpty()) {
-                            // If all non-failed IDs have been shown, refresh history cycle while still skipping permanently failed IDs.
-                            logger.info("All usable artworks in Dept $deptId have been shown, refreshing history cycle")
-                            historyManager.clearHistory()
-                            availableIds = objectIds.filter { !failedArtworkStore.isFailed(it.toString()) }
-                            if (availableIds.isEmpty()) {
-                                availableIds = objectIds
-                            }
-                        }
-
-                        val sampledIds = sampleCandidateIds(availableIds, maxFetchAttempts)
+                        val sampledIds = sampleAvailableCandidateIds(objectIds, deptId, maxFetchAttempts)
                         val batchSize = parallelBatchSize.coerceAtLeast(1)
 
                         for (batch in sampledIds.chunked(batchSize)) {
@@ -262,6 +249,56 @@ class MetMuseumSource(
         BatchRaceResult(winner, lastError)
     }
 
+    /**
+     * Samples up to [count] unvisited, non-failed candidate IDs directly via random index probing,
+     * avoiding 20,000+ String allocations and full-list copies on 10,000+ element departments.
+     * Falls back to a linear scan (and history cycle reset if exhausted) only when needed.
+     */
+    private fun sampleAvailableCandidateIds(objectIds: List<Int>, deptId: Int, count: Int): List<Int> {
+        if (objectIds.isEmpty()) return emptyList()
+        val targetSize = count.coerceAtMost(objectIds.size)
+        val selected = ArrayList<Int>(targetSize)
+        val seenIndices = HashSet<Int>(targetSize * 2)
+
+        val maxProbes = (targetSize * 6).coerceAtMost(objectIds.size * 2)
+        var probes = 0
+        while (selected.size < targetSize && probes < maxProbes) {
+            val idx = Random.nextInt(objectIds.size)
+            if (seenIndices.add(idx)) {
+                val id = objectIds[idx]
+                val idStr = id.toString()
+                if (!historyManager.isInHistory(idStr) && !failedArtworkStore.isFailed(idStr)) {
+                    selected.add(id)
+                }
+            }
+            probes++
+        }
+
+        if (selected.size >= targetSize) {
+            return selected
+        }
+
+        for (i in objectIds.indices) {
+            if (seenIndices.add(i)) {
+                val id = objectIds[i]
+                val idStr = id.toString()
+                if (!historyManager.isInHistory(idStr) && !failedArtworkStore.isFailed(idStr)) {
+                    selected.add(id)
+                }
+            }
+        }
+
+        if (selected.isNotEmpty()) {
+            return if (selected.size > targetSize) selected.shuffled().take(targetSize) else selected
+        }
+
+        logger.info("All usable artworks in Dept $deptId have been shown, refreshing history cycle")
+        historyManager.clearHistory()
+        val nonFailed = objectIds.filter { !failedArtworkStore.isFailed(it.toString()) }
+        val pool = nonFailed.ifEmpty { objectIds }
+        return sampleCandidateIds(pool, count)
+    }
+
     // Fix #7 (Medium): Sample candidate IDs using index selection without copying or shuffling
     // the full 10,000+ element list, reducing GC allocations on every candidate batch.
     private fun sampleCandidateIds(ids: List<Int>, count: Int): List<Int> {
@@ -288,6 +325,7 @@ class MetMuseumSource(
         }
         return selected
     }
+
     private suspend fun getDepartmentObjectIds(departmentId: Int): List<Int> = withContext(Dispatchers.IO) {
         val cached = departmentCache[departmentId]
         if (cached != null && cached.isNotEmpty()) {
@@ -407,6 +445,7 @@ class MetMuseumSource(
 
         return CandidateOutcome.Success(objectId, artwork, tempCandidateFile)
     }
+
     private fun processWinningCandidate(outcome: CandidateOutcome.Success): Pair<Path, ArtworkMetadata> {
         val artwork = outcome.artwork
         val tempFile = outcome.imageFile

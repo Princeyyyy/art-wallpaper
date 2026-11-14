@@ -149,7 +149,9 @@ fun GuidedOnboarding(
                                         )
 
                                         curationStage = "Selecting unvisited masterpiece..."
-                                        serviceController.nextWallpaper()
+                                        withTimeout(45_000L) {
+                                            serviceController.nextWallpaper()
+                                        }
 
                                         curationStage = "Enhancing and applying to desktop..."
                                         withTimeout(45_000L) {
@@ -171,6 +173,7 @@ fun GuidedOnboarding(
                                         )
                                         withContext(Dispatchers.Main) {
                                             Settings.updateCurrentSettings(finalSettings)
+                                            serviceController.wallpaperManager.updateSettings(finalSettings)
                                             onSettingsChange(finalSettings)
                                         }
                                         serviceController.startService()
@@ -180,7 +183,7 @@ fun GuidedOnboarding(
                                             isCurating = false
                                         }
                                     } catch (e: CancellationException) {
-                                        // Normal coroutine completion
+                                        throw e
                                     } catch (e: Exception) {
                                         withContext(Dispatchers.Main) {
                                             onError("Setup note: ${e.message}")

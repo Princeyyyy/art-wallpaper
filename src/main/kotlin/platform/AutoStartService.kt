@@ -56,7 +56,7 @@ class WindowsAutoStartService : AutoStartService {
                 logger.info("Running in development/portable mode, updating settings")
                 val currentSettings = Settings.currentSettings.value
                 if (!currentSettings.startWithSystem || !currentSettings.hasEnabledAutoStart) {
-                    currentSettings.copy(startWithSystem = true, hasEnabledAutoStart = true).save()
+                    runCatching { currentSettings.copy(startWithSystem = true, hasEnabledAutoStart = true).save() }
                 }
                 if (!exeFile.exists()) return
             }
@@ -72,7 +72,7 @@ class WindowsAutoStartService : AutoStartService {
         } catch (e: Exception) {
             logger.warn("Could not register Windows auto-start: ${e.message}")
             val currentSettings = Settings.currentSettings.value
-            currentSettings.copy(startWithSystem = true, hasEnabledAutoStart = true).save()
+            runCatching { currentSettings.copy(startWithSystem = true, hasEnabledAutoStart = true).save() }
         }
     }
 
@@ -91,7 +91,7 @@ class WindowsAutoStartService : AutoStartService {
         } finally {
             val currentSettings = Settings.currentSettings.value
             if (currentSettings.startWithSystem || currentSettings.hasEnabledAutoStart) {
-                currentSettings.copy(startWithSystem = false, hasEnabledAutoStart = false).save()
+                runCatching { currentSettings.copy(startWithSystem = false, hasEnabledAutoStart = false).save() }
             }
         }
     }
@@ -109,15 +109,18 @@ class WindowsAutoStartService : AutoStartService {
 // ── macOS Auto-Start (LaunchAgents plist) ─────────────────────────────────────
 
 class MacAutoStartService(
-    private val launchAgentsDir: Path = Path.of(System.getProperty("user.home"), "Library", "LaunchAgents"),
+    private val launchAgentsDir: Path = defaultLaunchAgentsDir(),
     private val bundleId: String = AppInfo.BUNDLE_ID,
-    appExecutablePath: String? = null
+    appExecutablePath: String? = null,
+    private val persistSettings: Boolean = (launchAgentsDir == defaultLaunchAgentsDir())
 ) : AutoStartService {
     private val logger = LoggerFactory.getLogger(MacAutoStartService::class.java)
     private val plistFile: Path = launchAgentsDir.resolve("$bundleId.plist")
     val appExecutablePath: String = appExecutablePath ?: resolveRunningExecutablePath()
 
     companion object {
+        fun defaultLaunchAgentsDir(): Path = Path.of(System.getProperty("user.home"), "Library", "LaunchAgents")
+
         fun resolveRunningExecutablePath(): String {
             val cmd = ProcessHandle.current().info().command().orElse("")
             if (cmd.contains(".app/Contents/MacOS/")) {
@@ -148,9 +151,11 @@ class MacAutoStartService(
             plistFile.writeText(generatePlist())
             logger.info("Created macOS LaunchAgent at $plistFile")
 
-            val currentSettings = Settings.currentSettings.value
-            if (!currentSettings.startWithSystem || !currentSettings.hasEnabledAutoStart) {
-                currentSettings.copy(startWithSystem = true, hasEnabledAutoStart = true).save()
+            if (persistSettings) {
+                val currentSettings = Settings.currentSettings.value
+                if (!currentSettings.startWithSystem || !currentSettings.hasEnabledAutoStart) {
+                    runCatching { currentSettings.copy(startWithSystem = true, hasEnabledAutoStart = true).save() }
+                }
             }
         } catch (e: Exception) {
             logger.error("Failed to enable auto-start on macOS", e)
@@ -164,9 +169,11 @@ class MacAutoStartService(
         } catch (e: Exception) {
             logger.error("Failed to disable auto-start on macOS", e)
         } finally {
-            val currentSettings = Settings.currentSettings.value
-            if (currentSettings.startWithSystem || currentSettings.hasEnabledAutoStart) {
-                currentSettings.copy(startWithSystem = false, hasEnabledAutoStart = false).save()
+            if (persistSettings) {
+                val currentSettings = Settings.currentSettings.value
+                if (currentSettings.startWithSystem || currentSettings.hasEnabledAutoStart) {
+                    runCatching { currentSettings.copy(startWithSystem = false, hasEnabledAutoStart = false).save() }
+                }
             }
         }
     }

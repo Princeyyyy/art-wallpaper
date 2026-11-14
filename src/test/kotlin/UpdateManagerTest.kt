@@ -10,6 +10,11 @@ import service.GithubAsset
 import service.GithubRelease
 import service.UpdateManager
 import service.UpdateStatus
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.io.path.writeText
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -17,6 +22,18 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class UpdateManagerTest {
+
+    private lateinit var tempDir: Path
+
+    @BeforeTest
+    fun setUp() {
+        tempDir = Files.createTempDirectory("update-manager-test")
+    }
+
+    @AfterTest
+    fun tearDown() {
+        tempDir.toFile().deleteRecursively()
+    }
 
     @Test
     fun `isNewerVersion accurately compares semver strings`() {
@@ -94,13 +111,29 @@ class UpdateManagerTest {
 
     @Test
     fun `initial update manager status is Idle`() {
-        val manager = UpdateManager(currentVersion = "4.0.2")
+        val manager = UpdateManager(currentVersion = "4.0.2", updatesDir = tempDir)
+        assertEquals(UpdateStatus.Idle, manager.status.value)
+    }
+
+    @Test
+    fun `post-update failure result surfaces Error status on relaunch and can be dismissed`() {
+        tempDir.resolve("update_result.txt").writeText("ERROR:1603")
+        tempDir.resolve("update_journal.json").writeText(
+            """{"fromVersion":"4.2.0","targetVersion":"4.3.0","startedAt":1000,"installerPath":"C:\\test.msi"}"""
+        )
+
+        val manager = UpdateManager(currentVersion = "4.2.0", updatesDir = tempDir)
+        val status = manager.status.value
+        assertTrue(status is UpdateStatus.Error, "Failed update journal should surface UpdateStatus.Error")
+        assertTrue((status as UpdateStatus.Error).message.contains("1603"))
+
+        manager.dismissError()
         assertEquals(UpdateStatus.Idle, manager.status.value)
     }
 
     @Test
     fun `consumeNotificationForVersion notifies once per distinct version`() {
-        val manager = UpdateManager(currentVersion = "4.0.2")
+        val manager = UpdateManager(currentVersion = "4.0.2", updatesDir = tempDir)
         assertFalse(manager.consumeNotificationForVersion(""))
         assertTrue(manager.consumeNotificationForVersion("4.1.0"))
         assertFalse(manager.consumeNotificationForVersion("4.1.0"))
@@ -125,7 +158,7 @@ class UpdateManagerTest {
         val notifiedVersions = mutableListOf<String>()
         val twoChecksObserved = CompletableDeferred<Unit>()
 
-        val fakeManager = object : UpdateManager(currentVersion = "4.1.0") {
+        val fakeManager = object : UpdateManager(currentVersion = "4.1.0", updatesDir = tempDir) {
             override suspend fun checkForUpdates(silent: Boolean): UpdateStatus {
                 checkCount += 1
                 if (checkCount >= 2 && !twoChecksObserved.isCompleted) {
@@ -160,7 +193,7 @@ class UpdateManagerTest {
     @Test
     fun `startBackgroundPolling respects disabled polling preference`() = runBlocking {
         var checkCount = 0
-        val fakeManager = object : UpdateManager(currentVersion = "4.1.0") {
+        val fakeManager = object : UpdateManager(currentVersion = "4.1.0", updatesDir = tempDir) {
             override suspend fun checkForUpdates(silent: Boolean): UpdateStatus {
                 checkCount += 1
                 return UpdateStatus.UpToDate("4.1.0")
@@ -205,6 +238,10 @@ class UpdateManagerTest {
         assertTrue(script.contains("start \"ArtWallpaperInstaller\" /wait msiexec.exe"))
         // taskkill force-terminates any lingering instance before install
         assertTrue(script.contains("taskkill /F /IM \"Art Wallpaper.exe\""))
+        // Removes single-instance lock files before relaunch
+        assertTrue(script.contains("app.lock"))
+        // Handles MSI exit code 1638 with REINSTALLMODE=vomus
+        assertTrue(script.contains("REINSTALLMODE=vomus"))
     }
 
     @Test

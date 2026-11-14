@@ -26,7 +26,6 @@ fun main(args: Array<String>) {
     MacPlatform.configureDesktopEnvironment()
     WindowsPlatform.registerAppUserModelId("com.prince.artwallpaper")
 
-
     // Add command line argument handling
     if (args.contains("--version")) {
         println("Art Wallpaper v${AppInfo.version}")
@@ -56,14 +55,6 @@ fun main(args: Array<String>) {
     }
 
     try {
-        // Clean up obsolete installer packages on startup
-        // Fix #12 (Low): Defer installer cleanup to a background IO coroutine rather than blocking startup
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                service.UpdateManager.cleanupOldInstallers()
-            } catch (_: Exception) {}
-        }
-
         val settings = Settings.loadSavedSettings()
         val startMinimized = args.contains("--minimized") && !settings.isFirstRun
         val isAutoStart = args.contains("--autostart")
@@ -71,13 +62,14 @@ fun main(args: Array<String>) {
         // Don't start the service if it's first run or if we're not auto-starting
         val shouldStartService = !settings.isFirstRun && (isAutoStart || !startMinimized)
 
-        // Initialize components
+        // Initialize components with shared ConnectivityChecker
+        val connectivityChecker = ConnectivityChecker()
         val wallpaperService = WallpaperService.create()
         val historyManager = HistoryManager()
         val artworkStorage = ArtworkStorageManager()
         val artworkProvider = ArtworkProvider(
             historyManager = historyManager,
-            connectivityChecker = ConnectivityChecker(),
+            connectivityChecker = connectivityChecker,
             artworksDir = artworkStorage.getArtworksDir()
         )
         val wallpaperManager = WallpaperManager(
@@ -85,6 +77,7 @@ fun main(args: Array<String>) {
             artworkProvider = artworkProvider,
             artworkStorage = artworkStorage,
             historyManager = historyManager,
+            connectivityChecker = connectivityChecker,
             settings = settings
         )
 
@@ -118,8 +111,6 @@ private fun setupGlobalExceptionHandler() {
     }
 }
 
-
-
 private fun setupApplication(
     controller: ServiceController,
     settings: Settings,
@@ -133,7 +124,19 @@ private fun setupApplication(
     var updateDialogCallback: (() -> Unit)? = null
     var activeAwtWindow: java.awt.Window? = null
     val appBgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val updateManager = service.UpdateManager()
+    val updateManager = service.UpdateManager(
+        onBeforeExit = {
+            runCatching { controller.stopService() }
+            runCatching { singleInstanceManager.cleanup() }
+        }
+    )
+
+    // Clean up obsolete installer packages on background IO after UpdateManager inspects any post-update result
+    appBgScope.launch(Dispatchers.IO) {
+        try {
+            service.UpdateManager.cleanupOldInstallers()
+        } catch (_: Exception) {}
+    }
 
     onSetWakeCallback {
         javax.swing.SwingUtilities.invokeLater {
@@ -219,8 +222,7 @@ private fun setupApplication(
         WindowsAutoStart.refreshIfNeeded()
     }
 
-    // Fix #5 (Medium): Start service asynchronously on background dispatcher; do NOT block
-    // the main AWT thread with runBlocking before application initialization.
+    // Start service asynchronously on background dispatcher
     if (shouldStartService) {
         appBgScope.launch {
             controller.startService()
@@ -231,7 +233,6 @@ private fun setupApplication(
         var isWindowVisible by remember { mutableStateOf(!startMinimized) }
         var openUpdateDialogRequested by remember { mutableStateOf(false) }
 
-        // Set the callback to control window visibility and update modal deep-links
         windowVisibilityCallback = { visible ->
             isWindowVisible = visible
         }
@@ -282,6 +283,7 @@ private fun setupApplication(
                 if (isWindowVisible) {
                     launch(Dispatchers.IO) {
                         wallpaperManager.syncWithActiveDesktopWallpaper()
+                        controller.triggerCheckIfRunning()
                     }
                     window.toFront()
                     WindowsPlatform.bringToFront(window)
@@ -336,7 +338,6 @@ fun App(
     onUpdateDialogConsumed: () -> Unit = {},
     onSettingsChange: (Settings) -> Unit
 ) {
-    // ArtWallpaperTheme now receives the live OS dark/light state
     ArtWallpaperTheme(darkTheme = isDark) {
         val scope = rememberCoroutineScope()
         val currentArtwork by wallpaperManager.currentArtwork.collectAsState()
