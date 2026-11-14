@@ -258,7 +258,7 @@ class SystemTrayMenu(
                         try {
                             scope.launch {
                                 serviceController.stopService()
-                                scope.cancel()
+                                dispose()
                                 System.exit(0)
                             }
                         } catch (_: Exception) {
@@ -288,6 +288,19 @@ class SystemTrayMenu(
             // Sync tray state with background service, artwork changes, and updates
             observeState()
         }
+    }
+
+    fun dispose() {
+        try {
+            scope.cancel()
+        } catch (_: Exception) {}
+        try {
+            val icon = trayIcon ?: return
+            trayIcon = null
+            if (SystemTray.isSupported()) {
+                SystemTray.getSystemTray().remove(icon)
+            }
+        } catch (_: Exception) {}
     }
 
     private fun observeState() {

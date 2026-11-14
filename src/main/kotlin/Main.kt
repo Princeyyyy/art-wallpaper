@@ -57,10 +57,9 @@ fun main(args: Array<String>) {
     try {
         val settings = Settings.loadSavedSettings()
         val startMinimized = args.contains("--minimized") && !settings.isFirstRun
-        val isAutoStart = args.contains("--autostart")
 
-        // Don't start the service if it's first run or if we're not auto-starting
-        val shouldStartService = !settings.isFirstRun && (isAutoStart || !startMinimized)
+        // Start the background rotation service whenever onboarding is complete
+        val shouldStartService = !settings.isFirstRun
 
         // Initialize components with shared ConnectivityChecker
         val connectivityChecker = ConnectivityChecker()
@@ -124,12 +123,8 @@ private fun setupApplication(
     var updateDialogCallback: (() -> Unit)? = null
     var activeAwtWindow: java.awt.Window? = null
     val appBgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val updateManager = service.UpdateManager(
-        onBeforeExit = {
-            runCatching { controller.stopService() }
-            runCatching { singleInstanceManager.cleanup() }
-        }
-    )
+    // Initialize system tray
+    val updateManager = service.UpdateManager()
 
     // Clean up obsolete installer packages on background IO after UpdateManager inspects any post-update result
     appBgScope.launch(Dispatchers.IO) {
@@ -152,7 +147,6 @@ private fun setupApplication(
         }
     }
 
-    // Initialize system tray
     val systemTray = SystemTrayMenu(
         serviceController = controller,
         onShowWindow = {
@@ -181,6 +175,11 @@ private fun setupApplication(
             }
         }
     )
+    updateManager.onBeforeExit = {
+        runCatching { controller.stopService() }
+        runCatching { systemTray.dispose() }
+        runCatching { singleInstanceManager.cleanup() }
+    }
     systemTray.show()
 
     // Background polling for new GitHub releases; notifies once per newly discovered release
@@ -206,6 +205,7 @@ private fun setupApplication(
                 updatePollingJob.cancel()
                 appBgScope.cancel()
                 controller.cleanup()
+                systemTray.dispose()
                 singleInstanceManager.cleanup()
                 logger.info("Application shutdown completed")
             } catch (e: Exception) {
@@ -214,11 +214,11 @@ private fun setupApplication(
         }
     })
 
-    // Configure auto-start if not already enabled and migrate legacy macOS LaunchAgent plists
+    // Configure auto-start if not already enabled and migrate legacy Windows/macOS startup entries
     if (!settings.hasEnabledAutoStart && !settings.isFirstRun) {
         WindowsAutoStart.enable()
         settings.copy(hasEnabledAutoStart = true).save()
-    } else if (MacPlatform.isMac) {
+    } else if (settings.startWithSystem) {
         WindowsAutoStart.refreshIfNeeded()
     }
 
@@ -250,13 +250,6 @@ private fun setupApplication(
             AppTheme.DARK   -> true
         }
 
-        // Start service if not already running
-        LaunchedEffect(Unit) {
-            if (!controller.isServiceRunning.value) {
-                controller.startService()
-            }
-        }
-
         Window(
             onCloseRequest = {
                 isWindowVisible = false
@@ -264,6 +257,9 @@ private fun setupApplication(
                     val updated = currentSettings.copy(isFirstRun = false)
                     Settings.updateCurrentSettings(updated)
                     wallpaperManager.updateSettings(updated)
+                    appBgScope.launch {
+                        controller.startService()
+                    }
                 }
             },
             title = "Art Wallpaper",

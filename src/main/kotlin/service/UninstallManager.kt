@@ -96,7 +96,11 @@ object UninstallManager {
     private fun launchMacUninstaller() {
         logger.info("Opening Applications folder on macOS")
         try {
-            ProcessBuilder("open", "-R", "/Applications/Art Wallpaper.app").start()
+            val bundlePath = UpdateManager.resolveMacAppBundle().toAbsolutePath().toString()
+            ProcessBuilder("open", "-R", bundlePath)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
         } catch (e: Exception) {
             logger.error("Could not open Applications folder on macOS", e)
         }

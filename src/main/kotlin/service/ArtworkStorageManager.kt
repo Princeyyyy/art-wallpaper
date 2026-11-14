@@ -24,7 +24,16 @@ class ArtworkStorageManager(
 
     fun saveArtwork(artwork: Path, metadata: ArtworkMetadata): Path {
         val targetPath = artworksDir.resolve("${metadata.id}.jpg")
-        artwork.copyTo(targetPath, overwrite = true)
+        if (artwork.toAbsolutePath().normalize() != targetPath.toAbsolutePath().normalize()) {
+            artwork.copyTo(targetPath, overwrite = true)
+        } else {
+            runCatching {
+                java.nio.file.Files.setLastModifiedTime(
+                    targetPath,
+                    java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis())
+                )
+            }
+        }
         
         // Save metadata
         metadataDir.resolve("${metadata.id}.json")

@@ -36,8 +36,14 @@ object SystemThemeDetector {
         val process = ProcessBuilder("defaults", "read", "-g", "AppleInterfaceStyle")
             .redirectErrorStream(true)
             .start()
-        process.waitFor()
-        process.inputStream.bufferedReader().readText().trim().lowercase() == "dark"
+        val output = process.inputStream.bufferedReader().readText().trim()
+        val finished = process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+        if (!finished) {
+            process.destroyForcibly()
+            true
+        } else {
+            output.lowercase() == "dark"
+        }
     } catch (_: Exception) {
         true  // Key absent = Light mode on macOS, but we default dark for art
     }

@@ -1,6 +1,7 @@
 import org.slf4j.LoggerFactory
 import java.awt.Desktop
 import java.awt.GraphicsEnvironment
+import java.util.concurrent.TimeUnit
 
 /**
  * macOS platform integration for ArtWallpaper.
@@ -16,6 +17,15 @@ object MacPlatform {
 
     private val logger = LoggerFactory.getLogger(MacPlatform::class.java)
     val isMac = System.getProperty("os.name", "").lowercase().contains("mac")
+
+    /**
+     * Sanitizes a string for safe interpolation inside an AppleScript double-quoted string literal.
+     */
+    internal fun sanitizeAppleScriptLiteral(text: String): String =
+        text.replace("\\", "")
+            .replace("\"", "'")
+            .replace(Regex("[\\r\\n]+"), " ")
+            .trim()
 
     /**
      * Configures macOS AWT properties before Swing/AWT initialization.
@@ -63,9 +73,13 @@ object MacPlatform {
                 end try
             """.trimIndent()
 
-            ProcessBuilder("osascript", "-e", script)
-                .redirectErrorStream(true)
+            val process = ProcessBuilder("osascript", "-e", script)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
                 .start()
+            if (!process.waitFor(3, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+            }
             logger.info("macOS: application activated frontmost via AppleScript")
         } catch (e: Exception) {
             logger.debug("macOS: could not activate app: ${e.message}")
@@ -79,8 +93,8 @@ object MacPlatform {
     fun showNotification(title: String, body: String) {
         if (!isMac) return
         try {
-            val safeTitle = title.replace("\"", "'").replace("\\", "")
-            val safeBody  = body.replace("\"", "'").replace("\\", "")
+            val safeTitle = sanitizeAppleScriptLiteral(title)
+            val safeBody  = sanitizeAppleScriptLiteral(body)
             val bundleId  = AppInfo.BUNDLE_ID
 
             val script = """
@@ -91,9 +105,13 @@ object MacPlatform {
                 end try
             """.trimIndent()
 
-            ProcessBuilder("osascript", "-e", script)
-                .redirectErrorStream(true)
+            val process = ProcessBuilder("osascript", "-e", script)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
                 .start()
+            if (!process.waitFor(4, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+            }
             logger.info("macOS: notification sent")
         } catch (e: Exception) {
             logger.warn("macOS notification failed: ${e.message}")

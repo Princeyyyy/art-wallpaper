@@ -17,7 +17,7 @@ class SingleInstanceManager(
     private val lockFile = baseDir.resolve("app.lock")
     private val portFile = baseDir.resolve("app.port")
     private var serverSocket: ServerSocket? = null
-    private var isRunning = true
+    @Volatile private var isRunning = true
 
     /**
      * Checks if another instance is already running.

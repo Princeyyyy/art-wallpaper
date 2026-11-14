@@ -205,26 +205,37 @@ class MacWallpaperService : WallpaperService {
 
     override fun setWallpaper(imagePath: Path): Result<Unit> = runCatching {
         val posixPath = imagePath.toAbsolutePath().toString()
+        require(imagePath.exists()) { "macOS wallpaper image file does not exist: $posixPath" }
+        val escapedPath = posixPath.replace("\\", "\\\\").replace("\"", "\\\"")
         logger.info("Setting macOS desktop wallpaper: $posixPath")
 
         // Sets the wallpaper across all active Spaces and connected displays
-        val script = "tell application \"System Events\" to tell every desktop to set picture to \"$posixPath\""
+        val script = "tell application \"System Events\" to tell every desktop to set picture to POSIX file \"$escapedPath\""
         val process = ProcessBuilder("osascript", "-e", script)
             .redirectErrorStream(true)
             .start()
 
         val output = process.inputStream.bufferedReader().readText()
-        val exitCode = process.waitFor()
+        val finished = process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)
+        if (!finished) {
+            process.destroyForcibly()
+        }
+        val exitCode = if (finished) process.exitValue() else -1
 
         if (exitCode != 0) {
             logger.warn("osascript System Events returned code $exitCode: $output. Attempting Finder fallback...")
             // Fallback for Finder / legacy spaces
-            val finderScript = "tell application \"Finder\" to set desktop picture to POSIX file \"$posixPath\""
+            val finderScript = "tell application \"Finder\" to set desktop picture to POSIX file \"$escapedPath\""
             val fallbackProcess = ProcessBuilder("osascript", "-e", finderScript)
                 .redirectErrorStream(true)
                 .start()
             val fallbackOutput = fallbackProcess.inputStream.bufferedReader().readText()
-            val fallbackExit = fallbackProcess.waitFor()
+            val fallbackFinished = fallbackProcess.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)
+            if (!fallbackFinished) {
+                fallbackProcess.destroyForcibly()
+                throw RuntimeException("macOS Finder wallpaper fallback timed out")
+            }
+            val fallbackExit = fallbackProcess.exitValue()
             if (fallbackExit != 0) {
                 throw RuntimeException("macOS wallpaper setting failed: $output | $fallbackOutput")
             }
@@ -240,7 +251,12 @@ class MacWallpaperService : WallpaperService {
                 .redirectErrorStream(true)
                 .start()
             val output = process.inputStream.bufferedReader().readText().trim()
-            if (process.waitFor() == 0 && output.isNotBlank()) {
+            val finished = process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+            if (!finished) {
+                process.destroyForcibly()
+                return null
+            }
+            if (process.exitValue() == 0 && output.isNotBlank()) {
                 val p = Path.of(output)
                 if (p.exists()) p else null
             } else null

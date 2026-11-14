@@ -213,6 +213,10 @@ class PlatformServicesTest {
         MacPlatform.hideFromDock()
         MacPlatform.activateApp()
         MacPlatform.showNotification("Test Title", "Test Message with \"quotes\"")
+        assertEquals(
+            "Starry Night '1889' by Van Gogh",
+            MacPlatform.sanitizeAppleScriptLiteral("Starry Night \"1889\"\r\nby \\Van Gogh")
+        )
     }
 
     @Test

@@ -104,6 +104,25 @@ class WindowsAutoStartService : AutoStartService {
             Settings.currentSettings.value.startWithSystem
         }
     }
+
+    override fun refreshIfNeeded() {
+        try {
+            if (!Advapi32Util.registryValueExists(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)) return
+            val existing = Advapi32Util.registryGetStringValue(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME)
+            val localAppData = System.getenv("LOCALAPPDATA") ?: System.getProperty("user.home")
+            val exePath = "$localAppData\\Art Wallpaper\\Art Wallpaper.exe"
+            val exeFile = File(exePath)
+            if (exeFile.exists()) {
+                val expected = "\"$exePath\" --minimized --autostart"
+                if (existing != expected) {
+                    Advapi32Util.registrySetStringValue(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY, APP_NAME, expected)
+                    logger.info("Refreshed Windows auto-start registry value: $expected")
+                }
+            }
+        } catch (e: Exception) {
+            logger.debug("Could not refresh Windows auto-start registry entry: ${e.message}")
+        }
+    }
 }
 
 // ── macOS Auto-Start (LaunchAgents plist) ─────────────────────────────────────

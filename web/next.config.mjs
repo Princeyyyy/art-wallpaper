@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Single source of truth: read appVersion dynamically from gradle.properties
-let appVersion = "4.2.3";
+let appVersion = "4.3.0";
 try {
   const gradlePropsPath = path.resolve(__dirname, "../gradle.properties");
   if (fs.existsSync(gradlePropsPath)) {

@@ -5,10 +5,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. 4.2.3) — must be valid 3-part semver'
+        description: 'Release version (e.g. 4.3.0) — must be valid 3-part semver'
         required: true
         type: string
-        default: '4.2.3'
+        default: '4.3.0'
       release_notes:
         description: 'Release notes (supports markdown)'
         required: false

@@ -131,7 +131,23 @@ data class Settings(
         try {
             backup()
             settingsPath.parent.createDirectories()
-            settingsPath.writeText(json.encodeToString(serializer(), this))
+            val encoded = json.encodeToString(serializer(), this)
+            val tempFile = settingsPath.resolveSibling("${settingsPath.fileName}.tmp")
+            tempFile.writeText(encoded)
+            try {
+                java.nio.file.Files.move(
+                    tempFile,
+                    settingsPath,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                )
+            } catch (_: Exception) {
+                java.nio.file.Files.move(
+                    tempFile,
+                    settingsPath,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            }
             _currentSettings.value = this
         } catch (e: Exception) {
             logger.error("Failed to save settings", e)
