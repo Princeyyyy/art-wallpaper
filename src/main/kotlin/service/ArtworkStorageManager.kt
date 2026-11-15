@@ -14,6 +14,7 @@ class ArtworkStorageManager(
     // locking serializes concurrent cache rebuilds without lock overhead on cache hits.
     @Volatile private var cachedArtworks: List<Pair<Path, ArtworkMetadata>>? = null
     private val logger = LoggerFactory.getLogger(ArtworkStorageManager::class.java)
+    private val json = Json { ignoreUnknownKeys = true }
 
     init {
         artworksDir.createDirectories()
@@ -37,7 +38,7 @@ class ArtworkStorageManager(
         
         // Save metadata
         metadataDir.resolve("${metadata.id}.json")
-            .writeText(Json.encodeToString(metadata))
+            .writeText(json.encodeToString(metadata))
         
         synchronized(this) {
             cachedArtworks = null
@@ -60,7 +61,7 @@ class ArtworkStorageManager(
         val metadataPath = metadataDir.resolve("$id.json")
         return if (metadataPath.exists()) {
             try {
-                Json.decodeFromString<ArtworkMetadata>(metadataPath.readText())
+                json.decodeFromString<ArtworkMetadata>(metadataPath.readText())
             } catch (e: Exception) {
                 logger.warn("Skipping corrupt metadata at $metadataPath: ${e.message}")
                 null
@@ -72,7 +73,7 @@ class ArtworkStorageManager(
         try {
             metadataDir.createDirectories()
             metadataDir.resolve("${metadata.id}.json")
-                .writeText(Json.encodeToString(metadata))
+                .writeText(json.encodeToString(metadata))
             synchronized(this) {
                 cachedArtworks = null
             }

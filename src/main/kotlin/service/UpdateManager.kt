@@ -434,14 +434,15 @@ open class UpdateManager(
         // Release single-instance lock before spawning updater so the relaunched app is never blocked
         runCatching { onBeforeExit?.invoke() }
 
-        // Pass paths via environment variables AND baked into script, avoiding cmd.exe /c nested quote bugs
-        val pb = ProcessBuilder(
-            "cmd.exe", "/c", "start", "ArtWallpaperUpdate", "/min", "cmd.exe", "/c",
-            scriptFile.toAbsolutePath().toString()
-        )
+        // Launch the batch script directly via cmd.exe /c with output redirected to a log file.
+        // Avoids "cmd.exe /c start <title>" where Java ProcessBuilder strips quotes around a
+        // single-word title and causes Windows to report "Windows cannot find 'ArtWallpaperUpdate'".
+        val pb = ProcessBuilder(buildWindowsLauncherCommand(scriptFile))
         pb.environment()["ART_UPDATE_MSI"] = installerPath.toAbsolutePath().toString()
         pb.environment()["ART_UPDATE_EXE"] = targetExe.toAbsolutePath().toString()
         pb.directory(updatesDir.toFile())
+        pb.redirectOutput(updatesDir.resolve("updater.log").toFile())
+        pb.redirectErrorStream(true)
         pb.start()
         logger.info("Launched silent Windows update script. Terminating application to apply update.")
         try {
@@ -470,13 +471,11 @@ open class UpdateManager(
         // Release single-instance lock before spawning updater
         runCatching { onBeforeExit?.invoke() }
 
-        val pb = ProcessBuilder(
-            "/bin/bash", scriptFile.toAbsolutePath().toString(),
-            installerPath.toAbsolutePath().toString(),
-            targetApp.toAbsolutePath().toString()
-        )
-        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD)
-        pb.redirectError(ProcessBuilder.Redirect.DISCARD)
+        val pb = ProcessBuilder(buildMacLauncherCommand(scriptFile))
+        pb.environment()["ART_UPDATE_DMG"] = installerPath.toAbsolutePath().toString()
+        pb.environment()["ART_UPDATE_APP"] = targetApp.toAbsolutePath().toString()
+        pb.redirectOutput(updatesDir.resolve("updater.log").toFile())
+        pb.redirectErrorStream(true)
         pb.directory(updatesDir.toFile())
         pb.start()
         logger.info("Launched silent macOS update script. Terminating application to apply update.")
@@ -487,6 +486,12 @@ open class UpdateManager(
     }
 
     companion object {
+        fun buildWindowsLauncherCommand(scriptFile: Path): List<String> =
+            listOf("cmd.exe", "/c", scriptFile.toAbsolutePath().toString())
+
+        fun buildMacLauncherCommand(scriptFile: Path): List<String> =
+            listOf("/usr/bin/nohup", "/bin/bash", scriptFile.toAbsolutePath().toString())
+
         fun resolveWindowsExecutable(command: String? = null, localAppData: String? = null): Path {
             val cmd = command ?: runCatching { ProcessHandle.current().info().command().orElse(null) }.getOrNull()
             if (!cmd.isNullOrBlank()) {
@@ -611,17 +616,30 @@ open class UpdateManager(
                 )
 
                 rem [4/4] Relaunch Art Wallpaper and verify process starts
+                if exist "%USERPROFILE%\.artwallpaper\app.lock" del /f /q "%USERPROFILE%\.artwallpaper\app.lock" >nul 2>&1
+                if exist "%USERPROFILE%\.artwallpaper\app.port" del /f /q "%USERPROFILE%\.artwallpaper\app.port" >nul 2>&1
+
                 if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
-                    start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
+                    explorer.exe "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
                 ) else if not "!LAUNCH_TARGET!"=="" (
-                    start "" "!LAUNCH_TARGET!"
+                    explorer.exe "!LAUNCH_TARGET!"
                 )
 
-                ping 127.0.0.1 -n 3 >nul
+                ping 127.0.0.1 -n 4 >nul
+                tasklist /FI "IMAGENAME eq Art Wallpaper.exe" 2>nul | find /i "Art Wallpaper.exe" >nul
+                if !ERRORLEVEL! NEQ 0 (
+                    if exist "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe" (
+                        start "" "%LOCALAPPDATA%\Art Wallpaper\Art Wallpaper.exe"
+                    ) else if not "!LAUNCH_TARGET!"=="" (
+                        start "" "!LAUNCH_TARGET!"
+                    )
+                    ping 127.0.0.1 -n 4 >nul
+                )
+
                 tasklist /FI "IMAGENAME eq Art Wallpaper.exe" 2>nul | find /i "Art Wallpaper.exe" >nul
                 if !ERRORLEVEL! NEQ 0 (
                     if not "!LAUNCH_TARGET!"=="" (
-                        start "" "!LAUNCH_TARGET!"
+                        powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -Command "Start-Process -FilePath '!LAUNCH_TARGET!'" >nul 2>&1
                     )
                 )
 
@@ -631,17 +649,19 @@ open class UpdateManager(
         }
 
         fun generateMacUpdateScript(installerPath: Path, targetApp: Path): String {
+            val safeDmgPath = installerPath.toAbsolutePath().toString()
+            val safeTargetApp = targetApp.toAbsolutePath().toString()
             return """
                 #!/bin/bash
-                set -e
 
-                DMG_PATH="${'$'}1"
-                TARGET_APP="${'$'}2"
+                DMG_PATH="${'$'}{1:-${'$'}{ART_UPDATE_DMG:-$safeDmgPath}}"
+                TARGET_APP="${'$'}{2:-${'$'}{ART_UPDATE_APP:-$safeTargetApp}}"
                 RESULT_FILE="${'$'}(dirname "${'$'}DMG_PATH")/update_result.txt"
 
-                # Wait up to 10 seconds for Art Wallpaper to exit cleanly
+                # Wait up to 10 seconds for Art Wallpaper to exit cleanly.
+                # Match Contents/MacOS/Art Wallpaper so this script never matches its own bash process.
                 for i in {1..10}; do
-                    if pgrep -f "Art Wallpaper" >/dev/null 2>&1; then
+                    if pgrep -f "Contents/MacOS/Art Wallpaper" >/dev/null 2>&1; then
                         sleep 1
                     else
                         break
@@ -649,7 +669,7 @@ open class UpdateManager(
                 done
 
                 # Force-kill any remaining instance so app bundle files are unlocked for replacement
-                pkill -f "Art Wallpaper" 2>/dev/null || true
+                pkill -f "Contents/MacOS/Art Wallpaper" 2>/dev/null || true
                 sleep 1
 
                 # Remove stale single-instance lock files
@@ -659,10 +679,11 @@ open class UpdateManager(
                 MOUNT_DIR=${'$'}(mktemp -d -t art_mount_XXXXXX)
 
                 # Attach DMG quietly with no Finder window
-                hdiutil attach "${'$'}DMG_PATH" -mountpoint "${'$'}MOUNT_DIR" -nobrowse -readonly -quiet
-
-                # Locate .app inside the mounted volume
-                SOURCE_APP=${'$'}(find "${'$'}MOUNT_DIR" -maxdepth 2 -name "*.app" -print -quit)
+                if hdiutil attach "${'$'}DMG_PATH" -mountpoint "${'$'}MOUNT_DIR" -nobrowse -readonly -quiet; then
+                    SOURCE_APP=${'$'}(find "${'$'}MOUNT_DIR" -maxdepth 2 -name "*.app" -print -quit)
+                else
+                    SOURCE_APP=""
+                fi
 
                 if [ -n "${'$'}SOURCE_APP" ] && [ -d "${'$'}SOURCE_APP" ]; then
                     TARGET_DIR="${'$'}(dirname "${'$'}TARGET_APP")"
@@ -670,47 +691,57 @@ open class UpdateManager(
                     DEST_APP="${'$'}TARGET_DIR/${'$'}APP_NAME"
 
                     # Copy bundle using ditto to preserve macOS code signatures and permissions
+                    COPY_OK=0
                     if [ -w "${'$'}DEST_APP" ] || [ -w "${'$'}TARGET_DIR" ]; then
-                        rm -rf "${'$'}DEST_APP"
-                        ditto "${'$'}SOURCE_APP" "${'$'}DEST_APP"
+                        rm -rf "${'$'}DEST_APP" && ditto "${'$'}SOURCE_APP" "${'$'}DEST_APP" && COPY_OK=1
                     else
-                        osascript -e "do shell script \"rm -rf \\\"${'$'}DEST_APP\\\" && ditto \\\"${'$'}SOURCE_APP\\\" \\\"${'$'}DEST_APP\\\"\" with administrator privileges"
+                        osascript -e "do shell script \"rm -rf \\\"${'$'}DEST_APP\\\" && ditto \\\"${'$'}SOURCE_APP\\\" \\\"${'$'}DEST_APP\\\"\" with administrator privileges" && COPY_OK=1
                     fi
 
                     # Clear quarantine attributes so Gatekeeper never blocks relaunch
                     xattr -cr "${'$'}DEST_APP" 2>/dev/null || true
 
                     # Detach DMG
-                    hdiutil detach "${'$'}MOUNT_DIR" -quiet || hdiutil detach "${'$'}MOUNT_DIR" -force -quiet
+                    hdiutil detach "${'$'}MOUNT_DIR" -quiet || hdiutil detach "${'$'}MOUNT_DIR" -force -quiet || true
                     rmdir "${'$'}MOUNT_DIR" 2>/dev/null || true
 
-                    echo "SUCCESS" > "${'$'}RESULT_FILE"
+                    if [ "${'$'}COPY_OK" -eq 1 ]; then
+                        echo "SUCCESS" > "${'$'}RESULT_FILE"
+                        rm -f "${'$'}DMG_PATH" 2>/dev/null || true
+                    else
+                        echo "ERROR:COPY_FAILED" > "${'$'}RESULT_FILE"
+                    fi
 
                     # Relaunch the newly updated app — prefer canonical /Applications path, fall back to DEST_APP
                     if [ -d "/Applications/Art Wallpaper.app" ]; then
-                        open "/Applications/Art Wallpaper.app"
+                        /usr/bin/open -n "/Applications/Art Wallpaper.app" 2>/dev/null || /usr/bin/open "/Applications/Art Wallpaper.app" 2>/dev/null || true
                     else
-                        open "${'$'}DEST_APP"
+                        /usr/bin/open -n "${'$'}DEST_APP" 2>/dev/null || /usr/bin/open "${'$'}DEST_APP" 2>/dev/null || true
                     fi
 
                     sleep 2
-                    if ! pgrep -f "Art Wallpaper" >/dev/null 2>&1; then
-                        open -a "${'$'}DEST_APP" 2>/dev/null || true
+                    if ! pgrep -f "Contents/MacOS/Art Wallpaper" >/dev/null 2>&1; then
+                        /usr/bin/open -a "${'$'}DEST_APP" 2>/dev/null || true
+                        sleep 1
+                    fi
+                    if ! pgrep -f "Contents/MacOS/Art Wallpaper" >/dev/null 2>&1; then
+                        if [ -x "${'$'}DEST_APP/Contents/MacOS/Art Wallpaper" ]; then
+                            /usr/bin/nohup "${'$'}DEST_APP/Contents/MacOS/Art Wallpaper" >/dev/null 2>&1 &
+                        fi
                     fi
                 else
                     echo "ERROR:NO_APP_IN_DMG" > "${'$'}RESULT_FILE"
-                    hdiutil detach "${'$'}MOUNT_DIR" -quiet || hdiutil detach "${'$'}MOUNT_DIR" -force -quiet
+                    hdiutil detach "${'$'}MOUNT_DIR" -quiet 2>/dev/null || hdiutil detach "${'$'}MOUNT_DIR" -force -quiet 2>/dev/null || true
                     rmdir "${'$'}MOUNT_DIR" 2>/dev/null || true
                     if [ -d "/Applications/Art Wallpaper.app" ]; then
-                        open "/Applications/Art Wallpaper.app"
+                        /usr/bin/open "/Applications/Art Wallpaper.app" 2>/dev/null || true
                     elif [ -d "${'$'}TARGET_APP" ]; then
-                        open "${'$'}TARGET_APP"
+                        /usr/bin/open "${'$'}TARGET_APP" 2>/dev/null || true
                     fi
                 fi
 
-                # Clean up DMG and script
-                rm -f "${'$'}DMG_PATH"
-                rm -f "${'$'}0"
+                # Clean up helper script
+                rm -f "${'$'}0" 2>/dev/null || true
             """.trimIndent()
         }
 

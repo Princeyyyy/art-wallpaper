@@ -63,6 +63,8 @@ class UpdateManagerTest {
         assertTrue(UpdateManager.isNewerVersion("4.1.6", "4.1.5"))
         assertTrue(UpdateManager.isNewerVersion("4.1.6", "4.1.0"))
         assertTrue(UpdateManager.isNewerVersion("v4.1.6", "4.0.3"))
+        assertTrue(UpdateManager.isNewerVersion("4.3.2", "4.3.1"))
+        assertTrue(UpdateManager.isNewerVersion("v4.3.2", "4.3.1"))
         assertTrue(UpdateManager.isNewerVersion("4.3.1", "4.3.0"))
         assertTrue(UpdateManager.isNewerVersion("v4.3.1", "4.3.0"))
         assertTrue(UpdateManager.isNewerVersion("4.3.0", "4.2.3"))
@@ -259,9 +261,10 @@ class UpdateManagerTest {
         assertTrue(script.contains("ditto \"${'$'}SOURCE_APP\" \"${'$'}DEST_APP\""))
         assertTrue(script.contains("hdiutil detach"))
         assertTrue(script.contains("open "))
-        // Extended 10-second wait and force-kill before replacing bundle
+        // Extended 10-second wait and force-kill targeting Contents/MacOS/Art Wallpaper (not self bash script)
         assertTrue(script.contains("{1..10}"))
-        assertTrue(script.contains("pkill -f \"Art Wallpaper\""))
+        assertTrue(script.contains("pkill -f \"Contents/MacOS/Art Wallpaper\""))
+        assertFalse(script.contains("set -e"))
         // Canonical /Applications path preferred for relaunch
         assertTrue(script.contains("/Applications/Art Wallpaper.app"))
     }
@@ -282,5 +285,22 @@ class UpdateManagerTest {
             homeDir = "/Users/testuser"
         )
         assertEquals("/Applications/Art Wallpaper.app", resolved.toString().replace('\\', '/'))
+    }
+
+    @Test
+    fun `buildWindowsLauncherCommand invokes cmd directly without unquoted start window title`() {
+        val scriptFile = tempDir.resolve("apply_update.bat")
+        val cmd = UpdateManager.buildWindowsLauncherCommand(scriptFile)
+        assertEquals(listOf("cmd.exe", "/c", scriptFile.toAbsolutePath().toString()), cmd)
+        assertFalse(cmd.contains("start"))
+        assertFalse(cmd.contains("ArtWallpaperUpdate"))
+    }
+
+    @Test
+    fun `buildMacLauncherCommand uses nohup and does not leak app name into bash CLI args`() {
+        val scriptFile = tempDir.resolve("apply_update.sh")
+        val cmd = UpdateManager.buildMacLauncherCommand(scriptFile)
+        assertEquals(listOf("/usr/bin/nohup", "/bin/bash", scriptFile.toAbsolutePath().toString()), cmd)
+        assertFalse(cmd.any { it.contains("Art Wallpaper") })
     }
 }
