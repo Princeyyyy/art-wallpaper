@@ -38,10 +38,14 @@ class MetMuseumSource(
     ),
     private val parallelBatchSize: Int = 4,
     private val departments: List<Int> = listOf(
-        11, // European Paintings (Rembrandt, Monet, Van Gogh, Vermeer, Cezanne)
-        6,  // Asian Art (Hokusai, Hiroshige woodblocks, landscape screens)
-        1,  // American Paintings & Decorative Arts (Bierstadt, Sargent, Homer)
-        21  // Modern Art (when public domain / has image)
+        11, // European Paintings (Rembrandt, Monet, Van Gogh, Vermeer, Cezanne, Degas, Seurat)
+        15, // The Robert Lehman Collection (Renaissance, Impressionist & Post-Impressionist Masterpieces)
+        6,  // Asian Art (Hokusai, Hiroshige woodblock prints, Chinese & Japanese landscape scrolls & screens)
+        1,  // The American Wing (Hudson River School, Bierstadt, Sargent, Homer, Hopper)
+        21, // Modern and Contemporary Art (Modernist paintings & works on canvas)
+        9,  // Drawings and Prints (Master watercolors, pastels, etchings, lithographs & drawings)
+        19, // Photographs (Fine-art photography highlights)
+        14  // Islamic Art (Persian, Mughal & Ottoman miniature paintings & illuminated folios)
     )
 ) : ArtworkSource {
     private val logger = LoggerFactory.getLogger(MetMuseumSource::class.java)
@@ -68,9 +72,17 @@ class MetMuseumSource(
     )
 
     @Serializable
-    private data class ArtworkResponse(
+    internal data class TagItem(
+        val term: String = ""
+    )
+
+    @Serializable
+    internal data class ArtworkResponse(
         val objectID: Int,
-        val title: String,
+        val title: String = "",
+        val objectName: String = "",
+        val isHighlight: Boolean = false,
+        val accessionNumber: String = "",
         val artistDisplayName: String = "",
         val artistDisplayBio: String = "",
         val artistNationality: String = "",
@@ -86,8 +98,11 @@ class MetMuseumSource(
         val dynasty: String = "",
         val reign: String = "",
         val classification: String = "",
+        val creditLine: String = "",
         val repository: String = "",
-        val GalleryNumber: String = ""
+        val objectURL: String = "",
+        val GalleryNumber: String = "",
+        val tags: List<TagItem>? = null
     )
 
     private sealed class CandidateOutcome {
@@ -237,6 +252,14 @@ class MetMuseumSource(
             }
         } finally {
             jobs.forEach { it.cancel() }
+            while (true) {
+                val leftover = channel.tryReceive().getOrNull() ?: break
+                when (leftover) {
+                    is CandidateOutcome.Success -> downloadedFiles.add(leftover.imageFile)
+                    is CandidateOutcome.PermanentFailure -> permanentFailures.add(leftover.candidateId.toString())
+                    else -> Unit
+                }
+            }
             channel.close()
             for (file in downloadedFiles) {
                 try { file.deleteIfExists() } catch (_: Exception) {}
@@ -326,6 +349,23 @@ class MetMuseumSource(
         return selected
     }
 
+    /**
+     * Builds a department-tailored search URL that targets 2D visual fine art (paintings,
+     * woodblock prints, scrolls, watercolors, and highlight photography) while avoiding
+     * 3D decorative arts, furniture, coins, and textile swatches.
+     */
+    internal fun buildDepartmentSearchUrl(departmentId: Int): String = when (departmentId) {
+        11 -> "$baseUrl/search?departmentId=11&hasImages=true&q=painting"
+        15 -> "$baseUrl/search?departmentId=15&hasImages=true&medium=Paintings&q=painting"
+        1  -> "$baseUrl/search?departmentId=1&hasImages=true&medium=Paintings&q=painting"
+        21 -> "$baseUrl/search?departmentId=21&hasImages=true&medium=Paintings&q=painting"
+        6  -> "$baseUrl/search?departmentId=6&hasImages=true&q=painting"
+        9  -> "$baseUrl/search?departmentId=9&hasImages=true&isHighlight=true&q=painting"
+        19 -> "$baseUrl/search?departmentId=19&hasImages=true&isHighlight=true&q=photograph"
+        14 -> "$baseUrl/search?departmentId=14&hasImages=true&q=painting"
+        else -> "$baseUrl/search?departmentId=$departmentId&hasImages=true&q=painting"
+    }
+
     private suspend fun getDepartmentObjectIds(departmentId: Int): List<Int> = withContext(Dispatchers.IO) {
         val cached = departmentCache[departmentId]
         if (cached != null && cached.isNotEmpty()) {
@@ -346,8 +386,7 @@ class MetMuseumSource(
             }
         }
 
-        // Prefer /search?departmentId=X&hasImages=true&q=* so 100% of candidate IDs have images
-        val searchUrl = "$baseUrl/search?departmentId=$departmentId&hasImages=true&q=*"
+        val searchUrl = buildDepartmentSearchUrl(departmentId)
         val decoded = try {
             val searchRequest = HttpRequest.newBuilder()
                 .uri(URI.create(searchUrl))
@@ -419,6 +458,12 @@ class MetMuseumSource(
         if (artwork.primaryImage.isBlank()) {
             return CandidateOutcome.PermanentFailure(objectId, "blank primaryImage")
         }
+        if (!isFineArtWallpaperCandidate(artwork)) {
+            return CandidateOutcome.PermanentFailure(
+                objectId,
+                "non-pictorial object (${artwork.title} / ${artwork.classification} / ${artwork.medium})"
+            )
+        }
 
         val imageRequest = HttpRequest.newBuilder()
             .uri(URI.create(artwork.primaryImage))
@@ -454,28 +499,198 @@ class MetMuseumSource(
             val fitMode = Settings.currentSettings.value.wallpaperFitMode
             val processedFile = imageProcessor.processImage(tempFile, fitMode)
             tempFile.deleteIfExists()
-            val metadata = ArtworkMetadata(
-                id = artwork.objectID.toString(),
-                title = artwork.title.ifBlank { "Untitled" },
-                artist = artwork.artistDisplayName.ifBlank { "Unknown Artist" },
-                year = if (artwork.objectBeginDate > 0) artwork.objectBeginDate else parseYear(artwork.objectDate),
-                description = buildString {
-                    if (artwork.medium.isNotBlank()) append(artwork.medium)
-                    if (artwork.dimensions.isNotBlank()) append("\nDimensions: ${artwork.dimensions}")
-                    if (artwork.culture.isNotBlank()) append("\nCulture: ${artwork.culture}")
-                    if (artwork.period.isNotBlank()) append("\nPeriod: ${artwork.period}")
-                    if (artwork.artistDisplayBio.isNotBlank()) append("\nArtist Bio: ${artwork.artistDisplayBio}")
-                    if (artwork.repository.isNotBlank()) append("\nCollection: ${artwork.repository}")
-                },
-                source = "The Metropolitan Museum of Art",
-                imageUrl = artwork.primaryImage,
-                fetchedAt = System.currentTimeMillis()
-            )
+            val metadata = buildArtworkMetadata(artwork)
 
             return processedFile to metadata
         } catch (e: Exception) {
             tempFile.deleteIfExists()
             throw e
+        }
+    }
+
+    companion object {
+        private val EXCLUDED_OBJECT_TERMS = listOf(
+            "textile sample", "swatch", "snuff bottle", "pier table", "escutcheon",
+            "figurine", "statuette", "chair", "armchair", "side chair", "cabinet",
+            "chest", "dresser", "commode", "settee", "sofa", "stool", "spoon", "fork",
+            "knife", "teapot", "teacup", "saucer", "tureen", "pitcher", "ewer", "vase",
+            "goblet", "beaker", "tankard", "saltcellar", "candlestick", "chandelier",
+            "sconce", "andiron", "fender", "clock", "watch", "sundial", "coin", "medal",
+            "token", "seal", "amulet", "scarab", "sword", "dagger", "saber", "rapier",
+            "halberd", "lance", "crossbow", "pistol", "rifle", "musket", "helmet",
+            "cuirass", "gauntlet", "armor", "shield", "scabbard", "hilts", "buckle",
+            "brooch", "earring", "necklace", "bracelet", "pendant", "ring", "fibula",
+            "hairpin", "snuffbox", "flask", "jar", "jug", "bottle", "bowl", "dish",
+            "platter", "plate", "fragment", "sherd", "tile", "brick", "capital",
+            "column", "molding", "doorway", "window", "balustrade", "epitaph",
+            "sarcophagus", "coffin", "urn", "casket", "reliquary", "censer", "incense",
+            "tapestries", "carpet", "rug", "embroidery", "lace", "ribbon", "velvet",
+            "brocade", "damask", "sampler", "quilt", "coverlet", "dress", "gown",
+            "coat", "waistcoat", "jacket", "trousers", "breeches", "stockings",
+            "shoes", "slippers", "boots", "gloves", "hat", "bonnet", "cap", "fan",
+            "parasol", "umbrella", "walking stick", "cane", "violin", "lute", "guitar",
+            "harp", "flute", "horn", "trumpet", "drum", "bell", "scribble"
+        )
+
+        private val PICTORIAL_TERMS = listOf(
+            "painting", "paintings", "oil", "tempera", "watercolor", "gouache",
+            "pastel", "fresco", "acrylic", "canvas", "panel", "copper", "board",
+            "scroll", "hanging scroll", "handscroll", "screen", "folding screen",
+            "album", "leaf", "folio", "miniature", "illuminated", "manuscript",
+            "drawing", "drawings", "print", "prints", "woodblock", "woodcut",
+            "etching", "engraving", "lithograph", "aquatint", "mezzotint",
+            "drypoint", "monotype", "linocut", "screenprint", "ink", "chalk",
+            "charcoal", "graphite", "pen", "wash", "crayon", "paper", "vellum",
+            "parchment", "photograph", "photographs", "gelatin silver",
+            "albumen", "platinum", "cyanotype", "daguerreotype", "photogravure",
+            "chromogenic", "picture", "landscape", "portrait", "seascape"
+        )
+
+        private val NON_PICTORIAL_MATERIALS = listOf(
+            "bronze", "brass", "iron", "wrought iron", "steel", "pewter", "lead",
+            "tin", "porcelain", "stoneware", "earthenware", "terracotta", "faience",
+            "majolica", "glass", "enamel", "jade", "nephrite", "jadeite", "agate",
+            "quartz", "carnelian", "lapis", "turquoise", "coral", "amber", "jet",
+            "marble", "limestone", "sandstone", "granite", "alabaster", "basalt",
+            "diorite", "schist", "steatite", "gypsum", "stucco", "plaster",
+            "mahogany", "walnut", "oak", "pine", "maple", "rosewood", "ebony",
+            "teak", "bamboo", "lacquer", "rattan", "wicker", "horn", "antler",
+            "tortoiseshell", "mother-of-pearl", "shell", "bone", "wool", "cotton",
+            "linen", "felt", "leather"
+        )
+
+        /**
+         * Curatorial filter verifying that [artwork] is a 2D pictorial fine-art work suitable
+         * for desktop framing rather than a 3D utility object, furniture piece, or textile swatch.
+         */
+        internal fun isFineArtWallpaperCandidate(artwork: ArtworkResponse): Boolean {
+            val titleLower = artwork.title.lowercase()
+            val objNameLower = artwork.objectName.lowercase()
+            val classLower = artwork.classification.lowercase()
+            val mediumLower = artwork.medium.lowercase()
+            val combinedMeta = "$titleLower | $objNameLower | $classLower"
+
+            for (excluded in EXCLUDED_OBJECT_TERMS) {
+                if (combinedMeta.contains(excluded)) return false
+            }
+
+            // If classification and medium are both blank (e.g. minimal unit test fixtures), allow
+            if (classLower.isBlank() && mediumLower.isBlank() && objNameLower.isBlank()) {
+                return true
+            }
+
+            val combinedAll = "$combinedMeta | $mediumLower"
+            val hasPictorialSignal = PICTORIAL_TERMS.any { combinedAll.contains(it) }
+            if (hasPictorialSignal) {
+                // Reject miniature lockets on ivory ("ivory" without canvas/paper/scroll)
+                if (mediumLower.trim() == "ivory" || mediumLower.startsWith("ivory")) {
+                    return false
+                }
+                return true
+            }
+
+            val hasNonPictorialMaterial = NON_PICTORIAL_MATERIALS.any { combinedAll.contains(it) }
+            if (hasNonPictorialMaterial) {
+                return false
+            }
+
+            return true
+        }
+
+        internal fun cleanMultilineField(raw: String): String =
+            raw.replace("\r\n", "\n")
+                .lines()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .joinToString(" · ")
+
+        internal fun buildArtworkMetadata(artwork: ArtworkResponse): ArtworkMetadata {
+            val parsedYear = if (artwork.objectBeginDate > 0) {
+                artwork.objectBeginDate
+            } else {
+                "\\d{4}".toRegex().find(artwork.objectDate)?.value?.toIntOrNull()
+            }
+            val cleanDimensions = cleanMultilineField(artwork.dimensions)
+            val tagList = artwork.tags
+                ?.mapNotNull { it.term.trim().takeIf { term -> term.isNotBlank() } }
+                ?.distinct()
+                ?: emptyList()
+            val canonicalUrl = artwork.objectURL.ifBlank {
+                "https://www.metmuseum.org/art/collection/search/${artwork.objectID}"
+            }
+
+            return ArtworkMetadata(
+                id = artwork.objectID.toString(),
+                title = artwork.title.ifBlank { "Untitled" },
+                artist = artwork.artistDisplayName.ifBlank { "Unknown Artist" },
+                year = parsedYear,
+                description = buildString {
+                    if (artwork.medium.isNotBlank()) append(artwork.medium.trim())
+                    if (cleanDimensions.isNotBlank()) append("\nDimensions: $cleanDimensions")
+                    if (artwork.culture.isNotBlank()) append("\nCulture: ${artwork.culture.trim()}")
+                    if (artwork.period.isNotBlank()) append("\nPeriod: ${artwork.period.trim()}")
+                    if (artwork.artistDisplayBio.isNotBlank()) append("\nArtist Bio: ${artwork.artistDisplayBio.trim()}")
+                    if (artwork.repository.isNotBlank()) append("\nCollection: ${artwork.repository.trim()}")
+                },
+                source = "The Metropolitan Museum of Art",
+                imageUrl = artwork.primaryImage,
+                fetchedAt = System.currentTimeMillis(),
+                artistBio = artwork.artistDisplayBio.trim().ifBlank { null },
+                objectDate = artwork.objectDate.trim().ifBlank { null },
+                medium = artwork.medium.trim().ifBlank { null },
+                dimensions = cleanDimensions.ifBlank { null },
+                department = artwork.department.trim().ifBlank { null },
+                classification = artwork.classification.trim().ifBlank { null },
+                culture = artwork.culture.trim().ifBlank { null },
+                period = artwork.period.trim().ifBlank { null },
+                dynasty = artwork.dynasty.trim().ifBlank { null },
+                creditLine = artwork.creditLine.trim().ifBlank { null },
+                galleryNumber = artwork.GalleryNumber.trim().ifBlank { null },
+                accessionNumber = artwork.accessionNumber.trim().ifBlank { null },
+                objectUrl = canonicalUrl,
+                tags = tagList,
+                isHighlight = artwork.isHighlight
+            )
+        }
+
+        /**
+         * Lazily enriches legacy stored [ArtworkMetadata] with full curatorial fields from
+         * The Met Collection API when the user opens the Full Info dossier.
+         */
+        suspend fun enrichMetadataIfNeeded(
+            metadata: ArtworkMetadata,
+            client: HttpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build()
+        ): ArtworkMetadata = withContext(Dispatchers.IO) {
+            if (!metadata.department.isNullOrBlank() && !metadata.creditLine.isNullOrBlank()) {
+                return@withContext metadata
+            }
+            val cleanId = metadata.id.trim()
+            if (cleanId.isEmpty() || !cleanId.all { it.isDigit() }) {
+                return@withContext metadata
+            }
+
+            try {
+                val req = HttpRequest.newBuilder()
+                    .uri(URI.create("https://collectionapi.metmuseum.org/public/collection/v1/objects/$cleanId"))
+                    .header("User-Agent", "ArtWallpaper-DesktopApp")
+                    .timeout(Duration.ofSeconds(10))
+                    .build()
+                val resp = client.send(req, BodyHandlers.ofString())
+                if (resp.statusCode() != 200) return@withContext metadata
+
+                val jsonParser = Json { ignoreUnknownKeys = true }
+                val decoded = jsonParser.decodeFromString<ArtworkResponse>(resp.body())
+                val fresh = buildArtworkMetadata(decoded)
+                fresh.copy(
+                    fetchedAt = metadata.fetchedAt,
+                    imageUrl = metadata.imageUrl.ifBlank { fresh.imageUrl }
+                )
+            } catch (_: Exception) {
+                metadata
+            }
         }
     }
 }

@@ -232,6 +232,10 @@ class ServiceController(
         }
     }
 
+    fun updateStoredMetadata(metadata: ArtworkMetadata) {
+        artworkStorage.updateArtworkMetadata(metadata)
+    }
+
     private fun startCleanupJob() {
         cleanupJob?.cancel()
         cleanupJob = serviceScope.launch {

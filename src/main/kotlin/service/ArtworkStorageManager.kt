@@ -68,6 +68,19 @@ class ArtworkStorageManager(
         } else null
     }
 
+    fun updateArtworkMetadata(metadata: ArtworkMetadata) {
+        try {
+            metadataDir.createDirectories()
+            metadataDir.resolve("${metadata.id}.json")
+                .writeText(Json.encodeToString(metadata))
+            synchronized(this) {
+                cachedArtworks = null
+            }
+        } catch (e: Exception) {
+            logger.warn("Could not update metadata for ${metadata.id}: ${e.message}")
+        }
+    }
+
     private fun loadStoredArtworks(): List<Pair<Path, ArtworkMetadata>> {
         return artworksDir.listDirectoryEntries("*.jpg")
             .sortedByDescending {

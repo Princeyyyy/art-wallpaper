@@ -705,14 +705,16 @@ fun MainScreen(
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    CuratorialChip("The Met Archive")
-                                                    val desc = metadata.description
-                                                    if (!desc.isNullOrBlank()) {
-                                                        val firstLine = desc.lines().firstOrNull()?.trim()
-                                                        if (!firstLine.isNullOrBlank()) {
-                                                            val shortMedium = if (firstLine.length > 32) firstLine.take(30) + "..." else firstLine
-                                                            CuratorialChip(shortMedium)
-                                                        }
+                                                    val deptLabel = metadata.department?.takeIf { it.isNotBlank() }?.let {
+                                                        if (it.length > 26) it.take(24) + "..." else it
+                                                    } ?: "The Met Archive"
+                                                    CuratorialChip(deptLabel)
+
+                                                    val rawMedium = metadata.medium?.takeIf { it.isNotBlank() }
+                                                        ?: metadata.description?.lines()?.firstOrNull()?.trim()
+                                                    if (!rawMedium.isNullOrBlank()) {
+                                                        val shortMedium = if (rawMedium.length > 32) rawMedium.take(30) + "..." else rawMedium
+                                                        CuratorialChip(shortMedium)
                                                     }
                                                 }
 
@@ -1057,6 +1059,9 @@ fun MainScreen(
                         } catch (e: Exception) {
                             logger.warn("Could not open Met page", e)
                         }
+                    },
+                    onMetadataEnriched = { enriched ->
+                        serviceController.updateStoredMetadata(enriched)
                     },
                     onDismiss = { showArtworkDetails = false }
                 )

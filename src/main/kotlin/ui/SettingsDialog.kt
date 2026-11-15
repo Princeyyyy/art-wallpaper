@@ -58,57 +58,66 @@ fun SettingsDialog(
             animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
         )
 
-        Surface(
+        BoxWithConstraints(
             modifier = Modifier
-                .width(460.dp)
-                .heightIn(max = 620.dp)
-                .scale(scale),
-            shape = RoundedCornerShape(12.dp),
-            color = ArtColors.Surface,
-            contentColor = ArtColors.PaperWhite,
-            border = BorderStroke(1.dp, ArtColors.CardBorder),
-            elevation = 16.dp
+                .fillMaxSize()
+                .padding(horizontal = 28.dp, vertical = 28.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Column(
+            val dialogWidth = maxWidth.coerceAtMost(480.dp)
+            val dialogMaxHeight = (maxHeight * 0.88f).coerceIn(300.dp, 580.dp)
+
+            Surface(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp)
+                    .width(dialogWidth)
+                    .heightIn(max = dialogMaxHeight)
+                    .scale(scale),
+                shape = RoundedCornerShape(12.dp),
+                color = ArtColors.Surface,
+                contentColor = ArtColors.PaperWhite,
+                border = BorderStroke(1.dp, ArtColors.CardBorder),
+                elevation = 16.dp
             ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Preferences",
-                        style = MaterialTheme.typography.h6,
-                        color = ArtColors.PaperWhite
-                    )
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(28.dp).pointerHoverIcon(PointerIcon.Hand)
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = ArtColors.PaperMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(14.dp))
-                Divider(color = ArtColors.DividerLine)
-                Spacer(Modifier.height(14.dp))
-
-                // Scrollable Body
                 Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 22.dp, vertical = 18.dp)
                 ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Preferences",
+                            style = MaterialTheme.typography.h6,
+                            color = ArtColors.PaperWhite
+                        )
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(28.dp).pointerHoverIcon(PointerIcon.Hand)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = ArtColors.PaperMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    Divider(color = ArtColors.DividerLine)
+                    Spacer(Modifier.height(12.dp))
+
+                    // Scrollable Body
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
                     // ── Section 1: Appearance & Theme ────────────────────────────
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SettingsSectionLabel("APPEARANCE")
@@ -562,19 +571,20 @@ fun SettingsDialog(
                             )
                         }
                     }
-                }
+                    }
 
-                Spacer(Modifier.height(14.dp))
-                Divider(color = ArtColors.DividerLine)
-                Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(10.dp))
+                    Divider(color = ArtColors.DividerLine)
+                    Spacer(Modifier.height(10.dp))
 
-                // Footer Actions
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    PulsingButton(onClick = onDismiss) {
-                        Text("DONE", style = MaterialTheme.typography.button)
+                    // Footer Actions
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        PulsingButton(onClick = onDismiss) {
+                            Text("DONE", style = MaterialTheme.typography.button)
+                        }
                     }
                 }
             }

@@ -107,6 +107,14 @@ class ArtworkProvider(
                 try {
                     if (file.name.startsWith("dept_")) return@forEach
                     val artworkId = when {
+                        file.name.startsWith("processed_cand-raw-") -> {
+                            file.name.substringAfter("processed_cand-raw-")
+                                .substringBefore("-")
+                        }
+                        file.name.startsWith("cand-raw-") -> {
+                            file.name.substringAfter("cand-raw-")
+                                .substringBefore("-")
+                        }
                         file.name.startsWith("processed_artwork-") -> {
                             file.name.substringAfter("processed_artwork-")
                                 .substringBefore("-")
@@ -114,18 +122,16 @@ class ArtworkProvider(
                         else -> file.nameWithoutExtension.substringBefore('.')
                     }
 
-                    if (exceptId != null && artworkId == exceptId) {
-                        logger.debug("Skipping cleanup of current artwork: ${file.name}")
+                    val isStoredInArtworks = artworksDir.resolve("$artworkId.jpg").exists()
+
+                    if (exceptId != null && artworkId == exceptId && !isStoredInArtworks) {
+                        logger.debug("Skipping cleanup of unstored active artwork: ${file.name}")
                         return@forEach
                     }
 
-                    val isStoredInArtworks = artworksDir.resolve("$artworkId.jpg").exists()
-
-                    if (isStoredInArtworks || exceptId == null) {
-                        file.deleteIfExists()
-                        cacheDir.resolve("processed_artwork-$artworkId.json").deleteIfExists()
-                        logger.info("Cleaned up cache file: ${file.name}")
-                    }
+                    file.deleteIfExists()
+                    cacheDir.resolve("processed_artwork-$artworkId.json").deleteIfExists()
+                    logger.info("Cleaned up cache file: ${file.name}")
                 } catch (e: Exception) {
                     logger.error("Failed to delete cache file: ${file.name}", e)
                 }

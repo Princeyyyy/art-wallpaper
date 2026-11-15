@@ -497,7 +497,11 @@ class WallpaperManager(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                logger.error("Error during wallpaper update check", e)
+                if (NetworkErrors.isNetworkFailure(e)) {
+                    logger.warn("Startup wallpaper update deferred - network unreachable (${NetworkErrors.describe(e)})")
+                } else {
+                    logger.error("Error during wallpaper update check", e)
+                }
             }
         }
     }

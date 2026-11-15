@@ -63,6 +63,8 @@ class UpdateManagerTest {
         assertTrue(UpdateManager.isNewerVersion("4.1.6", "4.1.5"))
         assertTrue(UpdateManager.isNewerVersion("4.1.6", "4.1.0"))
         assertTrue(UpdateManager.isNewerVersion("v4.1.6", "4.0.3"))
+        assertTrue(UpdateManager.isNewerVersion("4.3.1", "4.3.0"))
+        assertTrue(UpdateManager.isNewerVersion("v4.3.1", "4.3.0"))
         assertTrue(UpdateManager.isNewerVersion("4.3.0", "4.2.3"))
         assertTrue(UpdateManager.isNewerVersion("v4.3.0", "4.2.3"))
         assertTrue(UpdateManager.isNewerVersion("4.2.3", "4.2.2"))
